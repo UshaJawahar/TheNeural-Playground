@@ -16,7 +16,7 @@ service-account-keys/
 *.json
 !package.json
 !package-lock.json
-
+venv
 # Logs
 logs
 *.log
