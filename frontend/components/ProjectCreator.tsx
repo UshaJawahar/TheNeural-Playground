@@ -13,6 +13,7 @@ export interface Project {
   updatedAt: string;
   status: 'draft' | 'training' | 'trained' | 'testing';
   hasBeenTested: boolean;
+  hasOpenedScratch: boolean;
 }
 
 export interface Dataset {
@@ -33,7 +34,7 @@ export interface TrainedModel {
 }
 
 interface ProjectCreatorProps {
-  onCreateProject: (project: Omit<Project, 'id' | 'createdAt' | 'updatedAt' | 'status' | 'hasBeenTested'>) => void;
+  onCreateProject: (project: Omit<Project, 'id' | 'createdAt' | 'updatedAt' | 'status' | 'hasBeenTested' | 'hasOpenedScratch'>) => void;
 }
 
 export default function ProjectCreator({ onCreateProject }: ProjectCreatorProps) {
@@ -50,7 +51,7 @@ export default function ProjectCreator({ onCreateProject }: ProjectCreatorProps)
     // Simulate API call delay
     await new Promise(resolve => setTimeout(resolve, 800));
 
-    const newProject: Omit<Project, 'id' | 'createdAt' | 'updatedAt' | 'status' | 'hasBeenTested'> = {
+    const newProject: Omit<Project, 'id' | 'createdAt' | 'updatedAt' | 'status' | 'hasBeenTested' | 'hasOpenedScratch'> = {
       name: projectName.trim(),
       type: selectedType as 'text-recognition',
       datasets: [],

@@ -53,7 +53,7 @@ function ProjectsPageContent() {
     }
   }, [searchParams, projects]);
 
-  const createProject = (projectData: Omit<Project, 'id' | 'createdAt' | 'updatedAt' | 'status' | 'hasBeenTested'>) => {
+  const createProject = (projectData: Omit<Project, 'id' | 'createdAt' | 'updatedAt' | 'status' | 'hasBeenTested' | 'hasOpenedScratch'>) => {
     const newProject: Project = {
       id: Date.now().toString(),
       name: projectData.name,
@@ -63,7 +63,8 @@ function ProjectsPageContent() {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       status: 'draft',
-      hasBeenTested: false
+      hasBeenTested: false,
+      hasOpenedScratch: false
     };
     
     setProjects([...projects, newProject]);

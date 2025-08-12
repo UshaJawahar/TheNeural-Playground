@@ -56,12 +56,12 @@ export default function TextRecognition({ project, onUpdateProject }: TextRecogn
       case 'test':
         return {
           isComplete: project.hasBeenTested,
-          progress: project.hasBeenTested ? 100 : (project.model ? 50 : 0)
+          progress: project.hasBeenTested ? 100 : 0
         };
       case 'make':
         return {
-          isComplete: project.hasBeenTested,
-          progress: project.hasBeenTested ? 100 : 0
+          isComplete: project.hasOpenedScratch,
+          progress: project.hasOpenedScratch ? 100 : 0
         };
       default:
         return { isComplete: false, progress: 0 };
@@ -72,13 +72,23 @@ export default function TextRecognition({ project, onUpdateProject }: TextRecogn
     if (sectionId === 'train') return true;
     if (sectionId === 'learn') return getSectionStatus('train').isComplete;
     if (sectionId === 'test') return project.model !== null; // Enable after training, not after completion
-    if (sectionId === 'make') return getSectionStatus('test').isComplete; // Enable after testing is done
+    if (sectionId === 'make') return project.hasBeenTested; // Enable after user has tested at least once
     return false;
   };
 
   const handleMakeInScratch = () => {
     if (project.model) {
       setShowScratchGUI(true);
+      
+      // Mark project as having opened Scratch if this is the first time
+      if (!project.hasOpenedScratch) {
+        const updatedProject = {
+          ...project,
+          hasOpenedScratch: true,
+          updatedAt: new Date().toISOString()
+        };
+        onUpdateProject(updatedProject);
+      }
     }
   };
 
