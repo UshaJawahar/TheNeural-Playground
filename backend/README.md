@@ -1,47 +1,71 @@
-# TheNeural Backend Service
+# TheNeural Backend API
 
-A Node.js/Express backend service that integrates with Google Cloud Platform services for ML project management.
+A modern FastAPI-based backend service that integrates with Google Cloud Platform services for ML project management.
 
 ## 🚀 Features
 
-- **Project Management**: Create, read, update, and delete ML projects
-- **File Upload**: Upload datasets to Google Cloud Storage
+- **FastAPI Framework**: Modern, fast web framework with automatic API documentation
+- **Project Management**: Full CRUD operations for ML projects
+- **File Upload**: Secure dataset uploads to Google Cloud Storage
 - **Training Jobs**: Queue training jobs via Pub/Sub
 - **Real-time Status**: Track project and training status
 - **GCP Integration**: Seamless integration with Firestore, GCS, and Pub/Sub
+- **Type Safety**: Full Pydantic model validation and TypeScript-like type checking
+- **Auto Documentation**: Interactive API docs at `/docs` and `/redoc`
 
 ## 🏗️ Architecture
 
 ```
-Frontend → Backend → GCP Services
-           ↓
-    ┌─────────────┐
-    │   Express   │
-    │   Server    │
-    └─────────────┘
-           ↓
-    ┌─────────────┐
-    │  Services   │
-    │  (Project)  │
-    └─────────────┘
-           ↓
-    ┌─────────────┐
-    │   GCP SDK   │
-    └─────────────┘
-           ↓
-    ┌─────────────┐
-    │ Firestore   │
-    │   GCS       │
-    │  Pub/Sub    │
-    └─────────────┘
+Frontend → FastAPI Backend → GCP Services
+            ↓
+     ┌─────────────┐
+     │   FastAPI   │
+     │   Server    │
+     └─────────────┘
+            ↓
+     ┌─────────────┐
+     │  Services   │
+     │  (Project)  │
+     └─────────────┘
+            ↓
+     ┌─────────────┐
+     │   GCP SDK   │
+     └─────────────┘
+            ↓
+     ┌─────────────┐
+     │ Firestore   │
+     │   GCS       │
+     │  Pub/Sub    │
+     └─────────────┘
+```
+
+## 📁 Project Structure
+
+```
+backend/
+├── app/
+│   ├── __init__.py
+│   ├── main.py              # FastAPI application entry point
+│   ├── config.py            # Configuration and GCP clients
+│   ├── models.py            # Pydantic data models
+│   ├── services.py          # Business logic layer
+│   └── api/
+│       ├── __init__.py
+│       ├── health.py        # Health check endpoints
+│       └── projects.py      # Project management endpoints
+├── requirements.txt         # Python dependencies
+├── Dockerfile              # Container configuration
+├── cloudbuild.yaml         # Cloud Build CI/CD
+├── env.example             # Environment variables template
+└── README.md               # This file
 ```
 
 ## 📋 Prerequisites
 
-- Node.js 18+ 
+- Python 3.11+
 - Google Cloud Platform account
 - GCP project with Firestore, GCS, and Pub/Sub enabled
-- Service account credentials
+- Service account with proper IAM roles
 
 ## 🛠️ Setup
 
@@ -49,17 +73,10 @@ Frontend → Backend → GCP Services
 
 ```bash
 cd backend
-npm install
+pip install -r requirements.txt
 ```
 
-### 2. Service Account Setup
-
-✅ **No JSON Keys Required!**  
-Your organization's security policy prevents downloading service account keys, which is actually **more secure**.
-
-The backend will use **Application Default Credentials (ADC)** when deployed to Cloud Run with the `svc-backend` service account.
-
-### 3. Environment Configuration
+### 2. Environment Configuration
 
 1. **Copy Environment Template**:
    ```bash
@@ -70,7 +87,6 @@ The backend will use **Application Default Credentials (ADC)** when deployed to 
    ```env
    # GCP Configuration
    GOOGLE_CLOUD_PROJECT=theneural
-   # No service account key needed - Cloud Run will use the assigned service account
    
    # Service Configuration
    PORT=8080
@@ -88,22 +104,35 @@ The backend will use **Application Default Credentials (ADC)** when deployed to 
    JWT_SECRET=your-super-secret-jwt-key-here
    ```
 
+### 3. Service Account Setup
+
+✅ **No JSON Keys Required!**  
+Your organization's security policy prevents downloading service account keys, which is actually **more secure**.
+
+The backend will use **Application Default Credentials (ADC)** when deployed to Cloud Run with the `svc-backend` service account.
+
 ## 🚀 Running the Service
 
 ### Development Mode
 ```bash
-npm run dev
+cd backend
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8080
 ```
 
 ### Production Mode
 ```bash
-npm start
+cd backend
+uvicorn app.main:app --host 0.0.0.0 --port 8080
 ```
 
 ### Health Check
 ```bash
 curl http://localhost:8080/health
 ```
+
+### API Documentation
+- **Swagger UI**: http://localhost:8080/docs
+- **ReDoc**: http://localhost:8080/redoc
 
 ## 🚀 **Deployment to Cloud Run**
 
@@ -129,12 +158,15 @@ gcloud run deploy theneural-backend \
   --set-env-vars GOOGLE_CLOUD_PROJECT=theneural,NODE_ENV=production
 ```
 
-📖 **Full deployment guide**: See [DEPLOYMENT.md](./DEPLOYMENT.md)
-
 ## 📚 API Endpoints
 
-### Projects
+### Health & Info
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/` | API information |
+| `GET` | `/health` | Health check |
 
+### Projects
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `GET` | `/api/projects` | Get all projects |
@@ -145,12 +177,6 @@ gcloud run deploy theneural-backend \
 | `POST` | `/api/projects/:id/dataset` | Upload dataset |
 | `POST` | `/api/projects/:id/train` | Start training |
 | `GET` | `/api/projects/:id/status` | Get project status |
-
-### Health Check
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/health` | Service health status |
 
 ## 🔧 Configuration
 
@@ -168,7 +194,7 @@ The backend is designed to work seamlessly with your Next.js frontend:
 - **Status Values**: `draft` | `training` | `trained` | `testing`
 - **Project Types**: `text-recognition` | `classification` | `regression` | `custom`
 - **Datasets**: Supports both single `dataset` and `datasets[]` array
-- **TypeScript**: Includes `.ts` interface definitions for frontend integration
+- **Pydantic Models**: Automatic validation and serialization
 
 ### File Upload
 
@@ -185,46 +211,40 @@ The backend is designed to work seamlessly with your Next.js frontend:
 
 ## 🧪 Testing
 
+### Run Tests
 ```bash
-npm test
+# Install test dependencies
+pip install pytest pytest-asyncio httpx
+
+# Run tests
+pytest
 ```
 
-## 📁 Project Structure
+### Test API Endpoints
+```bash
+# Start the server
+uvicorn app.main:app --reload
 
-```
-backend/
-├── src/
-│   ├── config/
-│   │   └── gcp.js          # GCP client configuration
-│   ├── middleware/
-│   │   └── validation.js   # Request validation
-│   ├── models/
-│   │   └── Project.js      # Project data model
-│   ├── routes/
-│   │   └── projects.js     # API routes
-│   ├── services/
-│   │   └── ProjectService.js # Business logic
-│   ├── types/
-│   │   └── Project.ts      # TypeScript interfaces
-│   └── server.js           # Main server file
-├── service-account-keys/   # GCP service account keys
-├── package.json
-├── env.example
-└── README.md
+# Test health endpoint
+curl http://localhost:8080/health
+
+# Test projects endpoint
+curl http://localhost:8080/api/projects
 ```
 
 ## 🔒 Security
 
-- **Helmet**: Security headers
-- **CORS**: Cross-origin resource sharing
-- **Input Validation**: Joi schema validation
+- **CORS**: Configurable cross-origin resource sharing
+- **Input Validation**: Pydantic schema validation
 - **File Type Filtering**: Whitelist allowed file types
 - **Size Limits**: File upload size restrictions
+- **Trusted Hosts**: Host validation middleware
 
 ## 📊 Monitoring
 
 - **Health Check**: `/health` endpoint
-- **Error Logging**: Console and structured logging
+- **Request Timing**: `X-Process-Time` header
+- **Error Logging**: Structured logging with error details
 - **GCP Integration**: Service account authentication
 - **Status Tracking**: Project and training status
 
@@ -233,9 +253,9 @@ backend/
 ### Common Issues
 
 1. **Authentication Error**:
-   - Verify service account key path in `.env`
-   - Check GCP project ID
-   - Ensure service account has required roles
+   - Verify GCP project ID in `.env`
+   - Check service account has required roles
+   - Ensure API is enabled
 
 2. **File Upload Fails**:
    - Check file size (max 100MB)
@@ -257,7 +277,7 @@ Set `NODE_ENV=development` for detailed error messages and logging.
 2. **Inference Service**: Model prediction endpoint
 3. **Cleanup Service**: Automated data lifecycle management
 4. **Monitoring**: Cloud Logging and Metrics integration
-5. **Deployment**: Cloud Run deployment configuration
+5. **Testing**: Comprehensive test suite
 
 ## 📞 Support
 
@@ -266,3 +286,13 @@ For issues and questions:
 - Review service account permissions
 - Verify environment configuration
 - Check application logs
+- View API documentation at `/docs`
+
+## 🎯 Key Benefits of FastAPI
+
+- **Performance**: One of the fastest Python frameworks available
+- **Type Safety**: Full type hints and validation with Pydantic
+- **Auto Documentation**: Interactive API docs with OpenAPI/Swagger
+- **Modern Python**: Async/await support and modern Python features
+- **Easy Testing**: Built-in testing support and dependency injection
+- **Production Ready**: Built for production with proper error handling
