@@ -3,15 +3,28 @@
 import { useState } from 'react';
 import { Project } from './ProjectCreator';
 
+interface PredictionResult {
+  text: string;
+  predictedLabel: string;
+  confidence: number;
+  timestamp: string;
+  alternatives: AlternativePrediction[];
+}
+
+interface AlternativePrediction {
+  label: string;
+  confidence: number;
+}
+
 interface TestSectionProps {
   project: Project;
   onUpdateProject: (project: Project) => void;
   onSectionChange: (section: 'train' | 'learn' | 'test') => void;
 }
 
-export default function TestSection({ project, onUpdateProject, onSectionChange }: TestSectionProps) {
+export default function TestSection({ project, onSectionChange }: TestSectionProps) {
   const [testText, setTestText] = useState('');
-  const [prediction, setPrediction] = useState<any>(null);
+  const [prediction, setPrediction] = useState<PredictionResult | null>(null);
   const [isPredicting, setIsPredicting] = useState(false);
 
   const canTest = project.model && project.model.status === 'trained';
@@ -174,7 +187,7 @@ export default function TestSection({ project, onUpdateProject, onSectionChange 
           <div className="space-y-4">
             <div className="bg-white rounded-lg p-4">
               <h4 className="font-semibold text-gray-700 mb-2">Test Text:</h4>
-              <p className="text-gray-800 italic">"{prediction.text}"</p>
+                             <p className="text-gray-800 italic">&quot;{prediction.text}&quot;</p>
             </div>
             
             <div className="bg-white rounded-lg p-4">
@@ -193,7 +206,7 @@ export default function TestSection({ project, onUpdateProject, onSectionChange 
               <div className="bg-white rounded-lg p-4">
                 <h4 className="font-semibold text-gray-700 mb-2">Other Possibilities:</h4>
                 <div className="space-y-2">
-                  {prediction.alternatives.map((alt: any, index: number) => (
+                  {prediction.alternatives.map((alt: AlternativePrediction, index: number) => (
                     <div key={index} className="flex items-center justify-between">
                       <span className="text-gray-600">{alt.label}</span>
                       <span className="text-gray-500">{Math.round(alt.confidence)}%</span>

@@ -204,6 +204,8 @@ backend/
 │   │   └── projects.js     # API routes
 │   ├── services/
 │   │   └── ProjectService.js # Business logic
+│   ├── types/
+│   │   └── Project.ts      # TypeScript interfaces
 │   └── server.js           # Main server file
 ├── service-account-keys/   # GCP service account keys
 ├── package.json

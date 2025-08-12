@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Project, TrainedModel } from './ProjectCreator';
 
 interface LearnSectionProps {
@@ -56,10 +56,10 @@ export default function LearnSection({ project, onUpdateProject, onSectionChange
           version: '1.0.0'
         };
 
-        const updatedProject = {
+        const updatedProject: Project = {
           ...project,
           model: trainedModel,
-          status: 'trained',
+          status: 'trained' as const,
           updatedAt: new Date().toISOString()
         };
         onUpdateProject(updatedProject);

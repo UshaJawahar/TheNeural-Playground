@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 
-import { Project, Dataset, TrainedModel } from './ProjectCreator';
+import { Project } from './ProjectCreator';
 import TrainSection from './TrainSection';
 import LearnSection from './LearnSection';
 import TestSection from './TestSection';
@@ -122,14 +122,14 @@ export default function TextRecognition({ project, onUpdateProject }: TextRecogn
       {/* Section Navigation */}
       <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100">
         <div className="flex flex-wrap gap-3 justify-center">
-          {sections.map((section, index) => {
+          {sections.map((section) => {
             const status = getSectionStatus(section.id);
             const isAccessible = canAccessSection(section.id);
             
             return (
               <button
                 key={section.id}
-                onClick={() => isAccessible && setActiveSection(section.id as any)}
+                onClick={() => isAccessible && setActiveSection(section.id as 'train' | 'learn' | 'test')}
                 disabled={!isAccessible}
                 className={`relative px-6 py-4 rounded-xl font-semibold transition-all duration-300 ${
                   activeSection === section.id
@@ -202,7 +202,7 @@ export default function TextRecognition({ project, onUpdateProject }: TextRecogn
               🎮 Ready to Create in Scratch!
             </h3>
             <p className="text-green-800 text-lg mb-6">
-              Your AI model is trained and ready! Click "Make It" to open Scratch 3.0 and start building amazing projects with your text recognition model.
+              Your AI model is trained and ready! Click &quot;Make It&quot; to open Scratch 3.0 and start building amazing projects with your text recognition model.
             </p>
             
             <button
