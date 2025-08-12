@@ -22,7 +22,7 @@ interface TestSectionProps {
   onSectionChange: (section: 'train' | 'learn' | 'test') => void;
 }
 
-export default function TestSection({ project, onSectionChange }: TestSectionProps) {
+export default function TestSection({ project, onUpdateProject, onSectionChange }: TestSectionProps) {
   const [testText, setTestText] = useState('');
   const [prediction, setPrediction] = useState<PredictionResult | null>(null);
   const [isPredicting, setIsPredicting] = useState(false);
@@ -77,6 +77,16 @@ export default function TestSection({ project, onSectionChange }: TestSectionPro
 
       setPrediction(newPrediction);
       setIsPredicting(false);
+      
+      // Mark project as tested if this is the first test
+      if (!project.hasBeenTested) {
+        const updatedProject = {
+          ...project,
+          hasBeenTested: true,
+          updatedAt: new Date().toISOString()
+        };
+        onUpdateProject(updatedProject);
+      }
     }, 1500);
   };
 
@@ -84,17 +94,17 @@ export default function TestSection({ project, onSectionChange }: TestSectionPro
     return (
       <div className="p-8 text-center">
         <h2 className="text-4xl font-bold text-black mb-4">
-          🧪 Test Your Model
+          Test Your Model
         </h2>
         <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-6">
           <p className="text-black mb-4">
-            ⚠️ You need to train your model first before testing.
+            You need to train your model first before testing.
           </p>
           <button
             onClick={() => onSectionChange('learn')}
             className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-xl transition-colors"
           >
-            ← Go to Training
+            Go to Training
           </button>
         </div>
       </div>
@@ -103,19 +113,10 @@ export default function TestSection({ project, onSectionChange }: TestSectionPro
 
   return (
     <div className="p-8 space-y-8">
-      <div className="text-center">
-        <h2 className="text-4xl font-bold text-black mb-4">
-          🧪 Test Your Model
-        </h2>
-        <p className="text-xl text-black">
-          Try your trained model with new text inputs
-        </p>
-      </div>
-
       {/* Model Info */}
       <div className="bg-blue-50 border border-blue-200 rounded-2xl p-6">
         <h3 className="text-lg font-semibold text-black mb-4">
-          🤖 Your Trained Model
+          Your Trained Model
         </h3>
         <div className="grid md:grid-cols-3 gap-4 text-sm">
           <div>
@@ -133,7 +134,7 @@ export default function TestSection({ project, onSectionChange }: TestSectionPro
       {/* Test Input */}
       <div className="bg-white border border-gray-200 rounded-2xl p-6">
         <h3 className="text-lg font-semibold text-black mb-4">
-          📝 Test Your Model
+          Test Your Model
         </h3>
         
         <div className="space-y-4">
@@ -157,7 +158,7 @@ export default function TestSection({ project, onSectionChange }: TestSectionPro
             disabled={!testText.trim() || isPredicting}
             className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white px-8 py-3 rounded-xl font-semibold transition-colors disabled:cursor-not-allowed"
           >
-            {isPredicting ? '🔮 Predicting...' : '🔮 Make Prediction!'}
+            {isPredicting ? 'Predicting...' : 'Make Prediction!'}
           </button>
         </div>
       </div>
@@ -167,7 +168,7 @@ export default function TestSection({ project, onSectionChange }: TestSectionPro
         <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-6 text-center">
           <div className="animate-pulse">
             <h3 className="text-xl font-semibold text-black mb-3">
-              🔮 Analyzing your text...
+              Analyzing your text...
             </h3>
             <div className="flex justify-center space-x-2">
               <div className="w-3 h-3 bg-yellow-600 rounded-full animate-bounce"></div>
@@ -181,20 +182,20 @@ export default function TestSection({ project, onSectionChange }: TestSectionPro
       {prediction && (
         <div className="bg-green-50 border border-green-200 rounded-2xl p-6">
           <h3 className="text-xl font-semibold text-black mb-4">
-            🎯 Prediction Results
+            Prediction Results
           </h3>
           
           <div className="space-y-4">
             <div className="bg-white rounded-lg p-4">
               <h4 className="font-semibold text-black mb-2">Test Text:</h4>
-                             <p className="text-black italic">&quot;{prediction.text}&quot;</p>
+              <p className="text-black italic">&quot;{prediction.text}&quot;</p>
             </div>
             
             <div className="bg-white rounded-lg p-4">
               <h4 className="font-semibold text-black mb-2">Top Prediction:</h4>
               <div className="flex items-center justify-between">
                 <span className="text-lg font-semibold text-green-600">
-                  🏆 {prediction.predictedLabel}
+                  {prediction.predictedLabel}
                 </span>
                 <span className="text-2xl font-bold text-green-600">
                   {prediction.confidence}%
@@ -225,13 +226,13 @@ export default function TestSection({ project, onSectionChange }: TestSectionPro
               }}
               className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-xl transition-colors mr-3"
             >
-              🧪 Test Another Text
+              Test Another Text
             </button>
             <button
               onClick={() => onSectionChange('train')}
               className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl transition-colors"
             >
-              ← Improve Training Data
+              Improve Training Data
             </button>
           </div>
         </div>
@@ -240,7 +241,7 @@ export default function TestSection({ project, onSectionChange }: TestSectionPro
       {/* Testing Tips */}
       <div className="bg-gray-50 border border-gray-200 rounded-2xl p-6">
         <h3 className="text-lg font-semibold text-black mb-3">
-          💡 Testing Tips
+          Testing Tips
         </h3>
         <ul className="text-black space-y-2 text-sm">
           <li>• Try different types of text to see how well your model generalizes</li>
@@ -253,7 +254,7 @@ export default function TestSection({ project, onSectionChange }: TestSectionPro
       {/* What the Model Learned */}
       <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-6">
         <h3 className="text-lg font-semibold text-black mb-3">
-          🧠 What Your Model Learned
+          What Your Model Learned
         </h3>
         <div className="text-black space-y-2 text-sm">
           <p>• Your model learned patterns from {project.datasets.reduce((sum, d) => sum + d.examples.length, 0)} training examples</p>

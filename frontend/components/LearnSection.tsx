@@ -69,20 +69,11 @@ export default function LearnSection({ project, onUpdateProject, onSectionChange
 
   return (
     <div className="p-8 space-y-8">
-      <div className="text-center">
-        <h2 className="text-4xl font-bold text-black mb-4">
-          🧠 Learn (Train Your Model)
-        </h2>
-        <p className="text-xl text-black">
-          Teach your AI model to recognize text patterns
-        </p>
-      </div>
-
       {/* Training Status */}
       {!project.model && (
         <div className="bg-blue-50 border border-blue-200 rounded-2xl p-6">
           <h3 className="text-xl font-semibold text-black mb-4">
-            🚀 Ready to Train Your Model
+            Ready to Train Your Model
           </h3>
           
           {canStartTraining ? (
@@ -95,19 +86,19 @@ export default function LearnSection({ project, onUpdateProject, onSectionChange
                 disabled={isTraining}
                 className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-8 py-4 rounded-xl text-xl font-bold transition-colors disabled:cursor-not-allowed"
               >
-                {isTraining ? '🔄 Training...' : '🚀 Start Training!'}
+                {isTraining ? 'Training...' : 'Start Training!'}
               </button>
             </div>
           ) : (
             <div className="text-center">
               <p className="text-red-600 mb-4">
-                ⚠️ You need at least 2 labels with 2+ examples each to start training.
+                You need at least 2 labels with 2+ examples each to start training.
               </p>
               <button
                 onClick={() => onSectionChange('train')}
                 className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-xl transition-colors"
               >
-                ← Go Back to Training Data
+                Go Back to Training Data
               </button>
             </div>
           )}
@@ -118,7 +109,7 @@ export default function LearnSection({ project, onUpdateProject, onSectionChange
       {isTraining && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-6">
           <h3 className="text-xl font-semibold text-black mb-4">
-            🔄 Training in Progress...
+            Training in Progress...
           </h3>
           
           <div className="mb-4">
@@ -144,7 +135,7 @@ export default function LearnSection({ project, onUpdateProject, onSectionChange
       {project.model && (
         <div className="bg-green-50 border border-green-200 rounded-2xl p-6">
           <h3 className="text-xl font-semibold text-black mb-4">
-            ✅ Training Complete!
+            Training Complete!
           </h3>
           
           <div className="grid md:grid-cols-2 gap-4 mb-6">
@@ -169,13 +160,13 @@ export default function LearnSection({ project, onUpdateProject, onSectionChange
               onClick={() => onSectionChange('test')}
               className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-semibold transition-colors mr-3"
             >
-              🧪 Test Your Model →
+              Test Your Model
             </button>
             <button
               onClick={() => onSectionChange('train')}
               className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-xl transition-colors"
             >
-              ← Improve Training Data
+              Improve Training Data
             </button>
           </div>
         </div>
@@ -184,7 +175,7 @@ export default function LearnSection({ project, onUpdateProject, onSectionChange
       {/* Training Tips */}
       <div className="bg-gray-50 border border-gray-200 rounded-2xl p-6">
         <h3 className="text-lg font-semibold text-black mb-3">
-          💡 Training Tips
+          Training Tips
         </h3>
         <ul className="text-black space-y-2 text-sm">
           <li>• More training examples usually lead to better accuracy</li>
@@ -197,7 +188,7 @@ export default function LearnSection({ project, onUpdateProject, onSectionChange
       {/* What Happens During Training */}
       <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-6">
         <h3 className="text-lg font-semibold text-black mb-3">
-          🔬 What Happens During Training?
+          What Happens During Training?
         </h3>
         <div className="text-black space-y-2 text-sm">
           <p>• Your text examples are converted to numerical features</p>

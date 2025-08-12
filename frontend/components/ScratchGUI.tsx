@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { extensionManager, MLModel } from './MLScratchExtension';
 
 interface ScratchGUIProps {
@@ -15,21 +15,7 @@ export default function ScratchGUI({ model, onClose }: ScratchGUIProps) {
   const [scratchLoaded, setScratchLoaded] = useState(false);
   const [extensionStatus, setExtensionStatus] = useState<string>('Initializing...');
 
-  useEffect(() => {
-    // Initialize the ML extension with the model
-    const success = extensionManager.initializeExtension('textRecognitionML', model);
-    
-    if (!success) {
-      setError('Failed to initialize ML extension');
-      setIsLoading(false);
-      return;
-    }
-
-    // Load Scratch GUI
-    loadScratchGUI();
-  }, [model]);
-
-  const loadScratchGUI = async () => {
+  const loadScratchGUI = useCallback(async () => {
     try {
       setIsLoading(true);
       setExtensionStatus('Loading Scratch 3.0...');
@@ -37,12 +23,12 @@ export default function ScratchGUI({ model, onClose }: ScratchGUIProps) {
       // First, try to check if Scratch is accessible
       const checkConnection = async () => {
         try {
-          const response = await fetch('https://scratch.mit.edu', { 
+          const _response = await fetch('https://scratch.mit.edu', { 
             method: 'HEAD',
             mode: 'no-cors'
           });
           return true;
-        } catch (err) {
+        } catch (_err) {
           return false;
         }
       };
@@ -83,11 +69,27 @@ export default function ScratchGUI({ model, onClose }: ScratchGUIProps) {
       if (scratchContainerRef.current) {
         scratchContainerRef.current.appendChild(iframe);
       }
-    } catch (err) {
+    } catch (_err) {
       setError('Error loading Scratch GUI - switching to offline mode');
       loadOfflineScratch();
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    // Initialize the ML extension with the model
+    const success = extensionManager.initializeExtension('textRecognitionML', model);
+    
+    if (!success) {
+      setError('Failed to initialize ML extension');
+      setIsLoading(false);
+      return;
+    }
+
+    // Load Scratch GUI
+    loadScratchGUI();
+  }, [model, loadScratchGUI]);
+
+
 
   const loadOfflineScratch = () => {
     setIsLoading(false);
@@ -315,7 +317,7 @@ export default function ScratchGUI({ model, onClose }: ScratchGUIProps) {
         setExtensionStatus('ML Extension injection attempted');
       }, 1000);
       
-    } catch (err) {
+    } catch (_err) {
       console.warn('Could not inject ML extension due to CORS restrictions');
       setExtensionStatus('CORS restrictions prevent extension injection');
     }

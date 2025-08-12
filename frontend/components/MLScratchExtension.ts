@@ -9,7 +9,7 @@ export interface MLModel {
   trainedAt: string;
   status: 'trained' | 'failed';
   version: string;
-  modelData?: any; // Optional - the actual trained model data
+  modelData?: unknown; // Optional - the actual trained model data
 }
 
 export interface MLScratchExtension {
@@ -19,12 +19,13 @@ export interface MLScratchExtension {
   menus: MLScratchMenu[];
   initialize: (model: MLModel) => void;
   predict: (text: string) => string;
+  isReady: () => boolean;
 }
 
 export interface MLScratchBlock {
   opcode: string;
   text: string;
-  arguments: any;
+  arguments: Record<string, unknown>;
   blockType: string;
   category: string;
 }
@@ -108,7 +109,7 @@ export class TextRecognitionExtension implements MLScratchExtension {
     console.log(`ML Extension initialized with model: ${model.name}`);
   }
 
-  predict(text: string): string {
+  predict(_text: string): string {
     if (!this.isInitialized || !this.model) {
       return 'Model not initialized';
     }
@@ -118,7 +119,7 @@ export class TextRecognitionExtension implements MLScratchExtension {
     return this.model.labels[randomIndex] || 'Unknown';
   }
 
-  getConfidence(text: string): number {
+  getConfidence(_text: string): number {
     if (!this.isInitialized || !this.model) {
       return 0;
     }
@@ -143,7 +144,7 @@ export class TextRecognitionExtension implements MLScratchExtension {
 // Extension Manager
 export class ExtensionManager {
   private extensions: Map<string, MLScratchExtension> = new Map();
-  private scratchVM: any = null;
+  private scratchVM: unknown = null;
 
   registerExtension(extension: MLScratchExtension): void {
     this.extensions.set(extension.id, extension);
@@ -163,7 +164,7 @@ export class ExtensionManager {
     return false;
   }
 
-  setScratchVM(vm: any): void {
+  setScratchVM(vm: unknown): void {
     this.scratchVM = vm;
   }
 

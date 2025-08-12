@@ -58,7 +58,7 @@ export default function Home() {
                 <span className="text-3xl font-bold text-purple-700">3</span>
                 <p className="text-lg text-gray-700 leading-relaxed">
                   Make a game in Scratch that uses<br />
-                  the computer's ability to recognise<br />
+                  the computer&apos;s ability to recognise<br />
                   them
                 </p>
               </div>
