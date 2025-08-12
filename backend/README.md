@@ -36,26 +36,48 @@ backend/
 │       ├── __init__.py
 │       ├── health.py        # Health check endpoints
 │       └── projects.py      # Project management endpoints
-├── requirements.txt         # Python dependencies
-├── start_worker.py         # Training worker startup script
-├── test_api.py             # API testing script
-├── Dockerfile              # Container configuration
-├── cloudbuild.yaml         # Cloud Build CI/CD
-├── env.example             # Environment variables template
-└── README.md               # This file
+├── requirements.txt          # Main dependencies
+├── requirements-minimal.txt  # Production dependencies
+├── requirements-dev.txt      # Development dependencies
+├── install.py               # Automated installation script
+├── start_all.py             # Start both backend and worker
+├── start_worker.py          # Training worker startup script
+├── test_api.py              # API testing script
+├── Dockerfile               # Container configuration
+├── cloudbuild.yaml          # Cloud Build CI/CD
+├── env.example              # Environment variables template
+└── README.md                # This file
 ```
 
 ## 🚀 **Quick Start**
 
-### **1. Setup Environment**
+### **Option 1: Automated Installation (Recommended)**
 ```bash
 cd backend
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
+python install.py
 ```
 
-### **2. Configure GCP**
+### **Option 2: Manual Setup**
+```bash
+cd backend
+
+# Create virtual environment
+python -m venv venv
+
+# Activate virtual environment
+# On Windows:
+venv\Scripts\activate
+# On Linux/Mac:
+source venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Optional: Install development dependencies
+pip install -r requirements-dev.txt
+```
+
+### **3. Configure GCP**
 ```bash
 # Copy environment template
 cp env.example .env
@@ -66,17 +88,19 @@ GCS_BUCKET_NAME=your-bucket-name
 PUBSUB_TOPIC_NAME=train-jobs
 ```
 
-### **3. Start Backend**
-```bash
-# Development mode
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8080
+### **4. Start Services**
 
-# Production mode
-uvicorn app.main:app --host 0.0.0.0 --port 8080
+#### **Option A: Start Everything at Once (Recommended)**
+```bash
+python start_all.py
 ```
 
-### **4. Start Training Worker** (in separate terminal)
+#### **Option B: Start Manually**
 ```bash
+# Terminal 1: Start backend
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8080
+
+# Terminal 2: Start training worker
 python start_worker.py
 ```
 
@@ -179,6 +203,10 @@ test_prediction(project_id)
 
 ### **Local Development**
 ```bash
+# Use the automated startup
+python start_all.py
+
+# Or start manually
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8080
 ```
 

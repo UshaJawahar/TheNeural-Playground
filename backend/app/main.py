@@ -1,12 +1,15 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
 import time
 import logging
+import asyncio
+import threading
 
 from .config import settings
 from .api import projects, health
+from .training_worker import training_worker
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -61,6 +64,14 @@ async def global_exception_handler(request: Request, exc: Exception):
 app.include_router(health.router)
 app.include_router(projects.router)
 
+def start_training_worker():
+    """Start training worker in background thread"""
+    try:
+        logger.info("Starting training worker in background...")
+        training_worker.start_worker()
+    except Exception as e:
+        logger.error(f"Failed to start training worker: {e}")
+
 # Startup event
 @app.on_event("startup")
 async def startup_event():
@@ -68,6 +79,11 @@ async def startup_event():
     logger.info(f"Environment: {settings.node_env}")
     logger.info(f"GCP Project: {settings.google_cloud_project}")
     logger.info(f"CORS Origin: {settings.cors_origin}")
+    
+    # Start training worker in background thread
+    worker_thread = threading.Thread(target=start_training_worker, daemon=True)
+    worker_thread.start()
+    logger.info("Training worker started in background")
 
 # Shutdown event
 @app.on_event("shutdown")
