@@ -185,5 +185,5 @@ gcloud run services update theneural-backend --region us-central1 --max-instance
 
 service urls:
 
-  1. Update your frontend CORS_ORIGIN to point to: https://theneural-backend-ed2fe2fxhq-uc.a.run.app
-   2. Test the API: https://theneural-backend-ed2fe2fxhq-uc.a.run.app/docs
+  1. Update your frontend CORS_ORIGIN to point to: https://theneural-backend-107731139870.us-central1.run.app
+   2. Test the API: https://theneural-backend-107731139870.us-central1.run.app/docs
