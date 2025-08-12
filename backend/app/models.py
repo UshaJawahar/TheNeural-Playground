@@ -13,9 +13,11 @@ class ProjectType(str, Enum):
 
 class ProjectStatus(str, Enum):
     DRAFT = "draft"
+    QUEUED = "queued"
     TRAINING = "training"
     TRAINED = "trained"
     TESTING = "testing"
+    FAILED = "failed"
 
 
 class TextExample(BaseModel):

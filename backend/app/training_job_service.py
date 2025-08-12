@@ -141,8 +141,13 @@ class TrainingJobService:
             # Convert examples to TextExample objects
             examples = []
             for ex_data in project.dataset.examples:
-                example = TextExample(**ex_data)
-                examples.append(example)
+                # Check if it's already a TextExample object
+                if isinstance(ex_data, TextExample):
+                    examples.append(ex_data)
+                else:
+                    # Convert dict to TextExample
+                    example = TextExample(**ex_data)
+                    examples.append(example)
             
             # Update progress
             self.jobs_collection.document(job_id).update({'progress': 30.0})
@@ -153,18 +158,12 @@ class TrainingJobService:
             # Update progress
             self.jobs_collection.document(job_id).update({'progress': 70.0})
             
-            # Save model to GCS
+            # Save model directly to GCS
             model_filename = f"model_{job.projectId}.pkl"
             model_path = f"models/{job.projectId}/{model_filename}"
             
-            # Save model locally first (for MVP)
-            local_model_path = f"/tmp/{model_filename}"
-            trainer.save_model(local_model_path)
-            
-            # Upload to GCS
-            blob = self.bucket.blob(model_path)
-            with open(local_model_path, 'rb') as f:
-                blob.upload_from_file(f)
+            # Save model directly to GCS without local storage
+            trainer.save_model_to_gcs(self.bucket, model_path)
             
             # Update progress
             self.jobs_collection.document(job_id).update({'progress': 90.0})

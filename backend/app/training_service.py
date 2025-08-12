@@ -68,10 +68,24 @@ class LogisticRegressionTrainer:
         # Preprocess data
         texts, labels = self.preprocess_data(examples)
         
+        # Calculate label counts for stratify decision
+        label_counts = {}
+        for label in labels:
+            label_counts[label] = label_counts.get(label, 0) + 1
+        
         # Split data (80% train, 20% validation)
-        X_train, X_val, y_train, y_val = train_test_split(
-            texts, labels, test_size=0.2, random_state=42, stratify=labels
-        )
+        # Only use stratify if we have enough examples per class
+        min_examples_per_class = 2
+        can_stratify = all(label_counts.get(label, 0) >= min_examples_per_class for label in set(labels))
+        
+        if can_stratify:
+            X_train, X_val, y_train, y_val = train_test_split(
+                texts, labels, test_size=0.2, random_state=42, stratify=labels
+            )
+        else:
+            X_train, X_val, y_train, y_val = train_test_split(
+                texts, labels, test_size=0.2, random_state=42
+            )
         
         # Vectorize text data
         X_train_vectors = self.vectorizer.fit_transform(X_train)
@@ -104,15 +118,29 @@ class LogisticRegressionTrainer:
         """Get top important words for each class"""
         feature_importance = {}
         
-        for i, class_name in enumerate(self.model.classes_):
-            # Get coefficients for this class
-            coefficients = self.model.coef_[i]
+        # Handle binary vs multiclass classification
+        if len(self.model.classes_) == 2:
+            # Binary classification: coef_ has shape (1, n_features)
+            coefficients = self.model.coef_[0]
             
-            # Get top 10 features (words) for this class
-            top_indices = np.argsort(coefficients)[-10:][::-1]
-            top_words = [feature_names[idx] for idx in top_indices]
+            # For binary classification, positive coefficients favor class 1, negative favor class 0
+            # Get top positive coefficients (class 1)
+            positive_indices = np.argsort(coefficients)[-10:][::-1]
+            positive_words = [feature_names[idx] for idx in positive_indices if coefficients[idx] > 0]
             
-            feature_importance[class_name] = top_words
+            # Get top negative coefficients (class 0) by taking most negative
+            negative_indices = np.argsort(coefficients)[:10]
+            negative_words = [feature_names[idx] for idx in negative_indices if coefficients[idx] < 0]
+            
+            feature_importance[self.model.classes_[1]] = positive_words[:10]
+            feature_importance[self.model.classes_[0]] = negative_words[:10]
+        else:
+            # Multiclass classification: coef_ has shape (n_classes, n_features)
+            for i, class_name in enumerate(self.model.classes_):
+                coefficients = self.model.coef_[i]
+                top_indices = np.argsort(coefficients)[-10:][::-1]
+                top_words = [feature_names[idx] for idx in top_indices]
+                feature_importance[class_name] = top_words
         
         return feature_importance
     

@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     # GCP Resource Names
     firestore_database_id: str = Field(default="(default)", env="FIRESTORE_DATABASE_ID")
     gcs_bucket_name: str = Field(default="theneural-data", env="GCS_BUCKET_NAME")
-    pubsub_topic_name: str = Field(default="train-jobs", env="PUBSUB_TOPIC_NAME")
+    pubsub_topic_name: str = Field(default="train_jobs", env="PUBSUB_TOPIC_NAME")
     
     # CORS Configuration
     cors_origin: str = Field(default="http://localhost:3000", env="CORS_ORIGIN")
@@ -50,8 +50,9 @@ class GCPClients:
         self.storage_client = storage.Client(project=self.project_id)
         self.bucket = self.storage_client.bucket(settings.gcs_bucket_name)
         
-        # Initialize Pub/Sub client
+        # Initialize Pub/Sub clients
         self.pubsub_client = pubsub_v1.PublisherClient()
+        self.subscriber_client = pubsub_v1.SubscriberClient()  # Added SubscriberClient
         self.topic_path = self.pubsub_client.topic_path(
             self.project_id, 
             settings.pubsub_topic_name
@@ -65,6 +66,9 @@ class GCPClients:
     
     def get_pubsub_client(self):
         return self.pubsub_client
+    
+    def get_subscriber_client(self):  # Added method
+        return self.subscriber_client
     
     def get_projects_collection(self):
         return self.projects_collection
@@ -82,7 +86,7 @@ class GCPClients:
         return settings.pubsub_topic_name
     
     def get_subscription_path(self):
-        return self.pubsub_client.subscription_path(
+        return self.subscriber_client.subscription_path(
             self.project_id, 
             "training-worker-subscription"
         )

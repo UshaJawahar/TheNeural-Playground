@@ -3,6 +3,7 @@ import logging
 from typing import Optional
 from google.cloud import pubsub_v1
 from google.cloud.exceptions import NotFound
+import asyncio
 
 from .training_job_service import training_job_service
 from .config import gcp_clients
@@ -17,8 +18,9 @@ class TrainingWorker:
     
     def __init__(self):
         self.pubsub_client = gcp_clients.get_pubsub_client()
-        self.subscription_path = gcp_clients.get_subscription_path()
-        self.training_job_service = training_job_service
+        self.subscriber_client = gcp_clients.get_subscriber_client()  # Use from config
+        self.topic_path = gcp_clients.get_topic_path()
+        self.training_job_service = training_job_service  # Added missing service
         
         # Worker configuration
         self.max_concurrent_jobs = 3  # Limit concurrent training jobs
@@ -27,28 +29,15 @@ class TrainingWorker:
     def get_subscription_path(self):
         """Get the subscription path for training jobs"""
         project_id = gcp_clients.get_project_id()
-        topic_name = gcp_clients.get_topic_name()
         subscription_name = "training-worker-subscription"
         
-        # Create subscription if it doesn't exist
-        try:
-            subscription_path = self.pubsub_client.subscription_path(project_id, subscription_name)
-            self.pubsub_client.get_subscription(subscription_path)
-        except NotFound:
-            # Create subscription
-            topic_path = self.pubsub_client.topic_path(project_id, topic_name)
-            subscription_path = self.pubsub_client.subscription_path(project_id, subscription_name)
-            
-            self.pubsub_client.create_subscription(
-                name=subscription_path,
-                topic=topic_path,
-                ack_deadline_seconds=600  # 10 minutes
-            )
-            logger.info(f"Created subscription: {subscription_path}")
+        # Return the subscription path - we assume it exists from setup
+        subscription_path = self.subscriber_client.subscription_path(project_id, subscription_name)
+        logger.info(f"Using subscription: {subscription_path}")
         
         return subscription_path
     
-    def process_message(self, message):
+    async def process_message(self, message):
         """Process a single message from the queue"""
         try:
             # Parse message
@@ -76,7 +65,7 @@ class TrainingWorker:
             try:
                 # Process the training job
                 logger.info(f"Starting training for job {job_id}")
-                success = self.training_job_service.process_training_job(job_id)
+                success = await self.training_job_service.process_training_job(job_id)
                 
                 if success:
                     logger.info(f"Training completed successfully for job {job_id}")
@@ -106,13 +95,19 @@ class TrainingWorker:
         def callback(message):
             """Callback for processing messages"""
             try:
-                self.process_message(message)
+                # Run the async process_message in a new event loop
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    loop.run_until_complete(self.process_message(message))
+                finally:
+                    loop.close()
             except Exception as e:
                 logger.error(f"Error in message callback: {str(e)}")
                 message.ack()
         
-        # Start listening for messages
-        streaming_pull_future = self.pubsub_client.subscribe(
+        # Start listening for messages using SubscriberClient
+        streaming_pull_future = self.subscriber_client.subscribe(
             subscription_path, callback=callback
         )
         

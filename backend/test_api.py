@@ -7,6 +7,8 @@ Run this to verify your setup is working correctly
 import requests
 import json
 from datetime import datetime
+from google.cloud import storage
+import os
 
 # Configuration
 BASE_URL = "http://localhost:8080"
@@ -200,6 +202,38 @@ def test_training_status(project_id):
         print(f"❌ Training status error: {e}")
         return False
 
+def test_gcs_model_exists(project_id):
+    """Test if the trained model exists in Google Cloud Storage"""
+    print(f"☁️ Testing GCS model existence: {project_id}")
+    try:
+        # Get GCS bucket name from environment or use default
+        bucket_name = os.getenv('GCS_BUCKET_NAME', 'theneural-data')
+        
+        # Initialize GCS client
+        storage_client = storage.Client()
+        bucket = storage_client.bucket(bucket_name)
+        
+        # Expected model path
+        model_path = f"models/{project_id}/model_{project_id}.pkl"
+        blob = bucket.blob(model_path)
+        
+        # Check if blob exists
+        if blob.exists():
+            # Get blob metadata
+            blob.reload()
+            size_mb = blob.size / (1024 * 1024)
+            print(f"✅ Model found in GCS: {model_path}")
+            print(f"📦 Size: {size_mb:.2f} MB")
+            print(f"🕒 Created: {blob.time_created}")
+            return True
+        else:
+            print(f"❌ Model not found in GCS: {model_path}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ GCS model check error: {e}")
+        return False
+
 def test_prediction(project_id):
     """Test making predictions with trained model"""
     print(f"🔮 Testing prediction: {project_id}")
@@ -271,7 +305,18 @@ def main():
                 time.sleep(5)
                 
                 # Check training status
-                test_training_status(project_id)
+                status_ok = test_training_status(project_id)
+                
+                # If training completed successfully, test GCS model and predictions
+                if status_ok:
+                    # Check if model exists in GCS
+                    print("☁️ Checking if model is saved in Google Cloud Storage...")
+                    gcs_ok = test_gcs_model_exists(project_id)
+                    
+                    # If model exists, test predictions
+                    if gcs_ok:
+                        print("🔮 Testing predictions with trained model...")
+                        test_prediction(project_id)
                 
                 # Note: In a real scenario, you'd wait for training to complete
                 print("💡 To test the complete workflow:")

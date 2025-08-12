@@ -315,8 +315,13 @@ class ProjectService:
             # Convert back to TextExample objects
             examples = []
             for ex_data in project.dataset.examples:
-                example = TextExample(**ex_data)
-                examples.append(example)
+                # Check if it's already a TextExample object
+                if isinstance(ex_data, TextExample):
+                    examples.append(ex_data)
+                else:
+                    # Convert dict to TextExample
+                    example = TextExample(**ex_data)
+                    examples.append(example)
             
             return examples
         except Exception as e:
