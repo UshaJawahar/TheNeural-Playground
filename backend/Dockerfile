@@ -1,40 +1,55 @@
-# Use Python 3.11 slim image
-FROM python:3.11-slim
+# Alternative approach using Alpine Linux (typically has fewer vulnerabilities)
+FROM python:3.12-alpine3.20
 
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    gcc \
-    g++ \
-    && rm -rf /var/lib/apt/lists/*
+# Install system dependencies (Alpine packages are typically more secure)
+RUN apk update && \
+    apk upgrade && \
+    apk add --no-cache \
+        gcc \
+        g++ \
+        musl-dev \
+        linux-headers \
+        build-base \
+        && rm -rf /var/cache/apk/* \
+        && rm -rf /tmp/*
 
 # Copy requirements first for better caching
-COPY requirements-minimal.txt requirements.txt
+COPY requirements.txt requirements.txt
 
 # Install Python dependencies
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    pip install --no-cache-dir --upgrade --force-reinstall -r requirements.txt && \
+    pip check && \
+    pip cache purge
 
 # Copy application code
 COPY . .
 
-# Create non-root user
-RUN adduser --disabled-password --gecos '' appuser && chown -R appuser /app
+# Create non-root user (Alpine style)
+RUN addgroup -g 1001 -S appgroup && \
+    adduser -u 1001 -S appuser -G appgroup -s /bin/false && \
+    chown -R appuser:appgroup /app && \
+    chmod -R 755 /app
+
+# Switch to non-root user
 USER appuser
 
 # Expose port
 EXPOSE 8080
 
 # Set environment variables
-ENV PYTHONPATH=/app
-ENV PORT=8080
-ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app \
+    PORT=8080 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONHASHSEED=random
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:8080/health')" || exit 1
+# Health check (if needed, uncomment and adjust)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+     CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
 
 # Run the application
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]

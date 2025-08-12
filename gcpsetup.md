@@ -175,3 +175,9 @@ Firestore → projects/theneural/databases/(default)
 GCS Bucket → theneural-data
 
 Pub/Sub Topic → train-jobs
+
+
+
+
+scale to reduce cost:
+gcloud run services update theneural-backend --region us-central1 --max-instances 20
