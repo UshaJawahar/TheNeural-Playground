@@ -83,11 +83,11 @@ export default function TestSection({ project, onSectionChange }: TestSectionPro
   if (!canTest) {
     return (
       <div className="p-8 text-center">
-        <h2 className="text-4xl font-bold text-gray-800 mb-4">
+        <h2 className="text-4xl font-bold text-black mb-4">
           🧪 Test Your Model
         </h2>
         <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-6">
-          <p className="text-yellow-800 mb-4">
+          <p className="text-black mb-4">
             ⚠️ You need to train your model first before testing.
           </p>
           <button
@@ -104,41 +104,41 @@ export default function TestSection({ project, onSectionChange }: TestSectionPro
   return (
     <div className="p-8 space-y-8">
       <div className="text-center">
-        <h2 className="text-4xl font-bold text-gray-800 mb-4">
+        <h2 className="text-4xl font-bold text-black mb-4">
           🧪 Test Your Model
         </h2>
-        <p className="text-xl text-gray-600">
+        <p className="text-xl text-black">
           Try your trained model with new text inputs
         </p>
       </div>
 
       {/* Model Info */}
       <div className="bg-blue-50 border border-blue-200 rounded-2xl p-6">
-        <h3 className="text-lg font-semibold text-blue-700 mb-4">
+        <h3 className="text-lg font-semibold text-black mb-4">
           🤖 Your Trained Model
         </h3>
         <div className="grid md:grid-cols-3 gap-4 text-sm">
           <div>
-            <span className="font-medium">Accuracy:</span> {project.model!.accuracy}%
+            <span className="font-medium text-black">Accuracy:</span> <span className="text-black">{project.model!.accuracy}%</span>
           </div>
           <div>
-            <span className="font-medium">Labels:</span> {project.model!.labels.join(', ')}
+            <span className="font-medium text-black">Labels:</span> <span className="text-black">{project.model!.labels.join(', ')}</span>
           </div>
           <div>
-            <span className="font-medium">Trained:</span> {new Date(project.model!.trainedAt).toLocaleDateString()}
+            <span className="font-medium text-black">Trained:</span> <span className="text-black">{new Date(project.model!.trainedAt).toLocaleDateString()}</span>
           </div>
         </div>
       </div>
 
       {/* Test Input */}
       <div className="bg-white border border-gray-200 rounded-2xl p-6">
-        <h3 className="text-lg font-semibold text-gray-700 mb-4">
+        <h3 className="text-lg font-semibold text-black mb-4">
           📝 Test Your Model
         </h3>
         
         <div className="space-y-4">
           <div>
-            <label htmlFor="testText" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="testText" className="block text-sm font-medium text-black mb-2">
               Enter text to test:
             </label>
             <textarea
@@ -147,7 +147,7 @@ export default function TestSection({ project, onSectionChange }: TestSectionPro
               onChange={(e) => setTestText(e.target.value)}
               placeholder="Type some text here to test your model..."
               rows={4}
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none text-black placeholder-gray-500"
               onKeyPress={(e) => e.key === 'Enter' && makePrediction()}
             />
           </div>
@@ -166,7 +166,7 @@ export default function TestSection({ project, onSectionChange }: TestSectionPro
       {isPredicting && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-6 text-center">
           <div className="animate-pulse">
-            <h3 className="text-xl font-semibold text-yellow-700 mb-3">
+            <h3 className="text-xl font-semibold text-black mb-3">
               🔮 Analyzing your text...
             </h3>
             <div className="flex justify-center space-x-2">
@@ -180,18 +180,18 @@ export default function TestSection({ project, onSectionChange }: TestSectionPro
 
       {prediction && (
         <div className="bg-green-50 border border-green-200 rounded-2xl p-6">
-          <h3 className="text-xl font-semibold text-green-700 mb-4">
+          <h3 className="text-xl font-semibold text-black mb-4">
             🎯 Prediction Results
           </h3>
           
           <div className="space-y-4">
             <div className="bg-white rounded-lg p-4">
-              <h4 className="font-semibold text-gray-700 mb-2">Test Text:</h4>
-                             <p className="text-gray-800 italic">&quot;{prediction.text}&quot;</p>
+              <h4 className="font-semibold text-black mb-2">Test Text:</h4>
+                             <p className="text-black italic">&quot;{prediction.text}&quot;</p>
             </div>
             
             <div className="bg-white rounded-lg p-4">
-              <h4 className="font-semibold text-gray-700 mb-2">Top Prediction:</h4>
+              <h4 className="font-semibold text-black mb-2">Top Prediction:</h4>
               <div className="flex items-center justify-between">
                 <span className="text-lg font-semibold text-green-600">
                   🏆 {prediction.predictedLabel}
@@ -204,11 +204,11 @@ export default function TestSection({ project, onSectionChange }: TestSectionPro
             
             {prediction.alternatives.length > 0 && (
               <div className="bg-white rounded-lg p-4">
-                <h4 className="font-semibold text-gray-700 mb-2">Other Possibilities:</h4>
+                <h4 className="font-semibold text-black mb-2">Other Possibilities:</h4>
                 <div className="space-y-2">
                   {prediction.alternatives.map((alt: AlternativePrediction, index: number) => (
                     <div key={index} className="flex items-center justify-between">
-                      <span className="text-gray-600">{alt.label}</span>
+                      <span className="text-black">{alt.label}</span>
                       <span className="text-gray-500">{Math.round(alt.confidence)}%</span>
                     </div>
                   ))}
@@ -239,10 +239,10 @@ export default function TestSection({ project, onSectionChange }: TestSectionPro
 
       {/* Testing Tips */}
       <div className="bg-gray-50 border border-gray-200 rounded-2xl p-6">
-        <h3 className="text-lg font-semibold text-gray-700 mb-3">
+        <h3 className="text-lg font-semibold text-black mb-3">
           💡 Testing Tips
         </h3>
-        <ul className="text-gray-600 space-y-2 text-sm">
+        <ul className="text-black space-y-2 text-sm">
           <li>• Try different types of text to see how well your model generalizes</li>
           <li>• Test with text similar to your training examples for best results</li>
           <li>• If predictions are poor, consider adding more training data</li>
@@ -252,10 +252,10 @@ export default function TestSection({ project, onSectionChange }: TestSectionPro
 
       {/* What the Model Learned */}
       <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-6">
-        <h3 className="text-lg font-semibold text-indigo-700 mb-3">
+        <h3 className="text-lg font-semibold text-black mb-3">
           🧠 What Your Model Learned
         </h3>
-        <div className="text-indigo-800 space-y-2 text-sm">
+        <div className="text-black space-y-2 text-sm">
           <p>• Your model learned patterns from {project.datasets.reduce((sum, d) => sum + d.examples.length, 0)} training examples</p>
           <p>• It can recognize text patterns and assign them to {project.model!.labels.length} different categories</p>
           <p>• The confidence score shows how similar the test text is to training examples</p>

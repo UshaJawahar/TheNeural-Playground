@@ -1,81 +1,70 @@
 'use client';
 
-import { useState } from 'react';
-import ProjectCreator, { Project } from './components/ProjectCreator';
-import TextRecognition from './components/TextRecognition';
+import { useRouter } from 'next/navigation';
+import Header from '@/components/Header';
 
 export default function Home() {
-  const [currentProject, setCurrentProject] = useState<Project | null>(null);
-  const [projects, setProjects] = useState<Project[]>([]);
+  const router = useRouter();
 
-  const createProject = (projectData: Omit<Project, 'id' | 'createdAt' | 'updatedAt' | 'status'>) => {
-    const newProject: Project = {
-      id: Date.now().toString(),
-      name: projectData.name,
-      type: projectData.type,
-      datasets: projectData.datasets,
-      model: projectData.model,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      status: 'draft'
-    };
-    
-    setProjects([...projects, newProject]);
-    setCurrentProject(newProject);
-  };
-
-  const selectProject = (project: Project) => {
-    setCurrentProject(project);
+  const goToProjects = () => {
+    router.push('/projects');
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-4">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <header className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-purple-700 mb-2">
-            🚀 AI Playground for Kids
-          </h1>
-          <p className="text-lg text-gray-600">
-            Create amazing projects and learn about artificial intelligence!
-          </p>
-        </header>
+    <div className="min-h-screen bg-white">
+      {/* Header */}
+      <Header />
+      
+      {/* Main Content */}
+      <div className="p-8">
+        <div className="max-w-6xl mx-auto flex items-center justify-between">
+          {/* Left Side - Main Heading */}
+          <div className="flex-1 max-w-md">
+            <h1 className="text-5xl font-bold text-gray-800 leading-tight mb-8">
+              Teach a<br />
+              computer to<br />
+              play a game
+            </h1>
+            
+            <button
+              onClick={goToProjects}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-lg text-lg font-semibold transition-colors shadow-lg"
+            >
+              Go to your Projects
+            </button>
+          </div>
 
-        {/* Main Content */}
-        {!currentProject ? (
-          <ProjectCreator onCreateProject={createProject} projects={projects} onSelectProject={selectProject} />
-        ) : (
-          <div>
-            {/* Project Header */}
-            <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-2xl font-bold text-purple-700">
-                    📁 {currentProject.name}
-                  </h2>
-                  <p className="text-gray-600">
-                    Text Recognition Project
-                  </p>
-                </div>
-                <button
-                  onClick={() => setCurrentProject(null)}
-                  className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors"
-                >
-                  ← Back to Projects
-                </button>
+          {/* Right Side - Steps List */}
+          <div className="flex-1 max-w-md ml-16">
+            <div className="space-y-6">
+              <div className="flex items-start space-x-4">
+                <span className="text-3xl font-bold text-purple-700">1</span>
+                <p className="text-lg text-gray-700 leading-relaxed">
+                  Collect examples of things you<br />
+                  want to be able to recognise
+                </p>
+              </div>
+              
+              <div className="flex items-start space-x-4">
+                <span className="text-3xl font-bold text-purple-700">2</span>
+                <p className="text-lg text-gray-700 leading-relaxed">
+                  Use the examples to train a<br />
+                  computer to be able to recognise<br />
+                  them
+                </p>
+              </div>
+              
+              <div className="flex items-start space-x-4">
+                <span className="text-3xl font-bold text-purple-700">3</span>
+                <p className="text-lg text-gray-700 leading-relaxed">
+                  Make a game in Scratch that uses<br />
+                  the computer's ability to recognise<br />
+                  them
+                </p>
               </div>
             </div>
-
-            {/* Text Recognition Component */}
-            <TextRecognition 
-              project={currentProject} 
-              onUpdateProject={(updatedProject: Project) => {
-                setCurrentProject(updatedProject);
-                setProjects(projects.map(p => p.id === updatedProject.id ? updatedProject : p));
-              }}
-            />
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

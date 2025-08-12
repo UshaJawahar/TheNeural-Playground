@@ -70,10 +70,10 @@ export default function LearnSection({ project, onUpdateProject, onSectionChange
   return (
     <div className="p-8 space-y-8">
       <div className="text-center">
-        <h2 className="text-4xl font-bold text-gray-800 mb-4">
+        <h2 className="text-4xl font-bold text-black mb-4">
           🧠 Learn (Train Your Model)
         </h2>
-        <p className="text-xl text-gray-600">
+        <p className="text-xl text-black">
           Teach your AI model to recognize text patterns
         </p>
       </div>
@@ -81,13 +81,13 @@ export default function LearnSection({ project, onUpdateProject, onSectionChange
       {/* Training Status */}
       {!project.model && (
         <div className="bg-blue-50 border border-blue-200 rounded-2xl p-6">
-          <h3 className="text-xl font-semibold text-blue-700 mb-4">
+          <h3 className="text-xl font-semibold text-black mb-4">
             🚀 Ready to Train Your Model
           </h3>
           
           {canStartTraining ? (
             <div className="text-center">
-              <p className="text-blue-800 mb-4">
+              <p className="text-black mb-4">
                 Your dataset is ready! You have {project.datasets.length} labels with examples.
               </p>
               <button
@@ -117,14 +117,14 @@ export default function LearnSection({ project, onUpdateProject, onSectionChange
       {/* Training Progress */}
       {isTraining && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-6">
-          <h3 className="text-xl font-semibold text-yellow-700 mb-4">
+          <h3 className="text-xl font-semibold text-black mb-4">
             🔄 Training in Progress...
           </h3>
           
           <div className="mb-4">
-            <div className="flex justify-between text-sm text-yellow-800 mb-2">
-              <span>Progress</span>
-              <span>{Math.round(trainingProgress)}%</span>
+            <div className="flex justify-between text-sm text-black mb-2">
+              <span className="font-medium">Progress</span>
+              <span className="font-medium">{Math.round(trainingProgress)}%</span>
             </div>
             <div className="w-full bg-yellow-200 rounded-full h-3">
               <div 
@@ -134,7 +134,7 @@ export default function LearnSection({ project, onUpdateProject, onSectionChange
             </div>
           </div>
           
-          <p className="text-yellow-800 text-center font-medium">
+          <p className="text-black text-center font-medium">
             {trainingStatus}
           </p>
         </div>
@@ -143,24 +143,24 @@ export default function LearnSection({ project, onUpdateProject, onSectionChange
       {/* Training Results */}
       {project.model && (
         <div className="bg-green-50 border border-green-200 rounded-2xl p-6">
-          <h3 className="text-xl font-semibold text-green-700 mb-4">
+          <h3 className="text-xl font-semibold text-black mb-4">
             ✅ Training Complete!
           </h3>
           
           <div className="grid md:grid-cols-2 gap-4 mb-6">
             <div className="bg-white rounded-lg p-4">
-              <h4 className="font-semibold text-green-700 mb-2">Model Info</h4>
-              <p className="text-sm text-gray-600">Name: {project.model.name}</p>
-              <p className="text-sm text-gray-600">Accuracy: {project.model.accuracy}%</p>
-              <p className="text-sm text-gray-600">Labels: {project.model.labels.join(', ')}</p>
-              <p className="text-sm text-gray-600">Trained: {new Date(project.model.trainedAt).toLocaleString()}</p>
+              <h4 className="font-semibold text-black mb-2">Model Info</h4>
+              <p className="text-sm text-black">Name: {project.model.name}</p>
+              <p className="text-sm text-black">Accuracy: {project.model.accuracy}%</p>
+              <p className="text-sm text-black">Labels: {project.model.labels.join(', ')}</p>
+              <p className="text-sm text-black">Trained: {new Date(project.model.trainedAt).toLocaleString()}</p>
             </div>
             
             <div className="bg-white rounded-lg p-4">
-              <h4 className="font-semibold text-green-700 mb-2">Dataset Summary</h4>
-              <p className="text-sm text-gray-600">Total Labels: {project.datasets.length}</p>
-              <p className="text-sm text-gray-600">Total Examples: {project.datasets.reduce((sum, d) => sum + d.examples.length, 0)}</p>
-              <p className="text-sm text-gray-600">Average per Label: {Math.round(project.datasets.reduce((sum, d) => sum + d.examples.length, 0) / project.datasets.length)}</p>
+              <h4 className="font-semibold text-black mb-2">Dataset Summary</h4>
+              <p className="text-sm text-black">Total Labels: {project.datasets.length}</p>
+              <p className="text-sm text-black">Total Examples: {project.datasets.reduce((sum, d) => sum + d.examples.length, 0)}</p>
+              <p className="text-sm text-black">Average per Label: {Math.round(project.datasets.reduce((sum, d) => sum + d.examples.length, 0) / project.datasets.length)}</p>
             </div>
           </div>
 
@@ -183,10 +183,10 @@ export default function LearnSection({ project, onUpdateProject, onSectionChange
 
       {/* Training Tips */}
       <div className="bg-gray-50 border border-gray-200 rounded-2xl p-6">
-        <h3 className="text-lg font-semibold text-gray-700 mb-3">
+        <h3 className="text-lg font-semibold text-black mb-3">
           💡 Training Tips
         </h3>
-        <ul className="text-gray-600 space-y-2 text-sm">
+        <ul className="text-black space-y-2 text-sm">
           <li>• More training examples usually lead to better accuracy</li>
           <li>• Try to have balanced examples across all labels</li>
           <li>• Use diverse text examples to improve generalization</li>
@@ -196,10 +196,10 @@ export default function LearnSection({ project, onUpdateProject, onSectionChange
 
       {/* What Happens During Training */}
       <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-6">
-        <h3 className="text-lg font-semibold text-indigo-700 mb-3">
+        <h3 className="text-lg font-semibold text-black mb-3">
           🔬 What Happens During Training?
         </h3>
-        <div className="text-indigo-800 space-y-2 text-sm">
+        <div className="text-black space-y-2 text-sm">
           <p>• Your text examples are converted to numerical features</p>
           <p>• A neural network learns patterns in your data</p>
           <p>• The model adjusts its parameters to minimize errors</p>
