@@ -1,45 +1,25 @@
 # TheNeural Backend API
 
-A modern FastAPI-based backend service that integrates with Google Cloud Platform services for ML project management.
+**FastAPI-based backend for ML project management with GCP integration**
 
-## 🚀 Features
+## 🎯 **Features**
 
-- **FastAPI Framework**: Modern, fast web framework with automatic API documentation
-- **Project Management**: Full CRUD operations for ML projects
-- **File Upload**: Secure dataset uploads to Google Cloud Storage
-- **Training Jobs**: Queue training jobs via Pub/Sub
-- **Real-time Status**: Track project and training status
-- **GCP Integration**: Seamless integration with Firestore, GCS, and Pub/Sub
-- **Type Safety**: Full Pydantic model validation and TypeScript-like type checking
-- **Auto Documentation**: Interactive API docs at `/docs` and `/redoc`
+### **Complete ML Workflow:**
+- ✅ **Project Management**: Create, read, update, delete ML projects
+- ✅ **Example Management**: Add up to 50 text examples per project
+- ✅ **Training Pipeline**: Queue-based training with logistic regression
+- ✅ **Model Storage**: Automatic model persistence to Google Cloud Storage
+- ✅ **Inference**: Real-time predictions with confidence scores
+- ✅ **Job Management**: Training job status, progress tracking, cancellation
 
-## 🏗️ Architecture
+### **Architecture:**
+- **FastAPI**: Modern, fast web framework with automatic API docs
+- **Google Cloud**: Firestore, Cloud Storage, Pub/Sub integration
+- **Training Service**: Scikit-learn logistic regression with TF-IDF
+- **Job Queue**: Asynchronous training with Pub/Sub messaging
+- **Worker System**: Scalable training worker architecture
 
-```
-Frontend → FastAPI Backend → GCP Services
-            ↓
-     ┌─────────────┐
-     │   FastAPI   │
-     │   Server    │
-     └─────────────┘
-            ↓
-     ┌─────────────┐
-     │  Services   │
-     │  (Project)  │
-     └─────────────┘
-            ↓
-     ┌─────────────┐
-     │   GCP SDK   │
-     └─────────────┘
-            ↓
-     ┌─────────────┐
-     │ Firestore   │
-     │   GCS       │
-     │  Pub/Sub    │
-     └─────────────┘
-```
-
-## 📁 Project Structure
+## 📁 **Project Structure**
 
 ```
 backend/
@@ -49,250 +29,267 @@ backend/
 │   ├── config.py            # Configuration and GCP clients
 │   ├── models.py            # Pydantic data models
 │   ├── services.py          # Business logic layer
+│   ├── training_service.py  # Logistic regression training
+│   ├── training_job_service.py  # Training job management
+│   ├── training_worker.py   # Background worker for training
 │   └── api/
 │       ├── __init__.py
 │       ├── health.py        # Health check endpoints
 │       └── projects.py      # Project management endpoints
 ├── requirements.txt         # Python dependencies
+├── start_worker.py         # Training worker startup script
+├── test_api.py             # API testing script
 ├── Dockerfile              # Container configuration
 ├── cloudbuild.yaml         # Cloud Build CI/CD
 ├── env.example             # Environment variables template
 └── README.md               # This file
 ```
 
-## 📋 Prerequisites
+## 🚀 **Quick Start**
 
-- Python 3.11+
-- Google Cloud Platform account
-- GCP project with Firestore, GCS, and Pub/Sub enabled
-- Service account with proper IAM roles
-
-## 🛠️ Setup
-
-### 1. Install Dependencies
-
+### **1. Setup Environment**
 ```bash
 cd backend
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 2. Environment Configuration
-
-1. **Copy Environment Template**:
-   ```bash
-   cp env.example .env
-   ```
-
-2. **Update `.env` File**:
-   ```env
-   # GCP Configuration
-   GOOGLE_CLOUD_PROJECT=theneural
-   
-   # Service Configuration
-   PORT=8080
-   NODE_ENV=production
-   
-   # GCP Resource Names
-   FIRESTORE_DATABASE_ID=(default)
-   GCS_BUCKET_NAME=theneural-data
-   PUBSUB_TOPIC_NAME=train-jobs
-   
-   # CORS Configuration
-   CORS_ORIGIN=https://your-frontend-domain.vercel.app
-   
-   # Security
-   JWT_SECRET=your-super-secret-jwt-key-here
-   ```
-
-### 3. Service Account Setup
-
-✅ **No JSON Keys Required!**  
-Your organization's security policy prevents downloading service account keys, which is actually **more secure**.
-
-The backend will use **Application Default Credentials (ADC)** when deployed to Cloud Run with the `svc-backend` service account.
-
-## 🚀 Running the Service
-
-### Development Mode
+### **2. Configure GCP**
 ```bash
-cd backend
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8080
+# Copy environment template
+cp env.example .env
+
+# Edit .env with your GCP settings
+GOOGLE_CLOUD_PROJECT=your-project-id
+GCS_BUCKET_NAME=your-bucket-name
+PUBSUB_TOPIC_NAME=train-jobs
 ```
 
-### Production Mode
+### **3. Start Backend**
 ```bash
-cd backend
+# Development mode
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8080
+
+# Production mode
 uvicorn app.main:app --host 0.0.0.0 --port 8080
 ```
 
-### Health Check
+### **4. Start Training Worker** (in separate terminal)
 ```bash
-curl http://localhost:8080/health
+python start_worker.py
 ```
 
-### API Documentation
-- **Swagger UI**: http://localhost:8080/docs
-- **ReDoc**: http://localhost:8080/redoc
+## 🔄 **Complete Workflow**
 
-## 🚀 **Deployment to Cloud Run**
-
-### **Quick Deploy**
+### **1. Create Project**
 ```bash
-cd backend
-gcloud builds submit --config cloudbuild.yaml .
+POST /api/projects
+{
+  "name": "Text Classifier",
+  "description": "Classify text into categories",
+  "type": "text-recognition",
+  "createdBy": "user@example.com",
+  "schoolId": "school-1",
+  "classId": "class-1"
+}
 ```
 
-### **Manual Deploy**
+### **2. Add Examples**
 ```bash
-# Build and push image
-docker build -t gcr.io/theneural/theneural-backend:latest .
-docker push gcr.io/theneural/theneural-backend:latest
-
-# Deploy to Cloud Run
-gcloud run deploy theneural-backend \
-  --image gcr.io/theneural/theneural-backend:latest \
-  --platform managed \
-  --region us-central1 \
-  --allow-unauthenticated \
-  --service-account svc-backend@theneural.iam.gserviceaccount.com \
-  --set-env-vars GOOGLE_CLOUD_PROJECT=theneural,NODE_ENV=production
+POST /api/projects/{project_id}/examples
+{
+  "examples": [
+    {"text": "I love soccer", "label": "Sports"},
+    {"text": "Pizza is great", "label": "Food"},
+    {"text": "Basketball is fun", "label": "Sports"}
+  ]
+}
 ```
 
-## 📚 API Endpoints
-
-### Health & Info
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/` | API information |
-| `GET` | `/health` | Health check |
-
-### Projects
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/projects` | Get all projects |
-| `GET` | `/api/projects/:id` | Get project by ID |
-| `POST` | `/api/projects` | Create new project |
-| `PUT` | `/api/projects/:id` | Update project |
-| `DELETE` | `/api/projects/:id` | Delete project |
-| `POST` | `/api/projects/:id/dataset` | Upload dataset |
-| `POST` | `/api/projects/:id/train` | Start training |
-| `GET` | `/api/projects/:id/status` | Get project status |
-
-## 🔧 Configuration
-
-### GCP Services
-
-- **Firestore**: Database for project metadata
-- **GCS**: File storage for datasets and models
-- **Pub/Sub**: Message queue for training jobs
-
-### Type Compatibility
-
-The backend is designed to work seamlessly with your Next.js frontend:
-
-- **Project Types**: Matches frontend `Project` interface exactly
-- **Status Values**: `draft` | `training` | `trained` | `testing`
-- **Project Types**: `text-recognition` | `classification` | `regression` | `custom`
-- **Datasets**: Supports both single `dataset` and `datasets[]` array
-- **Pydantic Models**: Automatic validation and serialization
-
-### File Upload
-
-- **Supported Formats**: CSV, JSON, Excel, Text
-- **Maximum Size**: 100MB per file
-- **Storage Path**: `gs://theneural-data/datasets/{projectId}/{filename}`
-
-### Training Configuration
-
-- **Epochs**: 1-10,000
-- **Batch Size**: 1-10,000
-- **Learning Rate**: 0.001 (default)
-- **Validation Split**: 0.2 (default)
-
-## 🧪 Testing
-
-### Run Tests
+### **3. Start Training**
 ```bash
-# Install test dependencies
-pip install pytest pytest-asyncio httpx
-
-# Run tests
-pytest
+POST /api/projects/{project_id}/train
+# Returns job ID for tracking
 ```
 
-### Test API Endpoints
+### **4. Monitor Training**
 ```bash
-# Start the server
-uvicorn app.main:app --reload
-
-# Test health endpoint
-curl http://localhost:8080/health
-
-# Test projects endpoint
-curl http://localhost:8080/api/projects
+GET /api/projects/{project_id}/train
+# Shows job status, progress, and results
 ```
 
-## 🔒 Security
+### **5. Make Predictions**
+```bash
+POST /api/projects/{project_id}/predict
+{
+  "text": "I enjoy playing tennis"
+}
+# Returns: {"label": "Sports", "confidence": 85.2}
+```
 
-- **CORS**: Configurable cross-origin resource sharing
-- **Input Validation**: Pydantic schema validation
-- **File Type Filtering**: Whitelist allowed file types
-- **Size Limits**: File upload size restrictions
-- **Trusted Hosts**: Host validation middleware
+## 📊 **API Endpoints**
 
-## 📊 Monitoring
+### **Projects**
+- `GET /api/projects` - List all projects
+- `POST /api/projects` - Create new project
+- `GET /api/projects/{id}` - Get project details
+- `PUT /api/projects/{id}` - Update project
+- `DELETE /api/projects/{id}` - Delete project
 
-- **Health Check**: `/health` endpoint
-- **Request Timing**: `X-Process-Time` header
-- **Error Logging**: Structured logging with error details
-- **GCP Integration**: Service account authentication
-- **Status Tracking**: Project and training status
+### **Examples**
+- `POST /api/projects/{id}/examples` - Add text examples
+- `GET /api/projects/{id}/examples` - Get all examples
 
-## 🚨 Troubleshooting
+### **Training**
+- `POST /api/projects/{id}/train` - Start training job
+- `GET /api/projects/{id}/train` - Get training status
+- `DELETE /api/projects/{id}/train` - Cancel training
 
-### Common Issues
+### **Inference**
+- `POST /api/projects/{id}/predict` - Make predictions
 
-1. **Authentication Error**:
-   - Verify GCP project ID in `.env`
-   - Check service account has required roles
-   - Ensure API is enabled
+### **Job Management**
+- `GET /api/training/jobs/{job_id}` - Get job status
+- `DELETE /api/training/jobs/{job_id}` - Cancel job
 
-2. **File Upload Fails**:
-   - Check file size (max 100MB)
-   - Verify file format is supported
-   - Ensure GCS bucket exists and is accessible
+## 🧪 **Testing**
 
-3. **Firestore Connection Error**:
-   - Verify Firestore database exists
-   - Check service account permissions
-   - Ensure API is enabled
+### **Run Complete Test Suite**
+```bash
+python test_api.py
+```
 
-### Debug Mode
+### **Test Individual Components**
+```python
+# Test project creation
+project_id = test_create_project()
 
-Set `NODE_ENV=development` for detailed error messages and logging.
+# Test adding examples
+test_add_examples(project_id)
 
-## 🔄 Next Steps
+# Test training
+job_id = test_start_training(project_id)
 
-1. **Trainer Service**: Implement ML training worker
-2. **Inference Service**: Model prediction endpoint
-3. **Cleanup Service**: Automated data lifecycle management
-4. **Monitoring**: Cloud Logging and Metrics integration
-5. **Testing**: Comprehensive test suite
+# Test prediction
+test_prediction(project_id)
+```
 
-## 📞 Support
+## 🏗️ **Deployment**
 
-For issues and questions:
-- Check GCP Console for service status
-- Review service account permissions
-- Verify environment configuration
-- Check application logs
-- View API documentation at `/docs`
+### **Local Development**
+```bash
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8080
+```
 
-## 🎯 Key Benefits of FastAPI
+### **Docker**
+```bash
+docker build -t theneural-backend .
+docker run -p 8080:8080 theneural-backend
+```
 
-- **Performance**: One of the fastest Python frameworks available
-- **Type Safety**: Full type hints and validation with Pydantic
-- **Auto Documentation**: Interactive API docs with OpenAPI/Swagger
-- **Modern Python**: Async/await support and modern Python features
-- **Easy Testing**: Built-in testing support and dependency injection
-- **Production Ready**: Built for production with proper error handling
+### **Google Cloud Run**
+```bash
+# Windows
+deploy.bat
+
+# Linux/Mac
+./deploy.sh
+```
+
+## 🔧 **Configuration**
+
+### **Environment Variables**
+```bash
+GOOGLE_CLOUD_PROJECT=your-project-id
+GCS_BUCKET_NAME=your-bucket-name
+PUBSUB_TOPIC_NAME=train-jobs
+FIRESTORE_DATABASE_ID=(default)
+CORS_ORIGIN=http://localhost:3000
+JWT_SECRET=your-secret-key
+```
+
+### **GCP Services Required**
+- **Firestore**: Project metadata and training jobs
+- **Cloud Storage**: Model artifacts and datasets
+- **Pub/Sub**: Training job queue
+- **Cloud Run**: API hosting and training workers
+
+## 📈 **Training Architecture**
+
+### **Job Flow**
+1. **Queue**: Training request → Pub/Sub topic
+2. **Worker**: Background worker processes jobs
+3. **Training**: Logistic regression with TF-IDF
+4. **Storage**: Model saved to GCS
+5. **Update**: Project status updated in Firestore
+
+### **Model Details**
+- **Algorithm**: Logistic Regression
+- **Features**: TF-IDF vectorization (unigrams + bigrams)
+- **Validation**: 80/20 train/validation split
+- **Output**: Label + confidence + alternatives
+
+### **Scalability Features**
+- **Concurrent Jobs**: Configurable worker pool
+- **Job Queuing**: Pub/Sub for reliable message delivery
+- **Progress Tracking**: Real-time training progress
+- **Error Handling**: Graceful failure and cleanup
+
+## 🚨 **Limits & Constraints**
+
+### **Per Project**
+- **Examples**: 3-50 per label, minimum 10 total
+- **File Upload**: 100MB maximum
+- **Training Time**: Varies by dataset size
+
+### **System**
+- **Concurrent Training**: 3 jobs maximum (configurable)
+- **Model Storage**: Automatic cleanup after 7 days
+- **API Rate Limits**: None currently (add as needed)
+
+## 🔍 **Monitoring & Debugging**
+
+### **Health Checks**
+- `GET /health` - Service health status
+- `GET /` - API information and docs links
+
+### **Logging**
+- Training progress updates
+- Job status changes
+- Error details and stack traces
+
+### **API Documentation**
+- **Swagger UI**: `http://localhost:8080/docs`
+- **ReDoc**: `http://localhost:8080/redoc`
+- **OpenAPI Schema**: `http://localhost:8080/openapi.json`
+
+## 🎉 **What's Next?**
+
+### **Phase A (Current)**
+- ✅ Complete training pipeline
+- ✅ Job queue management
+- ✅ Model storage and inference
+
+### **Phase B (Future)**
+- 🔄 Vertex AI integration for heavy training
+- 🔄 Advanced model types (LSTM, Transformers)
+- 🔄 Batch prediction endpoints
+- 🔄 Model versioning and A/B testing
+
+### **Phase C (Advanced)**
+- 🔄 Multi-tenant school management
+- 🔄 Usage quotas and billing
+- 🔄 Advanced monitoring and alerting
+- 🔄 Automated model retraining
+
+## 🤝 **Contributing**
+
+1. Follow the existing code structure
+2. Add tests for new features
+3. Update documentation
+4. Use conventional commit messages
+
+## 📄 **License**
+
+This project is part of TheNeural platform for kid-friendly ML education.

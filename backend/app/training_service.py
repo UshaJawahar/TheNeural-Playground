@@ -129,6 +129,23 @@ class LogisticRegressionTrainer:
         
         return model_path
     
+    def save_model_to_gcs(self, bucket, gcs_path: str) -> str:
+        """Save trained model directly to GCS"""
+        model_data = {
+            'vectorizer': self.vectorizer,
+            'model': self.model,
+            'trained_at': datetime.now(timezone.utc).isoformat()
+        }
+        
+        # Serialize model data
+        model_bytes = pickle.dumps(model_data)
+        
+        # Upload to GCS
+        blob = bucket.blob(gcs_path)
+        blob.upload_from_string(model_bytes, content_type='application/octet-stream')
+        
+        return gcs_path
+    
     def predict(self, text: str, model_path: str) -> Dict[str, Any]:
         """Make prediction using saved model"""
         # Load model
@@ -164,6 +181,49 @@ class LogisticRegressionTrainer:
             'confidence': round(confidence, 2),
             'alternatives': alternatives[:2]  # Top 2 alternatives
         }
+    
+    def predict_from_gcs(self, text: str, bucket, gcs_path: str) -> Dict[str, Any]:
+        """Make prediction using model stored in GCS"""
+        try:
+            # Download model from GCS
+            blob = bucket.blob(gcs_path)
+            model_bytes = blob.download_as_bytes()
+            
+            # Deserialize model data
+            model_data = pickle.loads(model_bytes)
+            
+            vectorizer = model_data['vectorizer']
+            model = model_data['model']
+            
+            # Vectorize input text
+            text_vector = vectorizer.transform([text])
+            
+            # Make prediction
+            prediction = model.predict(text_vector)[0]
+            probabilities = model.predict_proba(text_vector)[0]
+            
+            # Get confidence and alternatives
+            confidence = max(probabilities) * 100
+            alternatives = []
+            
+            for i, (label, prob) in enumerate(zip(model.classes_, probabilities)):
+                if label != prediction:
+                    alternatives.append({
+                        'label': label,
+                        'confidence': round(prob * 100, 2)
+                    })
+            
+            # Sort alternatives by confidence
+            alternatives.sort(key=lambda x: x['confidence'], reverse=True)
+            
+            return {
+                'label': prediction,
+                'confidence': round(confidence, 2),
+                'alternatives': alternatives[:2]  # Top 2 alternatives
+            }
+            
+        except Exception as e:
+            raise Exception(f"Failed to load model from GCS: {str(e)}")
 
 
 # Global trainer instance

@@ -124,6 +124,109 @@ def test_project_status(project_id):
         print(f"❌ Project status error: {e}")
         return False
 
+def test_add_examples(project_id):
+    """Test adding examples to a project"""
+    print(f"📝 Testing example addition: {project_id}")
+    try:
+        examples_data = {
+            "examples": [
+                {"text": "I love playing soccer", "label": "Sports"},
+                {"text": "Basketball is fun", "label": "Sports"},
+                {"text": "I scored a goal", "label": "Sports"},
+                {"text": "Pizza is delicious", "label": "Food"},
+                {"text": "I enjoy cooking", "label": "Food"},
+                {"text": "This burger tastes great", "label": "Food"},
+                {"text": "I like running", "label": "Sports"},
+                {"text": "Swimming is refreshing", "label": "Sports"},
+                {"text": "I love pasta", "label": "Food"},
+                {"text": "Cooking is my hobby", "label": "Food"}
+            ]
+        }
+        
+        response = requests.post(
+            f"{API_BASE}/projects/{project_id}/examples",
+            json=examples_data
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            print(f"✅ Examples added: {data['totalExamples']} total examples")
+            print(f"📊 Labels: {data['labels']}")
+            return True
+        else:
+            print(f"❌ Example addition failed: {response.status_code}")
+            print(f"Response: {response.text}")
+            return False
+    except Exception as e:
+        print(f"❌ Example addition error: {e}")
+        return False
+
+def test_start_training(project_id):
+    """Test starting training for a project"""
+    print(f"🚀 Testing training start: {project_id}")
+    try:
+        response = requests.post(f"{API_BASE}/projects/{project_id}/train")
+        
+        if response.status_code == 200:
+            data = response.json()
+            print(f"✅ Training started: {data['message']}")
+            print(f"🆔 Job ID: {data['jobId']}")
+            return data['jobId']
+        else:
+            print(f"❌ Training start failed: {response.status_code}")
+            print(f"Response: {response.text}")
+            return None
+    except Exception as e:
+        print(f"❌ Training start error: {e}")
+        return None
+
+def test_training_status(project_id):
+    """Test getting training status"""
+    print(f"📊 Testing training status: {project_id}")
+    try:
+        response = requests.get(f"{API_BASE}/projects/{project_id}/train")
+        
+        if response.status_code == 200:
+            data = response.json()
+            print(f"✅ Training status: {data['projectStatus']}")
+            if data['currentJob']:
+                print(f"🔄 Current job: {data['currentJob']['status']}")
+                print(f"📈 Progress: {data['currentJob']['progress']}%")
+            return True
+        else:
+            print(f"❌ Training status failed: {response.status_code}")
+            return False
+    except Exception as e:
+        print(f"❌ Training status error: {e}")
+        return False
+
+def test_prediction(project_id):
+    """Test making predictions with trained model"""
+    print(f"🔮 Testing prediction: {project_id}")
+    try:
+        prediction_data = {
+            "text": "I love playing basketball"
+        }
+        
+        response = requests.post(
+            f"{API_BASE}/projects/{project_id}/predict",
+            json=prediction_data
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            print(f"✅ Prediction: {data['label']} (confidence: {data['confidence']}%)")
+            if data['alternatives']:
+                print(f"🔄 Alternatives: {data['alternatives']}")
+            return True
+        else:
+            print(f"❌ Prediction failed: {response.status_code}")
+            print(f"Response: {response.text}")
+            return False
+    except Exception as e:
+        print(f"❌ Prediction error: {e}")
+        return False
+
 def main():
     """Run all tests"""
     print("🧪 TheNeural Backend API Test Suite")
@@ -152,8 +255,30 @@ def main():
         # Test getting the project
         test_get_project(project_id)
         
-        # Test project status
-        test_project_status(project_id)
+        # Test adding examples
+        examples_ok = test_add_examples(project_id)
+        
+        if examples_ok:
+            # Test starting training
+            job_id = test_start_training(project_id)
+            
+            if job_id:
+                print(f"🔄 Training job started with ID: {job_id}")
+                print("⏳ Waiting for training to complete...")
+                
+                # Wait a bit and check status
+                import time
+                time.sleep(5)
+                
+                # Check training status
+                test_training_status(project_id)
+                
+                # Note: In a real scenario, you'd wait for training to complete
+                print("💡 To test the complete workflow:")
+                print("   1. Start the training worker: python start_worker.py")
+                print("   2. Wait for training to complete")
+                print("   3. Run: python test_api.py")
+                print("   4. Test prediction with: test_prediction(project_id)")
     
     print("\n" + "=" * 50)
     print("🎉 Test suite completed!")
@@ -161,6 +286,7 @@ def main():
     if project_id:
         print(f"📝 Test project created with ID: {project_id}")
         print("💡 You can view it in the API docs at: http://localhost:8080/docs")
+        print("🚀 Complete workflow test available in the test functions above")
 
 if __name__ == "__main__":
     main()

@@ -74,6 +74,18 @@ class GCPClients:
     
     def get_topic_path(self):
         return self.topic_path
+    
+    def get_project_id(self):
+        return self.project_id
+    
+    def get_topic_name(self):
+        return settings.pubsub_topic_name
+    
+    def get_subscription_path(self):
+        return self.pubsub_client.subscription_path(
+            self.project_id, 
+            "training-worker-subscription"
+        )
 
 
 # Global GCP clients instance

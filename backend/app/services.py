@@ -5,7 +5,7 @@ from google.cloud import firestore
 from google.cloud import storage
 from google.cloud import pubsub_v1
 
-from .models import Project, ProjectCreate, ProjectUpdate, Dataset, TrainedModel, ProjectConfig
+from .models import Project, ProjectCreate, ProjectUpdate, Dataset, TrainedModel, ProjectConfig, TextExample, ExampleAdd
 from .config import gcp_clients
 
 
@@ -51,7 +51,7 @@ class ProjectService:
     async def get_project(self, project_id: str) -> Optional[Project]:
         """Get project by ID"""
         try:
-            doc = await self.collection.document(project_id).get()
+            doc = self.collection.document(project_id).get()
             if doc.exists:
                 data = doc.to_dict()
                 return Project(**data)
@@ -69,8 +69,10 @@ class ProjectService:
     ) -> List[Project]:
         """Get all projects with optional filtering"""
         try:
+            # Start with base query
             query = self.collection.order_by('createdAt', direction=firestore.Query.DESCENDING)
             
+            # Apply filters
             if status:
                 query = query.where('status', '==', status)
             if type:
@@ -78,6 +80,7 @@ class ProjectService:
             if created_by:
                 query = query.where('createdBy', '==', created_by)
             
+            # Execute query and get documents
             docs = query.limit(limit).offset(offset).get()
             projects = []
             
@@ -256,3 +259,65 @@ class ProjectService:
             return projects
         except Exception as e:
             raise Exception(f"Failed to search projects: {str(e)}")
+    
+    async def add_examples(self, project_id: str, examples: List[ExampleAdd]) -> Dict[str, Any]:
+        """Add text examples to a project"""
+        try:
+            project = await self.get_project(project_id)
+            if not project:
+                raise Exception("Project not found")
+            
+            # Convert examples to TextExample objects
+            text_examples = []
+            for example in examples:
+                text_example = TextExample(
+                    text=example.text,
+                    label=example.label,
+                    addedAt=datetime.now(timezone.utc)
+                )
+                text_examples.append(text_example)
+            
+            # Update project with new examples
+            current_examples = project.dataset.examples if project.dataset.examples else []
+            updated_examples = current_examples + text_examples
+            
+            # Get unique labels
+            labels = list(set([ex.label for ex in updated_examples]))
+            
+            # Update project
+            update_data = {
+                'dataset.examples': [ex.model_dump() for ex in updated_examples],
+                'dataset.labels': labels,
+                'dataset.records': len(updated_examples),
+                'updatedAt': datetime.now(timezone.utc)
+            }
+            
+            self.collection.document(project_id).update(update_data)
+            
+            return {
+                'totalExamples': len(updated_examples),
+                'labels': labels,
+                'examples': [ex.model_dump() for ex in updated_examples]
+            }
+        except Exception as e:
+            raise Exception(f"Failed to add examples: {str(e)}")
+    
+    async def get_examples(self, project_id: str) -> List[TextExample]:
+        """Get all examples for a project"""
+        try:
+            project = await self.get_project(project_id)
+            if not project:
+                raise Exception("Project not found")
+            
+            if not project.dataset.examples:
+                return []
+            
+            # Convert back to TextExample objects
+            examples = []
+            for ex_data in project.dataset.examples:
+                example = TextExample(**ex_data)
+                examples.append(example)
+            
+            return examples
+        except Exception as e:
+            raise Exception(f"Failed to get examples: {str(e)}")

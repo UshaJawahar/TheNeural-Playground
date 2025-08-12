@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Query, Depends
 from typing import List, Optional
 import json
+from datetime import datetime, timezone
 
 from ..models import (
     Project, ProjectCreate, ProjectUpdate, ProjectListResponse, 
@@ -10,6 +11,8 @@ from ..models import (
 )
 from ..services import ProjectService
 from ..training_service import trainer
+from ..training_job_service import training_job_service
+from ..config import gcp_clients
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
 
@@ -184,19 +187,194 @@ async def upload_dataset(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/{project_id}/examples", response_model=dict)
+async def add_examples(
+    project_id: str,
+    examples_data: ExamplesBulkAdd,
+    project_service: ProjectService = Depends(get_project_service)
+):
+    """Add text examples to a project"""
+    try:
+        # Validate number of examples
+        if len(examples_data.examples) > 50:
+            raise HTTPException(
+                status_code=400,
+                detail="Maximum 50 examples can be added at once"
+            )
+        
+        # Add examples to project
+        result = await project_service.add_examples(project_id, examples_data.examples)
+        
+        return {
+            "success": True,
+            "message": f"Added {len(examples_data.examples)} examples",
+            "totalExamples": result['totalExamples'],
+            "labels": result['labels']
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{project_id}/examples", response_model=dict)
+async def get_examples(
+    project_id: str,
+    project_service: ProjectService = Depends(get_project_service)
+):
+    """Get all examples for a project"""
+    try:
+        examples = await project_service.get_examples(project_id)
+        return {
+            "success": True,
+            "examples": examples,
+            "totalExamples": len(examples)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/{project_id}/train", response_model=TrainingResponse)
 async def start_training(
     project_id: str,
     training_config: Optional[TrainingConfig] = None,
     project_service: ProjectService = Depends(get_project_service)
 ):
-    """Start training job for a project"""
+    """Start training job for a project using logistic regression"""
     try:
-        result = await project_service.start_training(project_id, training_config)
-        return TrainingResponse(
-            success=result['success'],
-            message=result['message']
+        # Get project and examples
+        project = await project_service.get_project(project_id)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        # Get examples for training
+        examples = await project_service.get_examples(project_id)
+        if not examples:
+            raise HTTPException(
+                status_code=400, 
+                detail="No examples found. Add some examples before training."
+            )
+        
+        # Create training job and add to queue
+        try:
+            config_dict = training_config.model_dump() if training_config else None
+            training_job = await training_job_service.create_training_job(project_id, config_dict)
+            
+            return TrainingResponse(
+                success=True,
+                message="Training job queued successfully!",
+                jobId=training_job.id
+            )
+            
+        except ValueError as e:
+            # Training validation failed
+            return TrainingResponse(
+                success=False,
+                message=str(e)
+            )
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{project_id}/train", response_model=dict)
+async def get_training_status(
+    project_id: str,
+    project_service: ProjectService = Depends(get_project_service)
+):
+    """Get training status and job information for a project"""
+    try:
+        # Get project
+        project = await project_service.get_project(project_id)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        # Get training jobs
+        jobs = await training_job_service.get_project_jobs(project_id)
+        
+        # Get current job status
+        current_job = None
+        if project.currentJobId:
+            current_job = await training_job_service.get_job_status(project.currentJobId)
+        
+        return {
+            "success": True,
+            "projectStatus": project.status,
+            "currentJob": current_job.model_dump() if current_job else None,
+            "allJobs": [job.model_dump() for job in jobs],
+            "totalJobs": len(jobs)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/{project_id}/train", response_model=dict)
+async def cancel_training(
+    project_id: str,
+    project_service: ProjectService = Depends(get_project_service)
+):
+    """Cancel current training job for a project"""
+    try:
+        # Get project
+        project = await project_service.get_project(project_id)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        if not project.currentJobId:
+            raise HTTPException(
+                status_code=400,
+                detail="No training job in progress"
+            )
+        
+        # Cancel the job
+        success = await training_job_service.cancel_job(project.currentJobId)
+        
+        if success:
+            return {
+                "success": True,
+                "message": "Training job cancelled successfully"
+            }
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Failed to cancel training job"
+            )
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{project_id}/predict", response_model=PredictionResponse)
+async def predict_text(
+    project_id: str,
+    prediction_request: PredictionRequest,
+    project_service: ProjectService = Depends(get_project_service)
+):
+    """Make prediction using trained model"""
+    try:
+        # Get project
+        project = await project_service.get_project(project_id)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        if project.status != 'trained':
+            raise HTTPException(
+                status_code=400, 
+                detail="Project is not trained yet. Train the model first."
+            )
+        
+        # Make prediction using model from GCS
+        prediction_result = trainer.predict_from_gcs(
+            prediction_request.text, 
+            gcp_clients.get_bucket(),
+            project.model.gcsPath
         )
+        
+        return PredictionResponse(
+            success=True,
+            label=prediction_result['label'],
+            confidence=prediction_result['confidence'],
+            alternatives=prediction_result['alternatives']
+        )
+        
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -224,5 +402,41 @@ async def get_project_status(
         return ProjectStatusResponseWrapper(data=status_response)
     except HTTPException:
         raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Training job management endpoints
+@router.get("/training/jobs/{job_id}", response_model=dict)
+async def get_job_status(job_id: str):
+    """Get training job status by ID"""
+    try:
+        job = await training_job_service.get_job_status(job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail="Training job not found")
+        
+        return {
+            "success": True,
+            "job": job.model_dump()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/training/jobs/{job_id}", response_model=dict)
+async def cancel_job(job_id: str):
+    """Cancel a training job by ID"""
+    try:
+        success = await training_job_service.cancel_job(job_id)
+        if success:
+            return {
+                "success": True,
+                "message": "Training job cancelled successfully"
+            }
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Failed to cancel training job"
+            )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

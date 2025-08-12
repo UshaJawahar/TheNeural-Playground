@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional, Union
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from enum import Enum
 
 
@@ -61,10 +61,12 @@ class Project(BaseModel):
     updatedAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Last update timestamp")
     createdBy: str = Field("", description="User who created the project")
     
-    # Dataset information (backward compatibility)
-    dataset: Dataset = Field(default_factory=lambda: Dataset(), description="Primary dataset")
+    # School and class information
+    schoolId: str = Field("", description="School identifier")
+    classId: str = Field("", description="Class identifier")
     
-    # Datasets array for frontend compatibility
+    # Dataset information
+    dataset: Dataset = Field(default_factory=lambda: Dataset(), description="Primary dataset")
     datasets: List[Dataset] = Field(default_factory=list, description="List of all datasets")
     
     # Model information
@@ -73,8 +75,15 @@ class Project(BaseModel):
     # Training configuration
     config: ProjectConfig = Field(default_factory=lambda: ProjectConfig(), description="Training configuration")
     
-    # Training history
+    # Training history and job management
     trainingHistory: List[dict] = Field(default_factory=list, description="Training history logs")
+    currentJobId: Optional[str] = Field(None, description="Current training job ID")
+    
+    # Lifecycle management
+    expiryTimestamp: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc).replace(tzinfo=timezone.utc) + timedelta(days=7),
+        description="Project expiry timestamp (default 7 days)"
+    )
     
     # Metadata
     tags: List[str] = Field(default_factory=list, description="Project tags")
@@ -121,10 +130,22 @@ class DatasetUpload(BaseModel):
 
 
 class TrainingJob(BaseModel):
-    projectId: str
-    datasetPath: str
-    config: ProjectConfig
-    timestamp: datetime
+    id: str = Field(..., description="Training job identifier")
+    projectId: str = Field(..., description="Project ID")
+    status: str = Field("queued", description="Job status: queued|training|ready|failed")
+    createdAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    startedAt: Optional[datetime] = Field(None, description="When training started")
+    completedAt: Optional[datetime] = Field(None, description="When training completed")
+    error: Optional[str] = Field(None, description="Error message if failed")
+    progress: float = Field(0.0, ge=0.0, le=100.0, description="Training progress percentage")
+    config: Optional[ProjectConfig] = Field(None, description="Training configuration")
+    result: Optional[dict] = Field(None, description="Training results (accuracy, etc.)")
+
+class TrainingJobStatus(str, Enum):
+    QUEUED = "queued"
+    TRAINING = "training"
+    READY = "ready"
+    FAILED = "failed"
 
 
 class FileUploadResponse(BaseModel):
