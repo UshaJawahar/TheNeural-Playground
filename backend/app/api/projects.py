@@ -115,10 +115,26 @@ async def delete_project(
     project_id: str,
     project_service: ProjectService = Depends(get_project_service)
 ):
-    """Delete project"""
+    """Delete project(s) - supports single ID or comma-separated IDs"""
     try:
-        await project_service.delete_project(project_id)
-        return {"success": True, "message": "Project deleted successfully"}
+        # Check if project_id contains comma-separated values
+        if ',' in project_id:
+            # Handle multiple project IDs
+            project_ids = [pid.strip() for pid in project_id.split(',') if pid.strip()]
+            if not project_ids:
+                raise HTTPException(status_code=400, detail="No valid project IDs provided")
+            
+            # Delete multiple projects
+            deleted_count = await project_service.delete_multiple_projects(project_ids)
+            return {
+                "success": True, 
+                "message": f"Successfully deleted {deleted_count} project(s)",
+                "deleted_count": deleted_count
+            }
+        else:
+            # Handle single project ID (existing behavior)
+            await project_service.delete_project(project_id)
+            return {"success": True, "message": "Project deleted successfully"}
     except Exception as e:
         if "not found" in str(e).lower():
             raise HTTPException(status_code=404, detail="Project not found")
@@ -205,11 +221,17 @@ async def add_examples(
         # Add examples to project
         result = await project_service.add_examples(project_id, examples_data.examples)
         
+        # Calculate how many examples were actually created (after splitting comma-separated text)
+        input_examples_count = len(examples_data.examples)
+        actual_examples_added = result['totalExamples'] - (result.get('previousTotal', 0) or 0)
+        
         return {
             "success": True,
-            "message": f"Added {len(examples_data.examples)} examples",
+            "message": f"Added {actual_examples_added} examples from {input_examples_count} input(s)",
             "totalExamples": result['totalExamples'],
-            "labels": result['labels']
+            "labels": result['labels'],
+            "inputExamples": input_examples_count,
+            "actualExamplesAdded": actual_examples_added
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

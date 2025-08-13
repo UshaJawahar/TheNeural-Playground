@@ -130,6 +130,25 @@ class ProjectService:
         except Exception as e:
             raise Exception(f"Failed to delete project: {str(e)}")
     
+    async def delete_multiple_projects(self, project_ids: List[str]) -> int:
+        """Delete multiple projects and associated files"""
+        deleted_count = 0
+        errors = []
+        
+        for project_id in project_ids:
+            try:
+                await self.delete_project(project_id)
+                deleted_count += 1
+            except Exception as e:
+                errors.append(f"Project {project_id}: {str(e)}")
+                # Continue with other projects even if one fails
+        
+        # If some projects failed to delete, log the errors but don't fail the entire operation
+        if errors:
+            print(f"Some projects failed to delete: {errors}")
+        
+        return deleted_count
+    
     async def upload_dataset(
         self, 
         project_id: str, 
@@ -267,18 +286,23 @@ class ProjectService:
             if not project:
                 raise Exception("Project not found")
             
-            # Convert examples to TextExample objects
+            # Convert examples to TextExample objects, handling comma-separated text
             text_examples = []
             for example in examples:
-                text_example = TextExample(
-                    text=example.text,
-                    label=example.label,
-                    addedAt=datetime.now(timezone.utc)
-                )
-                text_examples.append(text_example)
+                # Split text by comma and create separate examples for each part
+                text_parts = [part.strip() for part in example.text.split(',') if part.strip()]
+                
+                for text_part in text_parts:
+                    text_example = TextExample(
+                        text=text_part,
+                        label=example.label,
+                        addedAt=datetime.now(timezone.utc)
+                    )
+                    text_examples.append(text_example)
             
             # Update project with new examples
             current_examples = project.dataset.examples if project.dataset.examples else []
+            previous_total = len(current_examples)
             updated_examples = current_examples + text_examples
             
             # Get unique labels
@@ -296,6 +320,7 @@ class ProjectService:
             
             return {
                 'totalExamples': len(updated_examples),
+                'previousTotal': previous_total,
                 'labels': labels,
                 'examples': [ex.model_dump() for ex in updated_examples]
             }

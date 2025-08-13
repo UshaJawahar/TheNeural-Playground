@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import { apiService, ProjectCreateRequest } from '@/lib/api';
+import { config } from '@/lib/config';
 
 
 export interface Project {
@@ -8,6 +10,15 @@ export interface Project {
   name: string;
   type: 'text-recognition';
   datasets: Dataset[];
+  dataset?: {
+    examples: Array<{
+      text: string;
+      label: string;
+      addedAt: string;
+    }>;
+    labels: string[];
+    records: number;
+  };
   model: TrainedModel | null;
   createdAt: string;
   updatedAt: string;
@@ -34,10 +45,11 @@ export interface TrainedModel {
 }
 
 interface ProjectCreatorProps {
-  onCreateProject: (project: Omit<Project, 'id' | 'createdAt' | 'updatedAt' | 'status' | 'hasBeenTested' | 'hasOpenedScratch'>) => void;
+  onCreateProject: (project: Project) => void;
+  onError?: (error: string) => void;
 }
 
-export default function ProjectCreator({ onCreateProject }: ProjectCreatorProps) {
+export default function ProjectCreator({ onCreateProject, onError }: ProjectCreatorProps) {
   const [projectName, setProjectName] = useState('');
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [selectedType, setSelectedType] = useState<string>('');
@@ -45,24 +57,63 @@ export default function ProjectCreator({ onCreateProject }: ProjectCreatorProps)
 
   const handleCreateProject = async () => {
     if (!projectName.trim() || !selectedType) return;
+    
+    // Validate project name length
+    if (projectName.trim().length > config.project.maxNameLength) {
+      onError?.(`Project name must be ${config.project.maxNameLength} characters or less`);
+      return;
+    }
 
     setIsCreating(true);
     
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 800));
+    try {
+      // Prepare the API payload with default values
+      const projectData: ProjectCreateRequest = {
+        name: projectName.trim(),
+        description: "",
+        type: selectedType as 'text-recognition',
+        createdBy: "",
+        tags: [],
+        notes: "",
+        config: {
+          epochs: 100,
+          batchSize: 32,
+          learningRate: 0.001,
+          validationSplit: 0.2
+        }
+      };
 
-    const newProject: Omit<Project, 'id' | 'createdAt' | 'updatedAt' | 'status' | 'hasBeenTested' | 'hasOpenedScratch'> = {
-      name: projectName.trim(),
-      type: selectedType as 'text-recognition',
-      datasets: [],
-      model: null,
-    };
+      // Call the API to create the project
+      const response = await apiService.createProject(projectData);
+      
+      if (response.success) {
+        // Convert API response to frontend Project format
+        const newProject: Project = {
+          id: response.data.id,
+          name: response.data.name,
+          type: response.data.type as 'text-recognition',
+          datasets: [],
+          dataset: response.data.dataset || { examples: [], labels: [], records: 0 },
+          model: null,
+          createdAt: response.data.createdAt,
+          updatedAt: response.data.updatedAt,
+          status: response.data.status as 'draft' | 'training' | 'trained' | 'testing',
+          hasBeenTested: false,
+          hasOpenedScratch: false
+        };
 
-    onCreateProject(newProject);
-    setProjectName('');
-    setSelectedType('');
-    setShowCreateForm(false);
-    setIsCreating(false);
+        onCreateProject(newProject);
+        setProjectName('');
+        setSelectedType('');
+        setShowCreateForm(false);
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create project';
+      onError?.(errorMessage);
+      console.error('Error creating project:', error);
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   return (
@@ -86,7 +137,7 @@ export default function ProjectCreator({ onCreateProject }: ProjectCreatorProps)
           <div className="space-y-4">
             <div>
               <label htmlFor="projectName" className="block text-sm font-medium text-gray-700 mb-2">
-                Project Name
+                Project Name *
               </label>
               <input
                 type="text"
@@ -94,14 +145,18 @@ export default function ProjectCreator({ onCreateProject }: ProjectCreatorProps)
                 value={projectName}
                 onChange={(e) => setProjectName(e.target.value)}
                 placeholder="Enter project name..."
+                maxLength={config.project.maxNameLength}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-gray-500 transition-all duration-200 text-gray-900 placeholder-gray-500"
                 onKeyPress={(e) => e.key === 'Enter' && handleCreateProject()}
               />
+              <p className="text-xs text-gray-500 mt-1">
+                {projectName.length}/{config.project.maxNameLength} characters
+              </p>
             </div>
             
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Project Type
+                Project Type *
               </label>
               <div className="relative">
                 <select
@@ -112,13 +167,30 @@ export default function ProjectCreator({ onCreateProject }: ProjectCreatorProps)
                   <option value="" disabled className="text-gray-500">
                     Select Project Type
                   </option>
-                  <option value="text-recognition" className="text-gray-900">Text Recognition</option>
+                  {config.project.supportedTypes.map(type => (
+                    <option key={type} value={type} className="text-gray-900">
+                      {type === 'text-recognition' ? 'Text Recognition' : type}
+                    </option>
+                  ))}
                 </select>
                 <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
                   <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>
                 </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Default Configuration Note */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <div className="flex items-start space-x-2">
+              <svg className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div className="text-blue-800 text-sm">
+                <p className="font-medium">Default Configuration</p>
+                <p>Epochs: 100, Batch Size: 32, Learning Rate: 0.001, Validation Split: 0.2</p>
               </div>
             </div>
           </div>
