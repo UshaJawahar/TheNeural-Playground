@@ -9,7 +9,7 @@ from ..models import (
     FileUploadResponse, TrainingResponse, ErrorResponse,
     ExampleAdd, ExamplesBulkAdd, PredictionRequest, PredictionResponse
 )
-from ..services import ProjectService
+from ..services.project_service import ProjectService
 from ..training_service import trainer
 from ..training_job_service import training_job_service
 from ..config import gcp_clients

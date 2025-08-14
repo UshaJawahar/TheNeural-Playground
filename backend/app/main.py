@@ -8,7 +8,7 @@ import asyncio
 import threading
 
 from .config import settings
-from .api import projects, health
+from .api import projects, health, teachers, students, classrooms, demo_projects
 from .training_worker import training_worker
 
 # Configure logging
@@ -63,6 +63,10 @@ async def global_exception_handler(request: Request, exc: Exception):
 # Include routers
 app.include_router(health.router)
 app.include_router(projects.router)
+app.include_router(teachers.router)
+app.include_router(students.router)
+app.include_router(classrooms.router)
+app.include_router(demo_projects.router)
 
 def start_training_worker():
     """Start training worker in background thread"""

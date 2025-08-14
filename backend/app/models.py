@@ -1,7 +1,79 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Dict, Any
 from datetime import datetime, timezone, timedelta
 from enum import Enum
+
+# New Teacher-Classroom-Student Models
+class SessionType(str, Enum):
+    FORENOON = "forenoon"
+    AFTERNOON = "afternoon"
+
+class Classroom(BaseModel):
+    classroom_id: str = Field(..., description="Unique classroom identifier")
+    name: str = Field(..., description="Classroom name (e.g., Class 8A)")
+    hashcode: str = Field(..., description="5-digit hashcode for students to join")
+    students: List[str] = Field(default_factory=list, description="List of student IDs")
+    demo_projects: List[str] = Field(default_factory=list, description="List of demo project IDs")
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    active: bool = Field(True, description="Whether classroom is active")
+
+class Teacher(BaseModel):
+    teacher_id: str = Field(..., description="Unique teacher identifier")
+    name: str = Field(..., description="Teacher's full name")
+    school_name: str = Field(..., description="School name")
+    date_of_training: str = Field(..., description="Training date (YYYY-MM-DD)")
+    session: SessionType = Field(..., description="Training session time")
+    classrooms: List[Classroom] = Field(default_factory=list, description="List of classrooms")
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    active: bool = Field(True, description="Whether teacher account is active")
+
+class TeacherCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    school_name: str = Field(..., min_length=1, max_length=200)
+    date_of_training: str = Field(..., description="Training date (YYYY-MM-DD)")
+    session: SessionType
+
+class ClassroomCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100, description="Classroom name")
+
+class Student(BaseModel):
+    student_id: str = Field(..., description="Unique student identifier")
+    name: str = Field(..., description="Student's full name")
+    teacher_id: str = Field(..., description="Teacher ID this student belongs to")
+    classroom_id: str = Field(..., description="Classroom ID this student belongs to")
+    hashcode: str = Field(..., description="Hashcode used to join")
+    projects: List[dict] = Field(default_factory=list, description="List of student's projects")
+    accessible_demos: List[str] = Field(default_factory=list, description="List of accessible demo project IDs")
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    active: bool = Field(True, description="Whether student account is active")
+
+class StudentJoin(BaseModel):
+    hashcode: str = Field(..., min_length=5, max_length=5, description="5-digit hashcode")
+    name: str = Field(..., min_length=1, max_length=100, description="Student's name")
+
+class TeacherResponse(BaseModel):
+    success: bool = True
+    data: Teacher
+
+class TeacherListResponse(BaseModel):
+    success: bool = True
+    data: List[Teacher]
+
+class ClassroomResponse(BaseModel):
+    success: bool = True
+    data: Classroom
+
+class StudentResponse(BaseModel):
+    success: bool = True
+    data: Student
+
+class StudentListResponse(BaseModel):
+    success: bool = True
+    data: List[Student]
+
+class TeacherDashboardResponse(BaseModel):
+    success: bool = True
+    data: dict
 
 
 class ProjectType(str, Enum):
@@ -63,7 +135,12 @@ class Project(BaseModel):
     updatedAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Last update timestamp")
     createdBy: str = Field("", description="User who created the project")
     
-    # School and class information
+    # Teacher-Classroom-Student linking
+    teacher_id: str = Field("", description="Teacher ID this project belongs to")
+    classroom_id: str = Field("", description="Classroom ID this project belongs to")
+    student_id: str = Field("", description="Student ID who created this project")
+    
+    # School and class information (legacy, can be derived from teacher/classroom)
     schoolId: str = Field("", description="School identifier")
     classId: str = Field("", description="Class identifier")
     
@@ -97,6 +174,9 @@ class ProjectCreate(BaseModel):
     description: str = Field("", max_length=500)
     type: ProjectType = Field(ProjectType.TEXT_RECOGNITION)
     createdBy: str = Field("")
+    teacher_id: str = Field("", description="Teacher ID this project belongs to")
+    classroom_id: str = Field("", description="Classroom ID this project belongs to")
+    student_id: str = Field("", description="Student ID who created this project")
     tags: List[str] = Field(default_factory=list)
     notes: str = Field("", max_length=1000)
     config: Optional[ProjectConfig] = None
@@ -205,3 +285,31 @@ class ErrorResponse(BaseModel):
     success: bool = False
     error: str
     details: Optional[List[str]] = None
+
+# New Demo Project Models
+class DemoProject(BaseModel):
+    demo_project_id: str = Field(..., description="Unique demo project identifier")
+    name: str = Field(..., description="Demo project name")
+    description: str = Field(..., description="Project description")
+    teacher_id: str = Field(..., description="Teacher who created this demo")
+    classroom_id: str = Field(..., description="Classroom this demo belongs to")
+    project_type: str = Field(..., description="Type of project (e.g., 'text_classification', 'image_classification')")
+    dataset_info: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Dataset information")
+    model_info: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Trained model information")
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    active: bool = Field(True, description="Whether demo project is active")
+
+class DemoProjectCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100, description="Demo project name")
+    description: str = Field(..., min_length=1, max_length=500, description="Project description")
+    project_type: str = Field(..., description="Type of project")
+    dataset_info: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Dataset information")
+    model_info: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Trained model information")
+
+class DemoProjectResponse(BaseModel):
+    success: bool = True
+    data: DemoProject
+
+class DemoProjectListResponse(BaseModel):
+    success: bool = True
+    data: List[DemoProject]

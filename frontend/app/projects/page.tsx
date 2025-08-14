@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense, useMemo, useCallback } from 'react';
+import { useState, useEffect, Suspense, useMemo, useCallback, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import ProjectCreator, { Project } from '@/components/ProjectCreator';
 import TextRecognition from '@/components/TextRecognition';
@@ -46,9 +46,21 @@ function ProjectsPageContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [deletingProjects, setDeletingProjects] = useState<Set<string>>(new Set());
   const [isClearingAll, setIsClearingAll] = useState(false);
-
+  
+  // Ref to track if initial fetch has been done
+  const hasInitialFetch = useRef(false);
+  
+  // State to track if component is mounted
+  const [isMounted, setIsMounted] = useState(false);
+  
+  // Ref to track refresh timeout
+  const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
   // Fetch projects from API - memoized to prevent unnecessary re-creation
   const fetchProjects = useCallback(async () => {
+    // Don't fetch if component is not mounted
+    if (!isMounted) return;
+    
     try {
       setIsLoading(true);
       const response = await apiService.getProjects();
@@ -79,12 +91,42 @@ function ProjectsPageContent() {
     } finally {
       setIsLoading(false);
     }
-  }, []); // Empty dependency array - function will never be recreated
+  }, [isMounted]); // Add isMounted as dependency
+  
+  // Debounced refresh function to prevent rapid successive calls
+  const debouncedRefresh = useCallback(() => {
+    // Clear any existing timeout
+    if (refreshTimeoutRef.current) {
+      clearTimeout(refreshTimeoutRef.current);
+    }
+    
+    // Set new timeout for refresh
+    refreshTimeoutRef.current = setTimeout(() => {
+      fetchProjects();
+    }, 300); // 300ms delay
+  }, [fetchProjects]);
 
   // Initial fetch only - no automatic refreshes
   useEffect(() => {
-    fetchProjects();
+    // Only fetch if we haven't done the initial fetch yet
+    if (!hasInitialFetch.current) {
+      fetchProjects();
+      hasInitialFetch.current = true;
+    }
   }, [fetchProjects]); // Only run once on mount
+  
+  // Handle component mount/unmount
+  useEffect(() => {
+    setIsMounted(true);
+    
+    return () => {
+      setIsMounted(false);
+      // Clear any pending refresh timeout
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Check if there's a project ID in URL - only when projects are loaded
   useEffect(() => {
@@ -443,10 +485,10 @@ function ProjectsPageContent() {
                     Your Projects ({projects.length})
                   </h2>
                   <button
-                    onClick={fetchProjects}
-                    disabled={isLoading}
+                    onClick={debouncedRefresh}
+                    disabled={isLoading || !isMounted}
                     className="text-blue-600 hover:text-blue-800 transition-colors flex items-center space-x-2 px-3 py-2 rounded-lg hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="Refresh projects from server"
+                    title={!isMounted ? "Page not ready" : "Refresh projects from server"}
                   >
                     {isLoading ? (
                       <svg className="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
