@@ -55,14 +55,21 @@ function ProjectsPageContent() {
   // Ref to track refresh timeout
   const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
+  // Ref to track if fetch is in progress
+  const isFetchingRef = useRef(false);
+  
   // Fetch projects from API - memoized to prevent unnecessary re-creation
   const fetchProjects = useCallback(async () => {
-    // Don't fetch if component is not mounted or if already loading
-    if (!isMounted || isLoading) return;
+    // Don't fetch if component is not mounted or if already fetching
+    if (!isMounted || isFetchingRef.current) {
+      console.log('fetchProjects early return - isMounted:', isMounted, 'isFetching:', isFetchingRef.current);
+      return;
+    }
     
-    console.log('fetchProjects called, isMounted:', isMounted, 'isLoading:', isLoading);
+    console.log('fetchProjects called, isMounted:', isMounted, 'isFetching:', isFetchingRef.current);
     
     try {
+      isFetchingRef.current = true;
       setIsLoading(true);
       console.log('Making API call to getProjects...');
       const response = await apiService.getProjects();
@@ -88,19 +95,25 @@ function ProjectsPageContent() {
         console.log('Converted projects:', apiProjects);
         setProjects(apiProjects);
         setError(null);
+        console.log('Projects state updated, setting isLoading to false');
       } else {
         console.log('Response not successful or no data:', response);
+        setProjects([]);
+        setError(null);
+        console.log('No projects found, setting isLoading to false');
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to fetch projects';
       console.error('Error in fetchProjects:', error);
       setError(errorMessage);
-      console.error('Error fetching projects:', error);
+      setProjects([]);
+      console.log('Error occurred, setting isLoading to false');
     } finally {
-      console.log('Setting isLoading to false');
+      console.log('Finally block - setting isLoading to false');
       setIsLoading(false);
+      isFetchingRef.current = false;
     }
-  }, [isMounted, isLoading]); // Add isLoading as dependency
+  }, [isMounted]); // Remove isLoading dependency to prevent infinite loops
   
   // Debounced refresh function to prevent rapid successive calls
   const debouncedRefresh = useCallback(() => {
@@ -125,6 +138,24 @@ function ProjectsPageContent() {
     }
   }, [isMounted, fetchProjects]); // Depend on isMounted and fetchProjects
   
+  // Test API call on mount
+  useEffect(() => {
+    if (isMounted) {
+      console.log('Testing API call...');
+      // Test the API call directly
+      apiService.getProjects().then(response => {
+        console.log('Direct API test response:', response);
+      }).catch(error => {
+        console.error('Direct API test error:', error);
+      });
+    }
+  }, [isMounted]);
+  
+  // Monitor state changes
+  useEffect(() => {
+    console.log('State changed - projects:', projects.length, 'isLoading:', isLoading, 'error:', error);
+  }, [projects, isLoading, error]);
+
   // Handle component mount/unmount
   useEffect(() => {
     console.log('Component mount effect triggered');
