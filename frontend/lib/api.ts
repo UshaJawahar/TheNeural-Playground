@@ -52,6 +52,8 @@ class ApiService {
     options: RequestInit = {}
   ): Promise<T> {
     const url = `${API_BASE_URL}${endpoint}`;
+    console.log('API request to:', url);
+    console.log('API_BASE_URL:', API_BASE_URL);
     
     const defaultOptions: RequestInit = {
       headers: {
@@ -62,15 +64,33 @@ class ApiService {
     };
 
     try {
+      console.log('Making fetch request with options:', defaultOptions);
+      
+      // Check if fetch is available
+      if (typeof fetch === 'undefined') {
+        throw new Error('Fetch API is not available in this environment');
+      }
+      
       const response = await fetch(url, defaultOptions);
+      console.log('Response received:', response.status, response.statusText);
+      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
       
       if (!response.ok) {
         const errorData: ApiError = await response.json().catch(() => ({ detail: 'Unknown error' }));
         throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
       }
 
-      return await response.json();
+      const responseData = await response.json();
+      console.log('Response data:', responseData);
+      return responseData;
     } catch (error) {
+      console.error('API request error:', error);
+      console.error('Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : 'No stack trace',
+        url: url,
+        options: defaultOptions
+      });
       if (error instanceof Error) {
         throw error;
       }

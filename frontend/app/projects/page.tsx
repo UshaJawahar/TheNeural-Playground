@@ -36,6 +36,8 @@ function useLocalStorage<T>(key: string, initialValue: T) {
 }
 
 function ProjectsPageContent() {
+  console.log('ProjectsPageContent component rendering');
+  
   const router = useRouter();
   const searchParams = useSearchParams();
   const [projects, setProjects] = useState<Project[]>([]);
@@ -47,9 +49,6 @@ function ProjectsPageContent() {
   const [deletingProjects, setDeletingProjects] = useState<Set<string>>(new Set());
   const [isClearingAll, setIsClearingAll] = useState(false);
   
-  // Ref to track if initial fetch has been done
-  const hasInitialFetch = useRef(false);
-  
   // State to track if component is mounted
   const [isMounted, setIsMounted] = useState(false);
   
@@ -58,14 +57,19 @@ function ProjectsPageContent() {
   
   // Fetch projects from API - memoized to prevent unnecessary re-creation
   const fetchProjects = useCallback(async () => {
-    // Don't fetch if component is not mounted
-    if (!isMounted) return;
+    // Don't fetch if component is not mounted or if already loading
+    if (!isMounted || isLoading) return;
+    
+    console.log('fetchProjects called, isMounted:', isMounted, 'isLoading:', isLoading);
     
     try {
       setIsLoading(true);
+      console.log('Making API call to getProjects...');
       const response = await apiService.getProjects();
+      console.log('API response received:', response);
       
       if (response.success && response.data) {
+        console.log('Processing projects data:', response.data);
         // Convert API response to frontend Project format
         const apiProjects = response.data.map((apiProject: any) => ({
           id: apiProject.id,
@@ -81,17 +85,22 @@ function ProjectsPageContent() {
           hasOpenedScratch: false // Default value
         }));
         
+        console.log('Converted projects:', apiProjects);
         setProjects(apiProjects);
         setError(null);
+      } else {
+        console.log('Response not successful or no data:', response);
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to fetch projects';
+      console.error('Error in fetchProjects:', error);
       setError(errorMessage);
       console.error('Error fetching projects:', error);
     } finally {
+      console.log('Setting isLoading to false');
       setIsLoading(false);
     }
-  }, [isMounted]); // Add isMounted as dependency
+  }, [isMounted, isLoading]); // Add isLoading as dependency
   
   // Debounced refresh function to prevent rapid successive calls
   const debouncedRefresh = useCallback(() => {
@@ -108,18 +117,21 @@ function ProjectsPageContent() {
 
   // Initial fetch only - no automatic refreshes
   useEffect(() => {
-    // Only fetch if we haven't done the initial fetch yet
-    if (!hasInitialFetch.current) {
+    console.log('Initial fetch useEffect triggered, isMounted:', isMounted);
+    // Only fetch if component is mounted
+    if (isMounted) {
+      console.log('Calling fetchProjects for initial fetch');
       fetchProjects();
-      hasInitialFetch.current = true;
     }
-  }, [fetchProjects]); // Only run once on mount
+  }, [isMounted, fetchProjects]); // Depend on isMounted and fetchProjects
   
   // Handle component mount/unmount
   useEffect(() => {
+    console.log('Component mount effect triggered');
     setIsMounted(true);
     
     return () => {
+      console.log('Component unmount effect triggered');
       setIsMounted(false);
       // Clear any pending refresh timeout
       if (refreshTimeoutRef.current) {

@@ -20,4 +20,11 @@ export const config = {
   }
 };
 
+// Debug logging
+console.log('Frontend config loaded:', {
+  apiBaseUrl: config.api.baseUrl,
+  nodeEnv: process.env.NODE_ENV,
+  publicApiUrl: process.env.NEXT_PUBLIC_API_URL
+});
+
 export default config;
