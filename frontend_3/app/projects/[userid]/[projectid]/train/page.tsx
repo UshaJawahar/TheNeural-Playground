@@ -285,19 +285,18 @@ export default function TrainPage() {
                </h1>
              </div>
 
-                           {/* Add New Label Button and Instruction - Side by Side */}
-              <div className="flex justify-between items-center mb-6">
+            {/* Add New Label Button - Always on the Right */}
+              <div className="flex justify-end mb-6">
                 {labels.length === 0 && (
-                  <div className="bg-blue-200 rounded-lg p-4 max-w-md">
-                    <p className="text-blue-800 text-sm">
+                  <div className="bg-blue-200 rounded-lg p-4 mr-4 max-w-md">
+                    <p className="text-blue-800 text-sm text-center">
                       Click on the 'plus' button on the right to add your first bucket.→
                     </p>
-
                   </div>
                 )}
                 <button
                   onClick={() => setShowAddLabelModal(true)}
-                  className="bg-white/10 border border-white/20 text-white px-4 py-2 rounded-lg hover:bg-white/20 transition-all duration-300 inline-flex items-center gap-2 text-sm"
+                  className="bg-white/10 border border-white/20 text-white px-4 py-4 rounded-lg hover:bg-white/20 transition-all duration-300 inline-flex items-center gap-2 text-sm"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -401,6 +400,11 @@ export default function TrainPage() {
                 type="text"
                 value={newLabelName}
                 onChange={(e) => setNewLabelName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && newLabelName.trim()) {
+                    handleAddLabel();
+                  }
+                }}
                 placeholder="label"
                 className="w-full px-3 py-2 border border-gray-300 rounded text-black focus:outline-none focus:border-blue-600"
                 maxLength={30}
@@ -447,6 +451,12 @@ export default function TrainPage() {
               <textarea
                 value={newExampleText}
                 onChange={(e) => setNewExampleText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey && newExampleText.trim()) {
+                    e.preventDefault();
+                    handleAddExample();
+                  }
+                }}
                 className="w-full px-3 py-2 border border-gray-300 rounded text-black focus:outline-none focus:border-blue-600 h-24 resize-none"
                 maxLength={1000}
                 autoFocus
