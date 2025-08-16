@@ -166,6 +166,43 @@ export default function TrainPage() {
     }
   };
 
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>, labelId: string) => {
+    const file = event.target.files?.[0];
+    if (!file || !userSession || !selectedProject) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target?.result as string;
+      if (text) {
+        // Split text by lines and filter out empty lines
+        const lines = text.split('\n').filter(line => line.trim().length > 0);
+        
+        const newExamples: Example[] = lines.map(line => ({
+          id: `example-${Date.now()}-${Math.random()}`,
+          text: line.trim(),
+          createdAt: new Date().toLocaleDateString()
+        }));
+
+        const updatedLabels = labels.map(label => {
+          if (label.id === labelId) {
+            return {
+              ...label,
+              examples: [...label.examples, ...newExamples]
+            };
+          }
+          return label;
+        });
+        
+        setLabels(updatedLabels);
+        saveLabels(userSession.userId, selectedProject.id, updatedLabels);
+      }
+    };
+    reader.readAsText(file);
+    
+    // Reset the input
+    event.target.value = '';
+  };
+
   const handleDeleteLabel = (labelId: string) => {
     if (userSession && selectedProject) {
       const updatedLabels = labels.filter(label => label.id !== labelId);
@@ -258,19 +295,50 @@ export default function TrainPage() {
         <div className="max-w-7xl mx-auto">
           
 
-          <div className="flex items-center mb-8">
-            <a
-              href={`/projects/${urlUserId}/${selectedProject.id}`}
-              className="text-blue-400 hover:text-blue-300 transition-all duration-300 flex items-center gap-2 text-sm"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-              Back to project
-            </a>
-          </div>
+                     <div className="flex items-center mb-8">
+             <a
+               href={`/projects/${urlUserId}/${selectedProject.id}`}
+               className="text-blue-400 hover:text-blue-300 transition-all duration-300 flex items-center gap-2 text-sm"
+             >
+               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+               </svg>
+               Back to project
+             </a>
+           </div>
 
-                                                                                       <div className="text-center mb-8">
+           
+           {/* Specific Requirements Box */}
+           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+             <div className="flex items-start gap-3">
+               <svg className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
+               </svg>
+               <div>
+                 <h3 className="text-yellow-800 font-medium mb-2">⚠️ Critical Requirements - Must Complete</h3>
+                 <ul className="text-yellow-700 text-sm space-y-1">
+                   <li className="flex items-center gap-2">
+                     <span className="w-1.5 h-1.5 bg-yellow-600 rounded-full"></span>
+                     <strong>Step 1:</strong> Create exactly <strong>2 labels minimum</strong> (e.g., "happy", "sad")
+                   </li>
+                   <li className="flex items-center gap-2">
+                     <span className="w-1.5 h-1.5 bg-yellow-600 rounded-full"></span>
+                     <strong>Step 2:</strong> Add <strong>at least 5 examples</strong> to each label
+                   </li>
+                   <li className="flex items-center gap-2">
+                     <span className="w-1.5 h-1.5 bg-yellow-600 rounded-full"></span>
+                     <strong>Step 3:</strong> Examples can be text or uploaded from .txt files
+                   </li>
+                   <li className="flex items-center gap-2">
+                     <span className="w-1.5 h-1.5 bg-yellow-600 rounded-full"></span>
+                     <strong>Step 4:</strong> Only then can you proceed to train your model
+                   </li>
+                 </ul>
+               </div>
+             </div>
+           </div>
+
+           <div className="text-center mb-8">
                <h1 className="text-3xl md:text-4xl font-bold mb-3">
                  <span className="text-[#d6d9d8]">Recognising </span>
                  <span className="text-blue-400">text</span>
@@ -278,7 +346,27 @@ export default function TrainPage() {
                    <>
                      <span className="text-[#d6d9d8]"> as </span>
                      <span className="text-green-400">
-                       {labels.map(label => label.name).join(' or ')}
+                       {(() => {
+                         if (labels.length === 1) return labels[0].name;
+                         
+                         // Get unique label names
+                         const uniqueNames = [...new Set(labels.map(label => label.name))];
+                         
+                         if (labels.length === 2) {
+                           if (uniqueNames.length === 1) {
+                             return uniqueNames[0];
+                           }
+                           return `${uniqueNames[0]} or ${uniqueNames[1]}`;
+                         }
+                         
+                         if (uniqueNames.length === 1) {
+                           return uniqueNames[0];
+                         } else if (uniqueNames.length === 2) {
+                           return `${uniqueNames[0]} or ${uniqueNames[1]}`;
+                         } else {
+                           return `${uniqueNames[0]} or ${uniqueNames[1]} and ${uniqueNames.length - 2} others`;
+                         }
+                       })()}
                      </span>
                    </>
                  )}
@@ -306,9 +394,11 @@ export default function TrainPage() {
               </div>
 
                        {labels.length > 0 ? (
-             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                     <div className="grid grid-cols-5 gap-4">
                {labels.map((label) => (
-                 <div key={label.id} className="bg-[#f5f5f5] border-2 border-gray-300 rounded-lg overflow-hidden relative">
+                         <div key={label.id} className={`bg-[#f5f5f5] border-2 border-gray-300 rounded-lg overflow-hidden relative ${
+                           label.examples.length === 0 ? 'h-[320px]' : 'h-[320px]'
+                         }`}>
                    <div className="bg-gray-300 px-3 py-2 flex justify-between items-center">
                      <h3 className="text-black font-semibold text-base">{label.name}</h3>
                      <button
@@ -322,12 +412,41 @@ export default function TrainPage() {
                      </button>
                    </div>
 
-                   <div className="p-3 min-h-[250px] bg-white text-black">
-                     <div className="space-y-2 mb-3">
+                    <div className="p-4 bg-white text-black flex flex-col h-full">
+                      {label.examples.length === 0 ? (
+                        // When no examples, show buttons at the top
+                        <div className="space-y-2">
+                          <button
+                            onClick={() => openAddExampleModal(label.id)}
+                            className="w-full flex items-center justify-center gap-2 py-2 border-2 border-dashed border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-600 transition-all duration-300 rounded text-xs font-medium"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                            </svg>
+                            Add example
+                          </button>
+
+                          <label className="w-full flex items-center justify-center gap-2 py-2 border-2 border-dashed border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-600 transition-all duration-300 rounded text-xs font-medium cursor-pointer">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                            </svg>
+                            Add file
+                            <input
+                              type="file"
+                              accept=".txt,.csv"
+                              onChange={(e) => handleFileUpload(e, label.id)}
+                              className="hidden"
+                            />
+                          </label>
+                        </div>
+                      ) : (
+                        // When examples exist, show scrollable content with buttons at bottom
+                        <>
+                                                     <div className="h-40 overflow-y-auto space-y-2 mb-1 pr-1">
                        {label.examples.map((example) => (
                          <div
                            key={example.id}
-                           className="bg-gray-100 px-2 py-1 rounded text-xs flex justify-between items-center group"
+                                className="bg-gray-100 px-2 py-1 rounded text-xs flex justify-between items-center group hover:bg-gray-200 transition-all duration-200"
                          >
                            <span className="flex-1">{example.text}</span>
                            <button
@@ -343,15 +462,12 @@ export default function TrainPage() {
                        ))}
                      </div>
 
-                     {label.examples.length > 0 && (
-                       <div className="text-right text-xs text-gray-500 mb-3">
-                         {label.examples.reduce((total, example) => total + example.text.length, 0)} / 1000
-                       </div>
-                     )}
+                          
 
+                          <div className="space-y-2 flex-shrink-0">
                      <button
                        onClick={() => openAddExampleModal(label.id)}
-                       className="w-full flex items-center justify-center gap-2 py-2 border-2 border-dashed border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-600 transition-all duration-300 rounded text-sm"
+                              className="w-full flex items-center justify-center gap-2 py-2 border-2 border-dashed border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-600 transition-all duration-300 rounded text-xs font-medium"
                      >
                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -359,23 +475,30 @@ export default function TrainPage() {
                        Add example
                      </button>
 
-                     {label.examples.length > 0 && (
-                       <div className="flex justify-center mt-3">
-                         <button className="flex items-center gap-2 text-gray-600 hover:text-gray-800 transition-all duration-300 text-sm">
-                           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <label className="w-full flex items-center justify-center gap-2 py-2 border-2 border-dashed border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-600 transition-all duration-300 rounded text-xs font-medium cursor-pointer">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
                            </svg>
-                           Download
-                         </button>
+                              Add file
+                              <input
+                                type="file"
+                                accept=".txt,.csv"
+                                onChange={(e) => handleFileUpload(e, label.id)}
+                                className="hidden"
+                              />
+                            </label>
                        </div>
-                     )}
+
+                          
 
                      {label.examples.length > 0 && (
-                       <div className="absolute bottom-3 right-3">
-                         <span className="bg-green-500 text-white text-xs px-2 py-1 rounded-full">
+                             <div className="absolute bottom-2 right-2">
+                               <span className="bg-green-500 text-white text-xs px-2 py-1 rounded-full font-medium">
                            {label.examples.length}
                          </span>
                        </div>
+                           )}
+                         </>
                      )}
                    </div>
                  </div>
