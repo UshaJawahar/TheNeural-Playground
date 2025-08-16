@@ -19,7 +19,7 @@ export default function Logo({ className = '', size = 'md', theme = 'dark' }: Lo
   return (
     <div className={`flex items-center gap-2 ${className}`}>
       <img 
-        src="/neurallogo.png" 
+        src="/preview.svg" 
         alt="TheNeural Playground Logo" 
         className={`${sizeClasses[size]} ${themeClasses[theme]}`}
       />
