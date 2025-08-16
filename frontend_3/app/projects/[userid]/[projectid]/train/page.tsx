@@ -243,7 +243,7 @@ export default function TrainPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-[#010101] to-[#0a0a0a] text-white">
+      <div className="min-h-screen bg-[#1c1c1c] text-white">
         <Header 
           onLanguageChange={handleLanguageChange}
           onLoginClick={handleLoginClick}
@@ -259,7 +259,7 @@ export default function TrainPage() {
 
   if (!isValidSession || !selectedProject) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-[#010101] to-[#0a0a0a] text-white">
+      <div className="min-h-screen bg-[#1c1c1c] text-white">
         <Header 
           onLanguageChange={handleLanguageChange}
           onLoginClick={handleLoginClick}
@@ -269,12 +269,12 @@ export default function TrainPage() {
             <h1 className="text-3xl md:text-4xl font-semibold text-white mb-4">
               Invalid Session or Project
             </h1>
-            <p className="text-lg text-[#d6d9d8] mb-8">
+            <p className="text-lg text-white mb-8">
               Please return to your projects and try again.
             </p>
             <a 
               href={`/projects/${urlUserId}`}
-              className="bg-gradient-to-r from-[#b90abd] to-[#5332ff] text-white px-8 py-4 rounded-lg text-lg font-medium hover:scale-105 hover:shadow-lg transition-all duration-300 inline-block"
+              className="bg-[#dcfc84] text-[#1c1c1c] px-8 py-4 rounded-lg text-lg font-medium hover:scale-105 transition-all duration-300 inline-block"
             >
               Back to Projects
             </a>
@@ -285,7 +285,7 @@ export default function TrainPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#010101] to-[#0a0a0a] text-white">
+    <div className="min-h-screen bg-[#1c1c1c] text-white">
       <Header 
         onLanguageChange={handleLanguageChange}
         onLoginClick={handleLoginClick}
@@ -298,7 +298,7 @@ export default function TrainPage() {
                      <div className="flex items-center mb-8">
              <a
                href={`/projects/${urlUserId}/${selectedProject.id}`}
-               className="text-blue-400 hover:text-blue-300 transition-all duration-300 flex items-center gap-2 text-sm"
+               className="p-2 text-white/70 hover:text-white hover:bg-[#bc6cd3]/10 rounded-lg transition-all duration-300 flex items-center gap-2 text-sm"
              >
                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -309,28 +309,28 @@ export default function TrainPage() {
 
            
            {/* Specific Requirements Box */}
-           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+           <div className="bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-lg p-4 mb-6">
              <div className="flex items-start gap-3">
-               <svg className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+               <svg className="w-5 h-5 text-[#dcfc84] mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
                </svg>
                <div>
-                 <h3 className="text-yellow-800 font-medium mb-2">⚠️ Critical Requirements - Must Complete</h3>
-                 <ul className="text-yellow-700 text-sm space-y-1">
+                 <h3 className="text-[#dcfc84] font-medium mb-2">⚠️ Critical Requirements - Must Complete</h3>
+                 <ul className="text-white text-sm space-y-1">
                    <li className="flex items-center gap-2">
-                     <span className="w-1.5 h-1.5 bg-yellow-600 rounded-full"></span>
+                     <span className="w-1.5 h-1.5 bg-[#dcfc84] rounded-full"></span>
                      <strong>Step 1:</strong> Create exactly <strong>2 labels minimum</strong> (e.g., "happy", "sad")
                    </li>
                    <li className="flex items-center gap-2">
-                     <span className="w-1.5 h-1.5 bg-yellow-600 rounded-full"></span>
+                     <span className="w-1.5 h-1.5 bg-[#dcfc84] rounded-full"></span>
                      <strong>Step 2:</strong> Add <strong>at least 5 examples</strong> to each label
                    </li>
                    <li className="flex items-center gap-2">
-                     <span className="w-1.5 h-1.5 bg-yellow-600 rounded-full"></span>
+                     <span className="w-1.5 h-1.5 bg-[#dcfc84] rounded-full"></span>
                      <strong>Step 3:</strong> Examples can be text or uploaded from .txt files
                    </li>
                    <li className="flex items-center gap-2">
-                     <span className="w-1.5 h-1.5 bg-yellow-600 rounded-full"></span>
+                     <span className="w-1.5 h-1.5 bg-[#dcfc84] rounded-full"></span>
                      <strong>Step 4:</strong> Only then can you proceed to train your model
                    </li>
                  </ul>
@@ -339,13 +339,13 @@ export default function TrainPage() {
            </div>
 
            <div className="text-center mb-8">
-               <h1 className="text-3xl md:text-4xl font-bold mb-3">
-                 <span className="text-[#d6d9d8]">Recognising </span>
-                 <span className="text-blue-400">text</span>
-                 {labels.length > 0 && (
-                   <>
-                     <span className="text-[#d6d9d8]"> as </span>
-                     <span className="text-green-400">
+                               <h1 className="text-3xl md:text-4xl font-bold mb-3">
+                  <span className="text-white">Recognising </span>
+                  <span className="text-[#dcfc84]">text</span>
+                  {labels.length > 0 && (
+                    <>
+                      <span className="text-white"> as </span>
+                      <span className="text-[#dcfc84]">
                        {(() => {
                          if (labels.length === 1) return labels[0].name;
                          
@@ -375,17 +375,17 @@ export default function TrainPage() {
 
             {/* Add New Label Button - Always on the Right */}
               <div className="flex justify-end mb-6">
-                {labels.length === 0 && (
-                  <div className="bg-blue-200 rounded-lg p-4 mr-4 max-w-md">
-                    <p className="text-blue-800 text-sm text-center">
-                      Click on the 'plus' button on the right to add your first bucket.→
-                    </p>
-                  </div>
-                )}
-                <button
-                  onClick={() => setShowAddLabelModal(true)}
-                  className="bg-white/10 border border-white/20 text-white px-4 py-4 rounded-lg hover:bg-white/20 transition-all duration-300 inline-flex items-center gap-2 text-sm"
-                >
+                                 {labels.length === 0 && (
+                   <div className="bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-lg p-4 mr-4 max-w-md">
+                     <p className="text-white text-sm text-center">
+                       Click on the 'plus' button on the right to add your first bucket.→
+                     </p>
+                   </div>
+                 )}
+                                 <button
+                   onClick={() => setShowAddLabelModal(true)}
+                   className="bg-[#dcfc84] hover:bg-[#dcfc84]/90 text-[#1c1c1c] px-4 py-4 rounded-lg transition-all duration-300 inline-flex items-center gap-2 text-sm font-medium"
+                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                   </svg>
@@ -393,14 +393,22 @@ export default function TrainPage() {
                 </button>
               </div>
 
-                       {labels.length > 0 ? (
-                     <div className="grid grid-cols-5 gap-4">
-               {labels.map((label) => (
-                         <div key={label.id} className={`bg-[#f5f5f5] border-2 border-gray-300 rounded-lg overflow-hidden relative ${
-                           label.examples.length === 0 ? 'h-[320px]' : 'h-[320px]'
-                         }`}>
-                   <div className="bg-gray-300 px-3 py-2 flex justify-between items-center">
-                     <h3 className="text-black font-semibold text-base">{label.name}</h3>
+                                               {labels.length > 0 ? (
+                      <div className={`grid gap-4 ${
+                        labels.length === 1 ? 'grid-cols-1 max-w-2xl mx-auto' :
+                        labels.length === 2 ? 'grid-cols-2 max-w-4xl mx-auto' :
+                        'grid-cols-5 max-w-7xl mx-auto'
+                      }`}>
+                {labels.map((label) => (
+                                                     <div key={label.id} className={`bg-[#1c1c1c] border-2 border-[#bc6cd3]/20 rounded-lg overflow-hidden relative ${
+                             labels.length === 1 ? 'h-[600px]' :
+                             labels.length === 2 ? 'h-[500px]' :
+                             labels.length === 3 ? 'h-[400px]' :
+                             labels.length === 4 ? 'h-[300px]' :
+                             'h-[250px]'
+                           }`}>
+                   <div className="bg-[#bc6cd3]/20 px-3 py-2 flex justify-between items-center">
+                     <h3 className="text-white font-semibold text-base">{label.name}</h3>
                      <button
                        onClick={() => handleDeleteLabel(label.id)}
                        className="text-red-500 hover:text-red-700 transition-all duration-300"
@@ -412,13 +420,13 @@ export default function TrainPage() {
                      </button>
                    </div>
 
-                    <div className="p-4 bg-white text-black flex flex-col h-full">
+                                         <div className="p-4 bg-[#1c1c1c] text-white flex flex-col h-full">
                       {label.examples.length === 0 ? (
                         // When no examples, show buttons at the top
                         <div className="space-y-2">
                           <button
                             onClick={() => openAddExampleModal(label.id)}
-                            className="w-full flex items-center justify-center gap-2 py-2 border-2 border-dashed border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-600 transition-all duration-300 rounded text-xs font-medium"
+                            className="w-full flex items-center justify-center gap-2 py-2 border-2 border-dashed border-[#bc6cd3]/40 text-[#dcfc84] hover:border-[#bc6cd3]/60 hover:text-[#dcfc84]/80 transition-all duration-300 rounded text-xs font-medium"
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -426,7 +434,7 @@ export default function TrainPage() {
                             Add example
                           </button>
 
-                          <label className="w-full flex items-center justify-center gap-2 py-2 border-2 border-dashed border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-600 transition-all duration-300 rounded text-xs font-medium cursor-pointer">
+                          <label className="w-full flex items-center justify-center gap-2 py-2 border-2 border-dashed border-[#bc6cd3]/40 text-[#dcfc84] hover:border-[#bc6cd3]/60 hover:text-[#dcfc84]/80 transition-all duration-300 rounded text-xs font-medium cursor-pointer">
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
                             </svg>
@@ -446,7 +454,7 @@ export default function TrainPage() {
                        {label.examples.map((example) => (
                          <div
                            key={example.id}
-                                className="bg-gray-100 px-2 py-1 rounded text-xs flex justify-between items-center group hover:bg-gray-200 transition-all duration-200"
+                                className="bg-[#bc6cd3]/10 px-2 py-1 rounded text-xs flex justify-between items-center group hover:bg-[#bc6cd3]/20 transition-all duration-200"
                          >
                            <span className="flex-1">{example.text}</span>
                            <button
@@ -467,7 +475,7 @@ export default function TrainPage() {
                           <div className="space-y-2 flex-shrink-0">
                      <button
                        onClick={() => openAddExampleModal(label.id)}
-                              className="w-full flex items-center justify-center gap-2 py-2 border-2 border-dashed border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-600 transition-all duration-300 rounded text-xs font-medium"
+                              className="w-full flex items-center justify-center gap-2 py-2 border-2 border-dashed border-[#bc6cd3]/40 text-[#dcfc84] hover:border-[#bc6cd3]/60 hover:text-[#dcfc84]/80 transition-all duration-300 rounded text-xs font-medium"
                      >
                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -475,7 +483,7 @@ export default function TrainPage() {
                        Add example
                      </button>
 
-                            <label className="w-full flex items-center justify-center gap-2 py-2 border-2 border-dashed border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-600 transition-all duration-300 rounded text-xs font-medium cursor-pointer">
+                            <label className="w-full flex items-center justify-center gap-2 py-2 border-2 border-dashed border-[#bc6cd3]/40 text-[#dcfc84] hover:border-[#bc6cd3]/60 hover:text-[#dcfc84]/80 transition-all duration-300 rounded text-xs font-medium cursor-pointer">
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
                            </svg>
@@ -493,7 +501,7 @@ export default function TrainPage() {
 
                      {label.examples.length > 0 && (
                              <div className="absolute bottom-2 right-2">
-                               <span className="bg-green-500 text-white text-xs px-2 py-1 rounded-full font-medium">
+                               <span className="bg-[#dcfc84] text-[#1c1c1c] text-xs px-2 py-1 rounded-full font-medium">
                            {label.examples.length}
                          </span>
                        </div>
@@ -510,13 +518,13 @@ export default function TrainPage() {
 
       {showAddLabelModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-md w-full">
-            <div className="bg-blue-600 text-white px-6 py-4 rounded-t-lg">
+          <div className="bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-lg max-w-md w-full">
+            <div className="bg-[#bc6cd3]/20 text-white px-6 py-4 rounded-t-lg">
               <h2 className="text-xl font-semibold">Add new label</h2>
             </div>
             
             <div className="p-6">
-              <label className="block text-sm font-medium text-blue-600 mb-2">
+              <label className="block text-sm font-medium text-[#dcfc84] mb-2">
                 Enter new label to recognise *
               </label>
               <input
@@ -529,11 +537,11 @@ export default function TrainPage() {
                   }
                 }}
                 placeholder="label"
-                className="w-full px-3 py-2 border border-gray-300 rounded text-black focus:outline-none focus:border-blue-600"
+                className="w-full px-3 py-2 border border-[#bc6cd3]/40 rounded text-white bg-[#1c1c1c] focus:outline-none focus:border-[#dcfc84]"
                 maxLength={30}
                 autoFocus
               />
-              <div className="text-right text-xs text-gray-500 mt-1">
+              <div className="text-right text-xs text-white/60 mt-1">
                 {newLabelName.length} / 30
               </div>
             </div>
@@ -544,14 +552,14 @@ export default function TrainPage() {
                   setShowAddLabelModal(false);
                   setNewLabelName('');
                 }}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-all duration-300"
+                className="px-4 py-2 text-white/70 hover:text-white transition-all duration-300"
               >
                 CANCEL
               </button>
               <button
                 onClick={handleAddLabel}
                 disabled={!newLabelName.trim()}
-                className="px-4 py-2 bg-gray-300 text-gray-600 rounded hover:bg-gray-400 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 bg-[#dcfc84] text-[#1c1c1c] rounded hover:bg-[#dcfc84]/90 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
               >
                 ADD
               </button>
@@ -562,13 +570,13 @@ export default function TrainPage() {
 
       {showAddExampleModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-md w-full">
-            <div className="bg-blue-600 text-white px-6 py-4 rounded-t-lg">
+          <div className="bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-lg max-w-md w-full">
+            <div className="bg-[#bc6cd3]/20 text-white px-6 py-4 rounded-t-lg">
               <h2 className="text-xl font-semibold">Add example</h2>
             </div>
             
             <div className="p-6">
-              <label className="block text-sm font-medium text-blue-600 mb-2">
+              <label className="block text-sm font-medium text-[#dcfc84] mb-2">
                 Enter an example of '{labels.find(l => l.id === selectedLabelId)?.name}' *
               </label>
               <textarea
@@ -580,11 +588,11 @@ export default function TrainPage() {
                     handleAddExample();
                   }
                 }}
-                className="w-full px-3 py-2 border border-gray-300 rounded text-black focus:outline-none focus:border-blue-600 h-24 resize-none"
+                className="w-full px-3 py-2 border border-[#bc6cd3]/40 rounded text-white bg-[#1c1c1c] focus:outline-none focus:border-[#dcfc84] h-24 resize-none"
                 maxLength={1000}
                 autoFocus
               />
-              <div className="text-right text-xs text-gray-500 mt-1">
+              <div className="text-right text-xs text-white/60 mt-1">
                 {newExampleText.length} / 1000
               </div>
             </div>
@@ -596,14 +604,14 @@ export default function TrainPage() {
                   setNewExampleText('');
                   setSelectedLabelId('');
                 }}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-all duration-300"
+                className="px-4 py-2 text-white/70 hover:text-white transition-all duration-300"
               >
                 CANCEL
               </button>
               <button
                 onClick={handleAddExample}
                 disabled={!newExampleText.trim()}
-                className="px-4 py-2 bg-gray-300 text-gray-600 rounded hover:bg-gray-400 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 bg-[#dcfc84] text-[#1c1c1c] rounded hover:bg-[#dcfc84]/90 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
               >
                 ADD
               </button>
