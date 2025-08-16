@@ -211,7 +211,12 @@ export default function ProjectDetailsPage() {
               <p className="text-white mb-8 text-sm md:text-base leading-relaxed min-h-[3rem]">
                 Use the examples to train the computer to recognise text
               </p>
-              <button className="w-full bg-[#dcfc84] hover:bg-[#dcfc84]/90 text-[#1c1c1c] py-3 px-6 rounded-lg font-medium transition-all duration-300">
+              <button 
+                onClick={() => {
+                  window.location.href = `/projects/${userSession?.userId}/${selectedProject.id}/Learn`;
+                }}
+                className="w-full bg-[#dcfc84] hover:bg-[#dcfc84]/90 text-[#1c1c1c] py-3 px-6 rounded-lg font-medium transition-all duration-300"
+              >
                 Learn & Test
               </button>
             </div>
