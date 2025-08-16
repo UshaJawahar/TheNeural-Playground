@@ -97,7 +97,7 @@ export default function ProjectDetailsPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-[#010101] to-[#0a0a0a] text-white">
+      <div className="min-h-screen bg-[#1c1c1c] text-white">
         <Header 
           onLanguageChange={handleLanguageChange}
           onLoginClick={handleLoginClick}
@@ -113,7 +113,7 @@ export default function ProjectDetailsPage() {
 
   if (!isValidSession || !selectedProject) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-[#010101] to-[#0a0a0a] text-white">
+      <div className="min-h-screen bg-[#1c1c1c] text-white">
         <Header 
           onLanguageChange={handleLanguageChange}
           onLoginClick={handleLoginClick}
@@ -123,12 +123,12 @@ export default function ProjectDetailsPage() {
             <h1 className="text-3xl md:text-4xl font-semibold text-white mb-4">
               Invalid Session or Project
             </h1>
-            <p className="text-lg text-[#d6d9d8] mb-8">
+            <p className="text-lg text-white mb-8">
               Please return to your projects and try again.
             </p>
             <a 
               href={`/projects/${urlUserId}`}
-              className="bg-gradient-to-r from-[#b90abd] to-[#5332ff] text-white px-8 py-4 rounded-lg text-lg font-medium hover:scale-105 hover:shadow-lg transition-all duration-300 inline-block"
+              className="bg-[#dcfc84] text-[#1c1c1c] px-8 py-4 rounded-lg text-lg font-medium hover:scale-105 transition-all duration-300 inline-block"
             >
               Back to Projects
             </a>
@@ -139,7 +139,7 @@ export default function ProjectDetailsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#010101] to-[#0a0a0a] text-white">
+    <div className="min-h-screen bg-[#1c1c1c] text-white">
       <Header 
         onLanguageChange={handleLanguageChange}
         onLoginClick={handleLoginClick}
@@ -148,9 +148,9 @@ export default function ProjectDetailsPage() {
       <main className="pt-24 pb-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           {/* Navigation Breadcrumb */}
-          <div className="mb-6 text-sm text-[#d6d9d8]">
+          <div className="mb-6 text-sm text-white">
             <span>
-              <a href={`/projects/${urlUserId}`} className="hover:text-white transition-colors">
+              <a href={`/projects/${urlUserId}`} className="hover:text-[#dcfc84] transition-colors">
                 Projects List
               </a>
             </span>
@@ -162,7 +162,7 @@ export default function ProjectDetailsPage() {
           <div className="flex items-center mb-12">
             <a
               href={`/projects/${urlUserId}`}
-              className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-all duration-300 mr-4"
+              className="p-2 text-white/70 hover:text-white hover:bg-[#bc6cd3]/10 rounded-lg transition-all duration-300 mr-4"
             >
               <svg 
                 className="w-6 h-6" 
@@ -186,45 +186,45 @@ export default function ProjectDetailsPage() {
           {/* ML Action Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
             {/* Train Card */}
-            <div className="bg-white/10 border border-white/20 rounded-xl p-8 text-center hover:bg-white/15 transition-all duration-300">
+            <div className="bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-xl p-8 text-center hover:bg-[#bc6cd3]/5 transition-all duration-300">
               <h2 className="text-2xl md:text-3xl font-bold text-white mb-6">
                 Train
               </h2>
-              <p className="text-[#d6d9d8] mb-8 text-sm md:text-base leading-relaxed min-h-[3rem]">
+              <p className="text-white mb-8 text-sm md:text-base leading-relaxed min-h-[3rem]">
                 Collect examples of what you want the computer to recognise
               </p>
               <button 
                 onClick={() => {
                   window.location.href = `/projects/${userSession?.userId}/${selectedProject.id}/train`;
                 }}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-6 rounded-lg font-medium transition-all duration-300"
+                className="w-full bg-[#dcfc84] hover:bg-[#dcfc84]/90 text-[#1c1c1c] py-3 px-6 rounded-lg font-medium transition-all duration-300"
               >
                 Train
               </button>
             </div>
 
             {/* Learn & Test Card */}
-            <div className="bg-white/10 border border-white/20 rounded-xl p-8 text-center hover:bg-white/15 transition-all duration-300">
+            <div className="bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-xl p-8 text-center hover:bg-[#bc6cd3]/5 transition-all duration-300">
               <h2 className="text-2xl md:text-3xl font-bold text-white mb-6">
                 Learn & Test
               </h2>
-              <p className="text-[#d6d9d8] mb-8 text-sm md:text-base leading-relaxed min-h-[3rem]">
+              <p className="text-white mb-8 text-sm md:text-base leading-relaxed min-h-[3rem]">
                 Use the examples to train the computer to recognise text
               </p>
-              <button className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-6 rounded-lg font-medium transition-all duration-300">
+              <button className="w-full bg-[#dcfc84] hover:bg-[#dcfc84]/90 text-[#1c1c1c] py-3 px-6 rounded-lg font-medium transition-all duration-300">
                 Learn & Test
               </button>
             </div>
 
             {/* Make Card */}
-            <div className="bg-white/10 border border-white/20 rounded-xl p-8 text-center hover:bg-white/15 transition-all duration-300">
+            <div className="bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-xl p-8 text-center hover:bg-[#bc6cd3]/5 transition-all duration-300">
               <h2 className="text-2xl md:text-3xl font-bold text-white mb-6">
                 Make
               </h2>
-              <p className="text-[#d6d9d8] mb-8 text-sm md:text-base leading-relaxed min-h-[3rem]">
+              <p className="text-white mb-8 text-sm md:text-base leading-relaxed min-h-[3rem]">
                 Use the machine learning model you've trained to make a game or app, in Scratch, Python, or EduBlocks
               </p>
-              <button className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-6 rounded-lg font-medium transition-all duration-300">
+              <button className="w-full bg-[#dcfc84] hover:bg-[#dcfc84]/90 text-[#1c1c1c] py-3 px-6 rounded-lg font-medium transition-all duration-300">
                 Make
               </button>
             </div>

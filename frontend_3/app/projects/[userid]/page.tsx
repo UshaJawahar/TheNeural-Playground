@@ -195,7 +195,7 @@ function CreateProjectPage() {
 
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#010101] to-[#0a0a0a] text-white">
+    <div className="min-h-screen bg-[#1c1c1c] text-white">
       {/* Header Component */}
       <Header 
         onLanguageChange={handleLanguageChange}
@@ -206,12 +206,12 @@ function CreateProjectPage() {
       <main className="pt-24 pb-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           {/* Navigation Breadcrumb */}
-                      <div className="mb-6 text-sm text-[#d6d9d8]">
+                      <div className="mb-6 text-sm text-white">
               {currentSection === 'projects-list' && (
                 <span>Projects List</span>
               )}
               {currentSection === 'new-project' && (
-                <span>Projects List → <span className="text-white">Create New Project</span></span>
+                <span>Projects List → <span className="text-[#dcfc84]">Create New Project</span></span>
               )}
 
 
@@ -228,15 +228,15 @@ function CreateProjectPage() {
               <h1 className="text-3xl md:text-4xl font-semibold text-white mb-4">
                 Session Expired
               </h1>
-              <p className="text-lg text-[#d6d9d8] mb-8">
-                Your session has expired. Please start a new session.
-              </p>
-              <a 
-                href="/projects"
-                className="bg-gradient-to-r from-[#b90abd] to-[#5332ff] text-white px-8 py-4 rounded-lg text-lg font-medium hover:scale-105 hover:shadow-lg transition-all duration-300 inline-block"
-              >
-                Start New Session
-              </a>
+                          <p className="text-lg text-white mb-8">
+              Your session has expired. Please start a new session.
+            </p>
+            <a 
+              href="/projects"
+              className="bg-[#dcfc84] text-[#1c1c1c] px-8 py-4 rounded-lg text-lg font-medium hover:scale-105 transition-all duration-300 inline-block"
+            >
+              Start New Session
+            </a>
             </div>
           ) : (
             /* Valid Session Content */
@@ -248,7 +248,7 @@ function CreateProjectPage() {
               <div className="flex items-center mb-12">
                 <button
                   onClick={handleBackToProjects}
-                  className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-all duration-300 mr-4"
+                  className="p-2 text-white/70 hover:text-white hover:bg-[#bc6cd3]/10 rounded-lg transition-all duration-300 mr-4"
                 >
                   <svg 
                     className="w-6 h-6" 
@@ -272,45 +272,45 @@ function CreateProjectPage() {
               {/* ML Action Cards */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
                 {/* Train Card */}
-                <div className="bg-white/10 border border-white/20 rounded-xl p-8 text-center hover:bg-white/15 transition-all duration-300">
+                <div className="bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-xl p-8 text-center hover:bg-[#bc6cd3]/5 transition-all duration-300">
                   <h2 className="text-2xl md:text-3xl font-bold text-white mb-6">
                     Train
                   </h2>
-                  <p className="text-[#d6d9d8] mb-8 text-sm md:text-base leading-relaxed min-h-[3rem]">
+                  <p className="text-white mb-8 text-sm md:text-base leading-relaxed min-h-[3rem]">
                     Collect examples of what you want the computer to recognise
                   </p>
                                      <button 
                      onClick={() => {
                        window.location.href = `/projects/${userSession?.userId}/${selectedProject.id}/train`;
                      }}
-                     className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-6 rounded-lg font-medium transition-all duration-300"
+                     className="w-full bg-[#dcfc84] hover:bg-[#dcfc84]/90 text-[#1c1c1c] py-3 px-6 rounded-lg font-medium transition-all duration-300"
                    >
                      Train
                    </button>
                 </div>
 
                 {/* Learn & Test Card */}
-                <div className="bg-white/10 border border-white/20 rounded-xl p-8 text-center hover:bg-white/15 transition-all duration-300">
+                <div className="bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-xl p-8 text-center hover:bg-[#bc6cd3]/5 transition-all duration-300">
                   <h2 className="text-2xl md:text-3xl font-bold text-white mb-6">
                     Learn & Test
                   </h2>
-                  <p className="text-[#d6d9d8] mb-8 text-sm md:text-base leading-relaxed min-h-[3rem]">
+                  <p className="text-white mb-8 text-sm md:text-base leading-relaxed min-h-[3rem]">
                     Use the examples to train the computer to recognise text
                   </p>
-                  <button className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-6 rounded-lg font-medium transition-all duration-300">
+                  <button className="w-full bg-[#dcfc84] hover:bg-[#dcfc84]/90 text-[#1c1c1c] py-3 px-6 rounded-lg font-medium transition-all duration-300">
                     Learn & Test
                   </button>
                 </div>
 
                 {/* Make Card */}
-                <div className="bg-white/10 border border-white/20 rounded-xl p-8 text-center hover:bg-white/15 transition-all duration-300">
+                <div className="bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-xl p-8 text-center hover:bg-[#bc6cd3]/5 transition-all duration-300">
                   <h2 className="text-2xl md:text-3xl font-bold text-white mb-6">
                     Make
                   </h2>
-                  <p className="text-[#d6d9d8] mb-8 text-sm md:text-base leading-relaxed min-h-[3rem]">
+                  <p className="text-white mb-8 text-sm md:text-base leading-relaxed min-h-[3rem]">
                     Use the machine learning model you've trained to make a game or app, in Scratch, Python, or EduBlocks
                   </p>
-                  <button className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-6 rounded-lg font-medium transition-all duration-300">
+                  <button className="w-full bg-[#dcfc84] hover:bg-[#dcfc84]/90 text-[#1c1c1c] py-3 px-6 rounded-lg font-medium transition-all duration-300">
                     Make
                   </button>
                 </div>
@@ -321,7 +321,7 @@ function CreateProjectPage() {
             /* No Projects State */
             <div className="max-w-4xl mx-auto text-center">
               {/* Plus Icon */}
-              <div className="mx-auto w-20 h-20 bg-white/10 rounded-full flex items-center justify-center mb-8">
+              <div className="mx-auto w-20 h-20 bg-[#bc6cd3]/20 rounded-full flex items-center justify-center mb-8">
                 <svg 
                   className="w-10 h-10 text-white" 
                   fill="none" 
@@ -343,14 +343,14 @@ function CreateProjectPage() {
               </h1>
 
               {/* Subtitle */}
-              <p className="text-lg text-[#d6d9d8] mb-12 max-w-2xl mx-auto">
+              <p className="text-lg text-white mb-12 max-w-2xl mx-auto">
                 You haven't created any projects yet. Start building your AI text recognition model!
               </p>
 
               {/* Create New Project Button */}
               <button
                 onClick={handleCreateProject}
-                className="bg-gradient-to-r from-[#b90abd] to-[#5332ff] text-white px-8 py-4 rounded-lg text-lg font-medium hover:scale-105 hover:shadow-lg transition-all duration-300 inline-flex items-center gap-3"
+                className="bg-[#dcfc84] text-[#1c1c1c] px-8 py-4 rounded-lg text-lg font-medium hover:scale-105 transition-all duration-300 inline-flex items-center gap-3"
               >
                 <svg 
                   className="w-5 h-5" 
@@ -375,7 +375,7 @@ function CreateProjectPage() {
               <div className="flex justify-end mb-8">
                 <button
                   onClick={handleCreateProject}
-                  className="bg-white/10 border border-white/20 text-white px-6 py-3 rounded-lg hover:bg-white/20 transition-all duration-300 inline-flex items-center gap-2"
+                  className="bg-[#1c1c1c] border border-[#bc6cd3]/20 text-white px-6 py-3 rounded-lg hover:bg-[#bc6cd3]/10 transition-all duration-300 inline-flex items-center gap-2"
                 >
                   <svg 
                     className="w-5 h-5" 
@@ -399,7 +399,7 @@ function CreateProjectPage() {
                 {projects.map((project) => (
                   <div
                     key={project.id}
-                    className="bg-white/10 border border-white/20 rounded-xl p-6 hover:bg-white/15 transition-all duration-300 cursor-pointer"
+                    className="bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-xl p-6 hover:bg-[#bc6cd3]/5 transition-all duration-300 cursor-pointer"
                     onClick={() => handleProjectClick(project)}
                   >
                     <div className="flex justify-between items-start mb-4">
@@ -456,9 +456,9 @@ function CreateProjectPage() {
                       </div>
                     </div>
                     
-                    <div className="text-[#d6d9d8] mb-4">
+                    <div className="text-white mb-4">
                       <span className="text-sm">Recognising </span>
-                      <span className="text-blue-400 font-medium">
+                      <span className="text-[#dcfc84] font-medium">
                         {project.type.replace('Text Recognition', 'text')}
                       </span>
                     </div>
@@ -477,7 +477,7 @@ function CreateProjectPage() {
                 <h1 className="text-3xl md:text-4xl font-semibold text-white mb-4">
                   Create New Project
                 </h1>
-                <p className="text-lg text-[#d6d9d8]">
+                <p className="text-lg text-white">
                   Set up your AI project details
                 </p>
               </div>
@@ -494,7 +494,7 @@ function CreateProjectPage() {
                     value={projectName}
                     onChange={(e) => setProjectName(e.target.value)}
                     placeholder="Enter project name"
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-[#b90abd] focus:ring-1 focus:ring-[#b90abd] transition-all duration-300"
+                    className="w-full px-4 py-3 bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-[#dcfc84] focus:ring-1 focus:ring-[#dcfc84] transition-all duration-300"
                     required
                   />
                 </div>
@@ -508,13 +508,13 @@ function CreateProjectPage() {
                     id="projectType"
                     value={projectType}
                     onChange={(e) => setProjectType(e.target.value)}
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-[#b90abd] focus:ring-1 focus:ring-[#b90abd] transition-all duration-300"
+                    className="w-full px-4 py-3 bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-lg text-white focus:outline-none focus:border-[#dcfc84] focus:ring-1 focus:ring-[#dcfc84] transition-all duration-300"
                     required
                   >
-                    <option value="" disabled className="bg-[#0a0a0a] text-gray-400">
+                    <option value="" disabled className="bg-[#1c1c1c] text-gray-400">
                       Select Type
                     </option>
-                    <option value="Text Recognition" className="bg-[#0a0a0a] text-white">
+                    <option value="Text Recognition" className="bg-[#1c1c1c] text-white">
                       Text Recognition
                     </option>
                   </select>
@@ -525,13 +525,13 @@ function CreateProjectPage() {
                   <button
                     type="button"
                     onClick={handleCancel}
-                    className="flex-1 px-6 py-3 border border-white/30 text-white rounded-lg hover:bg-white/10 transition-all duration-300"
+                    className="flex-1 px-6 py-3 border border-[#bc6cd3]/30 text-white rounded-lg hover:bg-[#bc6cd3]/10 transition-all duration-300"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 bg-gradient-to-r from-[#b90abd] to-[#5332ff] text-white px-6 py-3 rounded-lg font-medium hover:scale-105 hover:shadow-lg transition-all duration-300"
+                    className="flex-1 bg-[#dcfc84] text-[#1c1c1c] px-6 py-3 rounded-lg font-medium hover:scale-105 transition-all duration-300"
                   >
                     Create Project
                   </button>
