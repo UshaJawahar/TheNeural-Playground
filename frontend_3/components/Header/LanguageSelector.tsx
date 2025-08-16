@@ -24,7 +24,7 @@ export default function LanguageSelector({
 }: LanguageSelectorProps) {
   return (
     <select 
-      className={`bg-transparent text-white border border-gray-600 rounded px-2 py-1 text-sm focus:outline-none focus:border-gray-400 ${className}`}
+      className={`bg-transparent text-white border border-[#bc6cd3]/40 rounded px-2 py-1 text-sm focus:outline-none focus:border-[#dcfc84] ${className}`}
       defaultValue={defaultValue}
       onChange={(e) => onChange?.(e.target.value)}
     >
@@ -32,7 +32,7 @@ export default function LanguageSelector({
         <option 
           key={option.value} 
           value={option.value} 
-          className="bg-[#0a0a0a] text-white"
+          className="bg-[#1c1c1c] text-white"
         >
           {option.label}
         </option>

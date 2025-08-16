@@ -14,7 +14,7 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#010101] to-[#0a0a0a] text-white">
+    <div className="min-h-screen bg-[#1c1c1c] text-white">
       {/* Header Component */}
       <Header 
         onLanguageChange={handleLanguageChange}
@@ -24,14 +24,14 @@ export default function Home() {
       {/* Hero Section */}
       <section className="pt-24 pb-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto text-center">
-          <h1 className="text-4xl md:text-6xl font-bold mb-6">
+          <h1 className="text-4xl md:text-6xl font-bold mb-6 text-white">
             Teach a computer to{' '}
-            <span className="bg-gradient-to-r from-[#b90abd] to-[#5332ff] bg-clip-text text-transparent">
+            <span className="text-[#dcfc84]">
               play a game
             </span>
           </h1>
           
-          <p className="text-xl md:text-2xl text-[#d6d9d8] mb-12 max-w-4xl mx-auto">
+          <p className="text-xl md:text-2xl text-white mb-12 max-w-4xl mx-auto">
             Discover the fascinating world of machine learning through interactive game development. 
             Learn, create, and train AI models in an engaging Scratch environment.
           </p>
@@ -39,11 +39,11 @@ export default function Home() {
           <div className="flex flex-col sm:flex-row gap-6 justify-center">
             <a 
               href="/projects"
-              className="bg-gradient-to-r from-[#b90abd] to-[#5332ff] text-white px-8 py-4 rounded-lg text-lg font-medium hover:scale-105 hover:shadow-lg transition-all duration-300 text-center"
+              className="bg-[#dcfc84] text-[#1c1c1c] px-8 py-4 rounded-lg text-lg font-medium hover:scale-105 transition-all duration-300 text-center"
             >
               Get Started →
             </a>
-            <button className="border border-white text-white px-8 py-4 rounded-lg text-lg font-medium hover:bg-[#d6d9d8] hover:text-[#010101] transition-all duration-300">
+            <button className="border border-[#bc6cd3] text-white px-8 py-4 rounded-lg text-lg font-medium hover:bg-[#bc6cd3] hover:text-[#1c1c1c] transition-all duration-300">
               Learn More
             </button>
           </div>
@@ -54,8 +54,8 @@ export default function Home() {
       <section className="py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-5xl font-bold mb-4">How It Works</h2>
-            <p className="text-xl text-[#d6d9d8] max-w-3xl mx-auto">
+            <h2 className="text-3xl md:text-5xl font-bold mb-4 text-white">How It Works</h2>
+            <p className="text-xl text-white max-w-3xl mx-auto">
               Follow these three simple steps to create your own AI-powered game
             </p>
           </div>
@@ -79,12 +79,12 @@ export default function Home() {
               }
             ].map((step, index) => (
               <div key={index} className="relative">
-                <div className="bg-gradient-to-r from-[#b90abd]/20 to-[#5332ff]/20 border border-gradient-to-r border-[#b90abd]/30 rounded-lg p-8 h-full">
-                  <div className="w-12 h-12 bg-gradient-to-r from-[#b90abd] to-[#5332ff] rounded-full flex items-center justify-center text-white font-bold text-lg mb-6">
+                <div className="bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-lg p-8 h-full">
+                  <div className="w-12 h-12 bg-[#dcfc84] rounded-full flex items-center justify-center text-[#1c1c1c] font-bold text-lg mb-6">
                     {step.number}
                   </div>
-                  <h3 className="text-xl font-bold mb-4">{step.title}</h3>
-                  <p className="text-[#d6d9d8]">{step.description}</p>
+                  <h3 className="text-xl font-bold mb-4 text-white">{step.title}</h3>
+                  <p className="text-white">{step.description}</p>
                 </div>
               </div>
             ))}
@@ -95,15 +95,15 @@ export default function Home() {
       {/* CTA Section */}
       <section className="py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-3xl md:text-5xl font-bold mb-6">
+          <h2 className="text-3xl md:text-5xl font-bold mb-6 text-white">
             Ready to Start Your AI Journey?
           </h2>
-          <p className="text-xl text-[#d6d9d8] mb-12">
+          <p className="text-xl text-white mb-12">
             Join thousands of students and educators who are already creating amazing AI-powered projects.
           </p>
           <a 
             href="/projects"
-            className="bg-gradient-to-r from-[#b90abd] to-[#5332ff] text-white px-12 py-4 rounded-lg text-xl font-medium hover:scale-105 hover:shadow-lg transition-all duration-300 inline-block text-center"
+            className="bg-[#dcfc84] text-[#1c1c1c] px-12 py-4 rounded-lg text-xl font-medium hover:scale-105 transition-all duration-300 inline-block text-center"
           >
             Start Creating Now
           </a>
@@ -111,9 +111,9 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="bg-[#d6d9d8] text-[#010101] py-8 px-4 sm:px-6 lg:px-8">
+      <footer className="bg-[#1c1c1c] border-t border-[#bc6cd3]/20 py-8 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto text-center">
-          <p className="text-sm">
+          <p className="text-sm text-white">
             © 2024 TheNeural Playground. Empowering the next generation of AI creators.
           </p>
         </div>

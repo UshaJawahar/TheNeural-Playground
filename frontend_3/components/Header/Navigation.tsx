@@ -14,8 +14,8 @@ export default function Navigation({
   theme = 'dark'
 }: NavigationProps) {
   const baseClasses = theme === 'dark' 
-    ? "text-white hover:bg-gradient-to-r hover:from-[#b90abd] hover:to-[#5332ff] hover:bg-clip-text hover:text-transparent px-3 py-2 rounded-md font-medium transition-all duration-300"
-    : "text-gray-700 hover:bg-gradient-to-r hover:from-[#b90abd] hover:to-[#5332ff] hover:bg-clip-text hover:text-transparent px-3 py-2 rounded-md font-medium transition-all duration-300";
+    ? "text-white hover:text-[#dcfc84] px-3 py-2 rounded-md font-medium transition-all duration-300"
+    : "text-gray-700 hover:text-[#dcfc84] px-3 py-2 rounded-md font-medium transition-all duration-300";
   
   const desktopClasses = "text-sm";
   const mobileClasses = "text-base block";

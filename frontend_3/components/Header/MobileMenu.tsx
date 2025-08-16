@@ -21,10 +21,10 @@ export default function MobileMenu({
 
   return (
     <div className={`md:hidden ${className}`}>
-      <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 bg-[#0a0a0a] border-t border-gray-800">
+      <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 bg-[#1c1c1c] border-t border-[#bc6cd3]/20">
         <Navigation links={links} isMobile={true} />
         
-        <div className="flex items-center space-x-4 px-3 py-2 border-t border-gray-700 mt-4 pt-4">
+        <div className="flex items-center space-x-4 px-3 py-2 border-t border-[#bc6cd3]/20 mt-4 pt-4">
           <LoginButton 
             variant="mobile" 
             onClick={onLoginClick}

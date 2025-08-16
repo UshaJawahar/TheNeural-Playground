@@ -11,7 +11,7 @@ export default function LoginButton({
   text = 'Log in',
   onClick
 }: LoginButtonProps) {
-  const baseClasses = "text-white hover:bg-gradient-to-r hover:from-[#b90abd] hover:to-[#5332ff] hover:bg-clip-text hover:text-transparent px-3 py-2 rounded-md font-medium transition-all duration-300";
+  const baseClasses = "text-white hover:text-[#dcfc84] px-3 py-2 rounded-md font-medium transition-all duration-300";
   
   const variantClasses = {
     default: "text-sm",

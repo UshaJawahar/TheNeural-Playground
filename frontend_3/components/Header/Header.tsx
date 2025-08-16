@@ -39,8 +39,8 @@ export default function Header({
   const headerClasses = `
     ${fixed ? 'fixed top-0' : 'relative'} 
     w-full z-50 
-    ${transparent ? 'bg-transparent' : className.includes('bg-white') ? className : 'bg-gradient-to-r from-[#010101] to-[#0a0a0a]'} 
-    ${className.includes('border-gray-200') ? className.includes('border-b') ? '' : 'border-b border-gray-200' : 'border-b border-gray-800'} 
+    ${transparent ? 'bg-transparent' : className.includes('bg-white') ? className : 'bg-[#1c1c1c]'} 
+    ${className.includes('border-gray-200') ? className.includes('border-b') ? '' : 'border-b border-gray-200' : 'border-b border-[#bc6cd3]/20'} 
     backdrop-blur-sm
     ${className}
   `.trim();
