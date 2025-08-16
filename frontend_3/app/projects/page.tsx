@@ -76,7 +76,7 @@ export default function ProjectsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#010101] to-[#0a0a0a] text-white">
+    <div className="min-h-screen bg-[#1c1c1c] text-white">
       {/* Header Component */}
       <Header 
         onLanguageChange={handleLanguageChange}
@@ -92,7 +92,7 @@ export default function ProjectsPage() {
           </h1>
           
           {/* Subtitle */}
-          <p className="text-lg md:text-xl text-[#d6d9d8] mb-12">
+          <p className="text-lg md:text-xl text-white mb-12">
             Try without registering
           </p>
           
@@ -100,13 +100,13 @@ export default function ProjectsPage() {
           <button 
             onClick={handleTryNow}
             disabled={isLoading}
-            className="bg-gradient-to-r from-[#b90abd] to-[#5332ff] text-white px-10 py-4 rounded-lg text-xl font-medium hover:scale-105 hover:shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="bg-[#dcfc84] text-[#1c1c1c] px-10 py-4 rounded-lg text-xl font-medium hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isLoading ? 'Loading...' : userSession ? 'Go to your projects' : 'Try it now'}
           </button>
           
           {userSession && (
-            <p className="text-sm text-[#d6d9d8] mt-4">
+            <p className="text-sm text-white mt-4">
               Welcome back! Session expires on{' '}
               {new Date(userSession.expiresAt).toLocaleDateString()} at{' '}
               {new Date(userSession.expiresAt).toLocaleTimeString()}
@@ -116,23 +116,23 @@ export default function ProjectsPage() {
           {/* Optional additional content section */}
           <div className="mt-20">
             <div className="grid md:grid-cols-3 gap-8 text-left">
-              <div className="bg-gradient-to-r from-[#b90abd]/10 to-[#5332ff]/10 border border-[#b90abd]/20 rounded-lg p-6">
-                <h3 className="text-xl font-bold mb-4 text-center">🎮 Create Games</h3>
-                <p className="text-[#d6d9d8] text-center">
+              <div className="bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-lg p-6">
+                <h3 className="text-xl font-bold mb-4 text-center text-white">🎮 Create Games</h3>
+                <p className="text-white text-center">
                   Build interactive games using Scratch and machine learning
                 </p>
               </div>
               
-              <div className="bg-gradient-to-r from-[#b90abd]/10 to-[#5332ff]/10 border border-[#b90abd]/20 rounded-lg p-6">
-                <h3 className="text-xl font-bold mb-4 text-center">🤖 Train AI</h3>
-                <p className="text-[#d6d9d8] text-center">
+              <div className="bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-lg p-6">
+                <h3 className="text-xl font-bold mb-4 text-center text-white">🤖 Train AI</h3>
+                <p className="text-white text-center">
                   Teach computers to recognize patterns and make decisions
                 </p>
               </div>
               
-              <div className="bg-gradient-to-r from-[#b90abd]/10 to-[#5332ff]/10 border border-[#b90abd]/20 rounded-lg p-6">
-                <h3 className="text-xl font-bold mb-4 text-center">📚 Learn</h3>
-                <p className="text-[#d6d9d8] text-center">
+              <div className="bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-lg p-6">
+                <h3 className="text-xl font-bold mb-4 text-center text-white">📚 Learn</h3>
+                <p className="text-white text-center">
                   Understand machine learning concepts through hands-on projects
                 </p>
               </div>
@@ -142,9 +142,9 @@ export default function ProjectsPage() {
       </main>
 
       {/* Footer */}
-      <footer className="bg-[#d6d9d8] text-[#010101] py-8 px-4 sm:px-6 lg:px-8">
+      <footer className="bg-[#1c1c1c] border-t border-[#bc6cd3]/20 py-8 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto text-center">
-          <p className="text-sm">
+          <p className="text-sm text-white">
             © 2024 TheNeural Playground. Empowering the next generation of AI creators.
           </p>
         </div>
