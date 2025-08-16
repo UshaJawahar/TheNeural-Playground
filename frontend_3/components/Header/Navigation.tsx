@@ -5,7 +5,7 @@ interface NavigationProps {
   theme?: 'dark' | 'light';
 }
 
-const defaultLinks = ['About', 'Worksheets', 'Pretrained', 'Stories', 'Book', 'Help'];
+const defaultLinks = ['About'];
 
 export default function Navigation({ 
   links = defaultLinks, 
@@ -22,14 +22,19 @@ export default function Navigation({
   
   const containerClasses = isMobile 
     ? "space-y-1" 
-    : "ml-10 flex items-baseline space-x-8";
+    : "flex items-baseline justify-center";
+
+  const getLinkHref = (link: string) => {
+    if (link === 'About') return '/about';
+    return '#';
+  };
 
   return (
     <div className={`${containerClasses} ${className}`}>
       {links.map((link) => (
         <a
           key={link}
-          href="#"
+          href={getLinkHref(link)}
           className={`${baseClasses} ${isMobile ? mobileClasses : desktopClasses}`}
         >
           {link}

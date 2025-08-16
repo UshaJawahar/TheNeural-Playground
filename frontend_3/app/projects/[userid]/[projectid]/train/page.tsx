@@ -48,7 +48,7 @@ export default function TrainPage() {
 
   useEffect(() => {
     validateUserSession();
-  }, [urlUserId, urlProjectId]);
+  }, [urlUserId, urlProjectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const validateUserSession = () => {
     if (!urlUserId || !urlProjectId) {
@@ -233,21 +233,12 @@ export default function TrainPage() {
     setShowAddExampleModal(true);
   };
 
-  const handleLanguageChange = (language: string) => {
-    console.log('Language changed to:', language);
-  };
 
-  const handleLoginClick = () => {
-    console.log('Login clicked');
-  };
 
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[#1c1c1c] text-white">
-        <Header 
-          onLanguageChange={handleLanguageChange}
-          onLoginClick={handleLoginClick}
-        />
+        <Header />
         <main className="pt-24 pb-20 px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-center min-h-[400px]">
             <div className="text-white text-xl">Loading...</div>
@@ -260,10 +251,7 @@ export default function TrainPage() {
   if (!isValidSession || !selectedProject) {
     return (
       <div className="min-h-screen bg-[#1c1c1c] text-white">
-        <Header 
-          onLanguageChange={handleLanguageChange}
-          onLoginClick={handleLoginClick}
-        />
+        <Header />
         <main className="pt-24 pb-20 px-4 sm:px-6 lg:px-8">
           <div className="max-w-4xl mx-auto text-center">
             <h1 className="text-3xl md:text-4xl font-semibold text-white mb-4">
@@ -286,10 +274,7 @@ export default function TrainPage() {
 
   return (
     <div className="min-h-screen bg-[#1c1c1c] text-white">
-      <Header 
-        onLanguageChange={handleLanguageChange}
-        onLoginClick={handleLoginClick}
-      />
+      <Header />
 
       <main className="pt-24 pb-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
@@ -319,7 +304,7 @@ export default function TrainPage() {
                  <ul className="text-white text-sm space-y-1">
                    <li className="flex items-center gap-2">
                      <span className="w-1.5 h-1.5 bg-[#dcfc84] rounded-full"></span>
-                     <strong>Step 1:</strong> Create exactly <strong>2 labels minimum</strong> (e.g., "happy", "sad")
+                     <strong>Step 1:</strong> Create exactly <strong>2 labels minimum</strong> (e.g., &ldquo;happy&rdquo;, &ldquo;sad&rdquo;)
                    </li>
                    <li className="flex items-center gap-2">
                      <span className="w-1.5 h-1.5 bg-[#dcfc84] rounded-full"></span>
@@ -378,7 +363,7 @@ export default function TrainPage() {
                                  {labels.length === 0 && (
                    <div className="bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-lg p-4 mr-4 max-w-md">
                      <p className="text-white text-sm text-center">
-                       Click on the 'plus' button on the right to add your first bucket.→
+                       Click on the &lsquo;plus&rsquo; button on the right to add your first bucket.→
                      </p>
                    </div>
                  )}
@@ -577,7 +562,7 @@ export default function TrainPage() {
             
             <div className="p-6">
               <label className="block text-sm font-medium text-[#dcfc84] mb-2">
-                Enter an example of '{labels.find(l => l.id === selectedLabelId)?.name}' *
+                Enter an example of &lsquo;{labels.find(l => l.id === selectedLabelId)?.name}&rsquo; *
               </label>
               <textarea
                 value={newExampleText}

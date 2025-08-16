@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import Header from '../../components/Header';
 
 interface UserSession {
@@ -54,15 +55,7 @@ export default function ProjectsPage() {
     return userId;
   };
 
-  const handleLanguageChange = (language: string) => {
-    console.log('Language changed to:', language);
-    // Handle language change logic here
-  };
 
-  const handleLoginClick = () => {
-    console.log('Login clicked');
-    // Handle login logic here
-  };
 
   const handleTryNow = () => {
     if (userSession) {
@@ -78,18 +71,29 @@ export default function ProjectsPage() {
   return (
     <div className="min-h-screen bg-[#1c1c1c] text-white">
       {/* Header Component */}
-      <Header 
-        onLanguageChange={handleLanguageChange}
-        onLoginClick={handleLoginClick}
-      />
+      <Header />
 
       {/* Main Content */}
       <main className="pt-24 pb-20 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-4xl mx-auto text-center">
-          {/* Main Heading */}
-          <h1 className="text-4xl md:text-6xl font-bold mb-8">
-            Get started with machine learning
-          </h1>
+        <div className="max-w-4xl mx-auto">
+          {/* Back Button */}
+          <div className="flex justify-start mb-8">
+            <Link
+              href="/"
+              className="p-2 text-white/70 hover:text-white hover:bg-[#bc6cd3]/10 rounded-lg transition-all duration-300 flex items-center gap-2 text-sm"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              Back to Home
+            </Link>
+          </div>
+          
+          <div className="text-center">
+            {/* Main Heading */}
+            <h1 className="text-4xl md:text-6xl font-bold mb-8">
+              Get started with machine learning
+            </h1>
           
           {/* Subtitle */}
           <p className="text-lg md:text-xl text-white mb-12">
@@ -138,6 +142,7 @@ export default function ProjectsPage() {
               </div>
             </div>
           </div>
+            </div>
         </div>
       </main>
 

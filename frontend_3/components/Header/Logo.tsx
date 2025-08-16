@@ -6,19 +6,28 @@ interface LogoProps {
 
 export default function Logo({ className = '', size = 'md', theme = 'dark' }: LogoProps) {
   const sizeClasses = {
-    sm: 'text-lg',
-    md: 'text-xl',
-    lg: 'text-2xl'
+    sm: 'h-6 w-6',
+    md: 'h-8 w-8',
+    lg: 'h-10 w-10'
   };
 
   const themeClasses = {
-    dark: 'text-white',
-    light: 'text-gray-800'
+    dark: 'filter brightness-0 invert', // Makes SVG white for dark theme
+    light: 'filter brightness-0' // Makes SVG black for light theme
   };
 
   return (
-    <div className={`font-bold ${themeClasses[theme]} ${sizeClasses[size]} ${className}`}>
-      TheNeural Playground
+    <div className={`flex items-center gap-2 ${className}`}>
+      <img 
+        src="/neurallogo.png" 
+        alt="TheNeural Playground Logo" 
+        className={`${sizeClasses[size]} ${themeClasses[theme]}`}
+      />
+      <span className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-800'} ${
+        size === 'sm' ? 'text-lg' : size === 'md' ? 'text-xl' : 'text-2xl'
+      }`}>
+        TheNeural Playground
+      </span>
     </div>
   );
 }

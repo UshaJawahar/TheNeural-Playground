@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
+import Link from 'next/link';
 import Header from '../../../components/Header';
 
 /**
@@ -46,7 +47,7 @@ function CreateProjectPage() {
   const [projectType, setProjectType] = useState('');
   const [projects, setProjects] = useState<Project[]>([]);
   const [currentSection, setCurrentSection] = useState<'projects-list' | 'new-project' | 'project-details'>('projects-list');
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [selectedProject] = useState<Project | null>(null);
   const [userSession, setUserSession] = useState<UserSession | null>(null);
   const [isValidSession, setIsValidSession] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -124,13 +125,7 @@ function CreateProjectPage() {
     }
   };
 
-  const handleLanguageChange = (language: string) => {
-    console.log('Language changed to:', language);
-  };
 
-  const handleLoginClick = () => {
-    console.log('Login clicked');
-  };
 
   const handleCreateProject = () => {
     setCurrentSection('new-project');
@@ -197,10 +192,7 @@ function CreateProjectPage() {
   return (
     <div className="min-h-screen bg-[#1c1c1c] text-white">
       {/* Header Component */}
-      <Header 
-        onLanguageChange={handleLanguageChange}
-        onLoginClick={handleLoginClick}
-      />
+      <Header />
 
       {/* Main Content */}
       <main className="pt-24 pb-20 px-4 sm:px-6 lg:px-8">
@@ -231,12 +223,12 @@ function CreateProjectPage() {
                           <p className="text-lg text-white mb-8">
               Your session has expired. Please start a new session.
             </p>
-            <a 
+            <Link 
               href="/projects"
               className="bg-[#dcfc84] text-[#1c1c1c] px-8 py-4 rounded-lg text-lg font-medium hover:scale-105 transition-all duration-300 inline-block"
             >
               Start New Session
-            </a>
+            </Link>
             </div>
           ) : (
             /* Valid Session Content */
@@ -265,7 +257,7 @@ function CreateProjectPage() {
                   </svg>
                 </button>
                 <h1 className="text-3xl md:text-4xl font-semibold text-white text-center flex-1">
-                  "{selectedProject.name}"
+                  &ldquo;{selectedProject.name}&rdquo;
                 </h1>
               </div>
 
@@ -308,7 +300,7 @@ function CreateProjectPage() {
                     Make
                   </h2>
                   <p className="text-white mb-8 text-sm md:text-base leading-relaxed min-h-[3rem]">
-                    Use the machine learning model you've trained to make a game or app, in Scratch, Python, or EduBlocks
+                    Use the machine learning model you&apos;ve trained to make a game or app, in Scratch, Python, or EduBlocks
                   </p>
                   <button className="w-full bg-[#dcfc84] hover:bg-[#dcfc84]/90 text-[#1c1c1c] py-3 px-6 rounded-lg font-medium transition-all duration-300">
                     Make
@@ -344,7 +336,7 @@ function CreateProjectPage() {
 
               {/* Subtitle */}
               <p className="text-lg text-white mb-12 max-w-2xl mx-auto">
-                You haven't created any projects yet. Start building your AI text recognition model!
+                You haven&apos;t created any projects yet. Start building your AI text recognition model!
               </p>
 
               {/* Create New Project Button */}
@@ -371,8 +363,17 @@ function CreateProjectPage() {
           ) : currentSection === 'projects-list' && projects.length > 0 ? (
             /* Projects Grid */
             <div>
-              {/* Header with Add Project Button */}
-              <div className="flex justify-end mb-8">
+              {/* Header with Back Button and Add Project Button */}
+              <div className="flex justify-between items-center mb-8">
+                <button
+                  onClick={() => window.location.href = '/projects'}
+                  className="p-2 text-white/70 hover:text-white hover:bg-[#bc6cd3]/10 rounded-lg transition-all duration-300 flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                  Back to Main Menu
+                </button>
                 <button
                   onClick={handleCreateProject}
                   className="bg-[#1c1c1c] border border-[#bc6cd3]/20 text-white px-6 py-3 rounded-lg hover:bg-[#bc6cd3]/10 transition-all duration-300 inline-flex items-center gap-2"

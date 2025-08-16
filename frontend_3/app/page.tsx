@@ -1,25 +1,15 @@
 'use client';
 
+import Link from 'next/link';
 import Header from '../components/Header';
 
 export default function Home() {
-  const handleLanguageChange = (language: string) => {
-    console.log('Language changed to:', language);
-    // Handle language change logic here
-  };
 
-  const handleLoginClick = () => {
-    console.log('Login clicked');
-    // Handle login logic here
-  };
 
   return (
     <div className="min-h-screen bg-[#1c1c1c] text-white">
       {/* Header Component */}
-      <Header 
-        onLanguageChange={handleLanguageChange}
-        onLoginClick={handleLoginClick}
-      />
+      <Header />
 
       {/* Hero Section */}
       <section className="pt-24 pb-20 px-4 sm:px-6 lg:px-8">
@@ -37,15 +27,18 @@ export default function Home() {
           </p>
           
           <div className="flex flex-col sm:flex-row gap-6 justify-center">
-            <a 
+            <Link 
               href="/projects"
               className="bg-[#dcfc84] text-[#1c1c1c] px-8 py-4 rounded-lg text-lg font-medium hover:scale-105 transition-all duration-300 text-center"
             >
               Get Started →
-            </a>
-            <button className="border border-[#bc6cd3] text-white px-8 py-4 rounded-lg text-lg font-medium hover:bg-[#bc6cd3] hover:text-[#1c1c1c] transition-all duration-300">
+            </Link>
+            <Link 
+              href="/about"
+              className="border border-[#bc6cd3] text-white px-8 py-4 rounded-lg text-lg font-medium hover:bg-[#bc6cd3] hover:text-[#1c1c1c] transition-all duration-300 text-center"
+            >
               Learn More
-            </button>
+            </Link>
           </div>
         </div>
       </section>
@@ -101,12 +94,12 @@ export default function Home() {
           <p className="text-xl text-white mb-12">
             Join thousands of students and educators who are already creating amazing AI-powered projects.
           </p>
-          <a 
+          <Link 
             href="/projects"
             className="bg-[#dcfc84] text-[#1c1c1c] px-12 py-4 rounded-lg text-xl font-medium hover:scale-105 transition-all duration-300 inline-block text-center"
           >
             Start Creating Now
-          </a>
+          </Link>
         </div>
       </section>
 

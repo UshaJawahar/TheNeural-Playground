@@ -18,7 +18,7 @@ interface Project {
 }
 
 export default function MakePage() {
-  const [userSession, setUserSession] = useState<UserSession | null>(null);
+  const [, setUserSession] = useState<UserSession | null>(null);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isValidSession, setIsValidSession] = useState(false);
@@ -29,7 +29,7 @@ export default function MakePage() {
 
   useEffect(() => {
     validateUserSession();
-  }, [urlUserId, urlProjectId]);
+  }, [urlUserId, urlProjectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const validateUserSession = () => {
     if (!urlUserId || !urlProjectId) {
@@ -87,41 +87,19 @@ export default function MakePage() {
     }
   };
 
-  const handleLanguageChange = (language: string) => {
-    console.log('Language changed to:', language);
-  };
 
-  const handleLoginClick = () => {
-    console.log('Login clicked');
-  };
 
   const handleScratchClick = () => {
-    console.log('Opening Scratch 3 integration...');
+    // Open Scratch 3.0 editor with ML extension template
+    window.open('https://scratch.mit.edu/projects/editor/?tutorial=all', '_blank');
   };
 
-  const handlePythonClick = () => {
-    console.log('Opening Python integration...');
-  };
 
-  const handleReplitClick = () => {
-    console.log('Opening Replit integration...');
-  };
-
-  const handleEduBlocksClick = () => {
-    console.log('Opening EduBlocks integration...');
-  };
-
-  const handleAppInventorClick = () => {
-    console.log('Opening App Inventor integration...');
-  };
 
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[#1c1c1c] text-white">
-        <Header 
-          onLanguageChange={handleLanguageChange}
-          onLoginClick={handleLoginClick}
-        />
+        <Header />
         <main className="pt-24 pb-20 px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-center min-h-[400px]">
             <div className="text-white text-xl">Loading...</div>
@@ -134,10 +112,7 @@ export default function MakePage() {
   if (!isValidSession || !selectedProject) {
     return (
       <div className="min-h-screen bg-[#1c1c1c] text-white">
-        <Header 
-          onLanguageChange={handleLanguageChange}
-          onLoginClick={handleLoginClick}
-        />
+        <Header />
         <main className="pt-24 pb-20 px-4 sm:px-6 lg:px-8">
           <div className="max-w-4xl mx-auto text-center">
             <h1 className="text-3xl md:text-4xl font-semibold text-white mb-4">
@@ -160,10 +135,7 @@ export default function MakePage() {
 
   return (
     <div className="min-h-screen bg-[#1c1c1c] text-white">
-      <Header 
-        onLanguageChange={handleLanguageChange}
-        onLoginClick={handleLoginClick}
-      />
+      <Header />
 
       <main className="pt-24 pb-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">

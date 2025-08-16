@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import Logo from './Logo';
 import Navigation from './Navigation';
-import HeaderActions from './HeaderActions';
 import MobileMenuButton from './MobileMenuButton';
 import MobileMenu from './MobileMenu';
 
@@ -11,28 +10,20 @@ interface HeaderProps {
   className?: string;
   logoSize?: 'sm' | 'md' | 'lg';
   navigationLinks?: string[];
-  showLogin?: boolean;
-  showLanguageSelector?: boolean;
   showMobileMenu?: boolean;
   fixed?: boolean;
   transparent?: boolean;
   theme?: 'dark' | 'light';
-  onLanguageChange?: (value: string) => void;
-  onLoginClick?: () => void;
 }
 
 export default function Header({
   className = '',
   logoSize = 'md',
   navigationLinks,
-  showLogin = true,
-  showLanguageSelector = true,
   showMobileMenu = true,
   fixed = true,
   transparent = false,
-  theme = 'dark',
-  onLanguageChange,
-  onLoginClick
+  theme = 'dark'
 }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -49,25 +40,30 @@ export default function Header({
     <header className={headerClasses}>
       <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          {/* Logo */}
+          {/* Left: Logo */}
           <div className="flex-shrink-0">
             <Logo size={logoSize} theme={theme} />
           </div>
           
-          {/* Desktop Navigation */}
-          <div className="hidden md:block">
+          {/* Center: Desktop Navigation */}
+          <div className="hidden md:block flex-1 flex justify-center">
             <Navigation links={navigationLinks} theme={theme} />
           </div>
           
-          {/* Desktop Actions */}
-          <HeaderActions
-            className="hidden md:flex"
-            showLogin={showLogin}
-            showLanguageSelector={showLanguageSelector}
-            onLanguageChange={onLanguageChange}
-            onLoginClick={onLoginClick}
-          />
-
+          {/* Right: Yaaralabs.ai */}
+          <div className="hidden md:flex items-center gap-2">
+            <img 
+              src="/yaaralogo.jpg" 
+              alt="Yaaralabs.ai Logo" 
+              className={`${logoSize === 'sm' ? 'h-6 w-6' : logoSize === 'md' ? 'h-8 w-8' : 'h-10 w-10'} rounded-full`}
+            />
+            <span className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-800'} ${
+              logoSize === 'sm' ? 'text-lg' : logoSize === 'md' ? 'text-xl' : 'text-2xl'
+            }`}>
+              Yaaralabs.ai
+            </span>
+          </div>
+          
           {/* Mobile menu button */}
           {showMobileMenu && (
             <div className="md:hidden">
@@ -84,8 +80,6 @@ export default function Header({
           <MobileMenu
             isOpen={mobileMenuOpen}
             links={navigationLinks}
-            onLanguageChange={onLanguageChange}
-            onLoginClick={onLoginClick}
           />
         )}
       </nav>
