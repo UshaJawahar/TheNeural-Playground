@@ -76,6 +76,7 @@ function CreateProjectPage() {
   const [guestSession, setGuestSession] = useState<GuestSession | null>(null);
   const [isValidSession, setIsValidSession] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingProjects, setIsLoadingProjects] = useState(false);
   const [isCreatingProject, setIsCreatingProject] = useState(false);
   
 
@@ -152,22 +153,30 @@ function CreateProjectPage() {
             setActualSessionId(sessionId);
             setGuestSession(sessionResponse.data);
             setIsValidSession(true);
+            // Start loading projects immediately
+            setIsLoadingProjects(true);
             loadGuestProjects(sessionResponse.data.session_id);
           } else {
             // Session expired
             localStorage.removeItem('neural_playground_session_id');
+        localStorage.removeItem('neural_playground_session_created');
+          localStorage.removeItem('neural_playground_session_created');
+            localStorage.removeItem('neural_playground_session_created');
             window.location.href = '/projects';
             return;
           }
         } else {
           // Session inactive
           localStorage.removeItem('neural_playground_session_id');
+        localStorage.removeItem('neural_playground_session_created');
+          localStorage.removeItem('neural_playground_session_created');
           window.location.href = '/projects';
           return;
         }
       } else {
         // Session not found on server
         localStorage.removeItem('neural_playground_session_id');
+        localStorage.removeItem('neural_playground_session_created');
         window.location.href = '/projects';
         return;
       }
@@ -204,10 +213,20 @@ function CreateProjectPage() {
           });
           
           setProjects(projectsWithMaskedIds);
+        } else {
+          // No projects found or empty response
+          setProjects([]);
         }
+      } else {
+        console.error('Failed to load projects:', response.status);
+        setProjects([]);
       }
     } catch (error) {
       console.error('Error loading projects:', error);
+      setProjects([]);
+    } finally {
+      // Always stop loading projects when done
+      setIsLoadingProjects(false);
     }
   };
 
@@ -302,10 +321,11 @@ function CreateProjectPage() {
         
         // Reload projects to get updated list
         if (actualSessionId) {
+          setIsLoadingProjects(true);
           await loadGuestProjects(actualSessionId);
         }
         
-        // Navigate to the new project page using masked project ID
+        // Navigate to the new project details page using masked project ID
         window.location.href = `/projects/${urlParam}/${newProject.maskedId}`;
       } catch (error: any) {
         const errorMessage = error.message || 'Failed to create project. Please try again.';
@@ -339,6 +359,7 @@ function CreateProjectPage() {
 
         if (response.ok) {
           // Reload projects to get updated list
+          setIsLoadingProjects(true);
           await loadGuestProjects(actualSessionId);
         } else {
           alert('Failed to delete project. Please try again.');
@@ -497,6 +518,15 @@ function CreateProjectPage() {
               </div>
             </div>
 
+          ) : currentSection === 'projects-list' && isLoadingProjects ? (
+            /* Loading Projects State */
+            <div className="max-w-4xl mx-auto text-center">
+              <div className="flex flex-col items-center justify-center min-h-[400px]">
+                {/* Loading Spinner */}
+                <div className="mx-auto w-12 h-12 border-4 border-[#bc6cd3]/20 border-t-[#dcfc84] rounded-full animate-spin mb-4"></div>
+                <div className="text-white text-xl">Loading projects...</div>
+              </div>
+            </div>
           ) : currentSection === 'projects-list' && projects.length === 0 ? (
             /* No Projects State */
             <div className="max-w-4xl mx-auto text-center">

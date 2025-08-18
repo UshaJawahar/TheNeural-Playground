@@ -3,11 +3,31 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Header from '../../../../components/Header';
+import config from '../../../../lib/config';
+import { 
+  getSessionIdFromMaskedId, 
+  isMaskedId, 
+  isSessionId, 
+  generateMaskedId, 
+  storeMaskedIdMapping,
+  getProjectIdFromMaskedId,
+  isMaskedProjectId,
+  isProjectId
+} from '../../../../lib/session-utils';
 
-interface UserSession {
-  userId: string;
-  createdAt: number;
-  expiresAt: number;
+interface GuestSession {
+  session_id: string;
+  createdAt: string;
+  expiresAt: string;
+  active: boolean;
+  ip_address?: string;
+  user_agent?: string;
+  last_active?: string;
+}
+
+interface GuestSessionResponse {
+  success: boolean;
+  data: GuestSession;
 }
 
 interface Project {
@@ -15,75 +35,182 @@ interface Project {
   name: string;
   type: string;
   createdAt: string;
+  description?: string;
+  status?: string;
+  maskedId?: string;
 }
 
 export default function ProjectDetailsPage() {
-  const [userSession, setUserSession] = useState<UserSession | null>(null);
+  const [guestSession, setGuestSession] = useState<GuestSession | null>(null);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isValidSession, setIsValidSession] = useState(false);
+  const [actualSessionId, setActualSessionId] = useState<string>('');
+  const [actualProjectId, setActualProjectId] = useState<string>('');
 
   const params = useParams();
   const urlUserId = params?.userid as string;
   const urlProjectId = params?.projectid as string;
 
   useEffect(() => {
-    validateUserSession();
+    validateGuestSession();
   }, [urlUserId, urlProjectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const validateUserSession = () => {
+  const validateGuestSession = async () => {
     if (!urlUserId || !urlProjectId) {
       setIsLoading(false);
       return;
     }
 
     try {
-      const sessionData = localStorage.getItem('neural_playground_session');
-      if (sessionData) {
-        const session: UserSession = JSON.parse(sessionData);
-        const now = Date.now();
-        
-        if (now < session.expiresAt && session.userId === urlUserId) {
-          setUserSession(session);
-          setIsValidSession(true);
-          loadProject(session.userId, urlProjectId);
-        } else if (session.userId !== urlUserId) {
-          window.location.href = `/projects/${session.userId}`;
+      let sessionId: string;
+      let projectId: string;
+
+      // Check if URL param is a masked ID or full session ID
+      if (isMaskedId(urlUserId)) {
+        const realSessionId = getSessionIdFromMaskedId(urlUserId);
+        if (!realSessionId) {
+          window.location.href = '/projects';
           return;
+        }
+        sessionId = realSessionId;
+      } else if (isSessionId(urlUserId)) {
+        const maskedId = generateMaskedId(urlUserId);
+        storeMaskedIdMapping(maskedId, urlUserId);
+        window.location.href = `/projects/${maskedId}/${urlProjectId}`;
+        return;
+      } else {
+        window.location.href = '/projects';
+        return;
+      }
+
+      // Check if project ID is masked
+      if (isMaskedProjectId(urlProjectId)) {
+        const realProjectId = getProjectIdFromMaskedId(urlProjectId);
+        if (!realProjectId) {
+          window.location.href = `/projects/${urlUserId}`;
+          return;
+        }
+        projectId = realProjectId;
+      } else if (isProjectId(urlProjectId)) {
+        projectId = urlProjectId;
+      } else {
+        window.location.href = `/projects/${urlUserId}`;
+        return;
+      }
+
+      // Check if session exists in localStorage
+      const storedSessionId = localStorage.getItem('neural_playground_session_id');
+      
+      if (!storedSessionId) {
+        window.location.href = '/projects';
+        return;
+      }
+
+      if (storedSessionId !== sessionId) {
+        const correctMaskedId = generateMaskedId(storedSessionId);
+        storeMaskedIdMapping(correctMaskedId, storedSessionId);
+        window.location.href = `/projects/${correctMaskedId}`;
+        return;
+      }
+
+      // Validate session with backend API
+      const response = await fetch(`${config.apiBaseUrl}${config.api.guests.sessionById(sessionId)}`);
+      
+      if (response.ok) {
+        const sessionResponse: GuestSessionResponse = await response.json();
+        if (sessionResponse.success && sessionResponse.data.active) {
+          const now = new Date();
+          const expiresAt = new Date(sessionResponse.data.expiresAt);
+          
+          if (now < expiresAt) {
+            setActualSessionId(sessionId);
+            setActualProjectId(projectId);
+            setGuestSession(sessionResponse.data);
+            setIsValidSession(true);
+            
+            // Load project after setting session as valid
+            await loadProject(sessionId, projectId);
+          } else {
+            console.error('Session expired');
+            localStorage.removeItem('neural_playground_session_id');
+      localStorage.removeItem('neural_playground_session_created');
+        localStorage.removeItem('neural_playground_session_created');
+          localStorage.removeItem('neural_playground_session_created');
+            localStorage.removeItem('neural_playground_session_created');
+            window.location.href = '/projects';
+            return;
+          }
         } else {
-          localStorage.removeItem('neural_playground_session');
+          console.error('Session inactive');
+          localStorage.removeItem('neural_playground_session_id');
+      localStorage.removeItem('neural_playground_session_created');
+        localStorage.removeItem('neural_playground_session_created');
+          localStorage.removeItem('neural_playground_session_created');
           window.location.href = '/projects';
           return;
         }
       } else {
+        console.error('Session validation failed:', response.status);
+        localStorage.removeItem('neural_playground_session_id');
+      localStorage.removeItem('neural_playground_session_created');
+        localStorage.removeItem('neural_playground_session_created');
         window.location.href = '/projects';
         return;
       }
     } catch (error) {
       console.error('Error validating session:', error);
-      localStorage.removeItem('neural_playground_session');
+      localStorage.removeItem('neural_playground_session_id');
+      localStorage.removeItem('neural_playground_session_created');
       window.location.href = '/projects';
       return;
     }
     setIsLoading(false);
   };
 
-  const loadProject = (userId: string, projectId: string) => {
+  const loadProject = async (sessionId: string, projectId: string) => {
     try {
-      const projectsKey = `neural_playground_projects_${userId}`;
-      const savedProjects = localStorage.getItem(projectsKey);
-      if (savedProjects) {
-        const projects: Project[] = JSON.parse(savedProjects);
-        const project = projects.find(p => p.id === projectId);
-        if (project) {
-          setSelectedProject(project);
+      console.log('Loading project:', projectId, 'for session:', sessionId);
+      
+      // Load all projects for the session and find the specific project
+      const response = await fetch(`${config.apiBaseUrl}/api/guests/session/${sessionId}/projects`);
+      
+      if (response.ok) {
+        const projectsResponse = await response.json();
+        console.log('Projects response:', projectsResponse);
+        
+        if (projectsResponse.success && projectsResponse.data) {
+          console.log('Available projects:', projectsResponse.data.map((p: Project) => ({ id: p.id, name: p.name })));
+          
+          // Find the specific project by ID
+          const project = projectsResponse.data.find((p: Project) => p.id === projectId);
+          
+          if (project) {
+            console.log('Found project:', project);
+            setSelectedProject(project);
+          } else {
+            // Project not found in the session's projects
+            console.error('Project not found in session projects. Looking for:', projectId);
+            console.error('Available project IDs:', projectsResponse.data.map((p: Project) => p.id));
+            window.location.href = `/projects/${urlUserId}`;
+            return;
+          }
         } else {
-          window.location.href = `/projects/${userId}`;
+          // No projects found or empty response
+          console.error('No projects found for session or invalid response structure');
+          window.location.href = `/projects/${urlUserId}`;
           return;
         }
+      } else {
+        // Failed to load projects
+        console.error('Failed to load session projects:', response.status);
+        window.location.href = `/projects/${urlUserId}`;
+        return;
       }
     } catch (error) {
-      console.error('Error loading project:', error);
+      console.error('Error loading session projects:', error);
+      window.location.href = `/projects/${urlUserId}`;
+      return;
     }
   };
 
@@ -102,17 +229,41 @@ export default function ProjectDetailsPage() {
     );
   }
 
-  if (!isValidSession || !selectedProject) {
+  if (!isValidSession) {
     return (
       <div className="min-h-screen bg-[#1c1c1c] text-white">
         <Header />
         <main className="pt-24 pb-20 px-4 sm:px-6 lg:px-8">
           <div className="max-w-4xl mx-auto text-center">
             <h1 className="text-3xl md:text-4xl font-semibold text-white mb-4">
-              Invalid Session or Project
+              Session Expired
             </h1>
             <p className="text-lg text-white mb-8">
-              Please return to your projects and try again.
+              Your session has expired. Please start a new session.
+            </p>
+            <a 
+              href="/projects"
+              className="bg-[#dcfc84] text-[#1c1c1c] px-8 py-4 rounded-lg text-lg font-medium hover:scale-105 transition-all duration-300 inline-block"
+            >
+              Start New Session
+            </a>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  if (!selectedProject) {
+    return (
+      <div className="min-h-screen bg-[#1c1c1c] text-white">
+        <Header />
+        <main className="pt-24 pb-20 px-4 sm:px-6 lg:px-8">
+          <div className="max-w-4xl mx-auto text-center">
+            <h1 className="text-3xl md:text-4xl font-semibold text-white mb-4">
+              Project Not Found
+            </h1>
+            <p className="text-lg text-white mb-8">
+              The project you're looking for doesn't exist or you don't have access to it.
             </p>
             <a 
               href={`/projects/${urlUserId}`}
@@ -180,7 +331,7 @@ export default function ProjectDetailsPage() {
               </p>
               <button 
                 onClick={() => {
-                  window.location.href = `/projects/${userSession?.userId}/${selectedProject.id}/train`;
+                  window.location.href = `/projects/${urlUserId}/${urlProjectId}/train`;
                 }}
                 className="w-full bg-[#dcfc84] hover:bg-[#dcfc84]/90 text-[#1c1c1c] py-3 px-6 rounded-lg font-medium transition-all duration-300"
               >
@@ -198,7 +349,7 @@ export default function ProjectDetailsPage() {
               </p>
               <button 
                 onClick={() => {
-                  window.location.href = `/projects/${userSession?.userId}/${selectedProject.id}/Learn`;
+                  window.location.href = `/projects/${urlUserId}/${urlProjectId}/learn`;
                 }}
                 className="w-full bg-[#dcfc84] hover:bg-[#dcfc84]/90 text-[#1c1c1c] py-3 px-6 rounded-lg font-medium transition-all duration-300"
               >
@@ -216,7 +367,7 @@ export default function ProjectDetailsPage() {
               </p>
               <button 
                 onClick={() => {
-                  window.location.href = `/projects/${userSession?.userId}/${selectedProject.id}/Make`;
+                  window.location.href = `/projects/${urlUserId}/${urlProjectId}/make`;
                 }}
                 className="w-full bg-[#dcfc84] hover:bg-[#dcfc84]/90 text-[#1c1c1c] py-3 px-6 rounded-lg font-medium transition-all duration-300"
               >

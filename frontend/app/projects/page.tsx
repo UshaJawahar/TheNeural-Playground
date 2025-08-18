@@ -49,19 +49,29 @@ export default function ProjectsPage() {
             } else {
               // Session expired, remove it
               localStorage.removeItem('neural_playground_session_id');
+      localStorage.removeItem('neural_playground_session_created');
+          localStorage.removeItem('neural_playground_session_created');
+            localStorage.removeItem('neural_playground_session_created');
+              localStorage.removeItem('neural_playground_session_created');
             }
           } else {
             // Session invalid, remove it
             localStorage.removeItem('neural_playground_session_id');
+      localStorage.removeItem('neural_playground_session_created');
+          localStorage.removeItem('neural_playground_session_created');
+            localStorage.removeItem('neural_playground_session_created');
           }
         } else {
           // Session not found on server, remove local storage
           localStorage.removeItem('neural_playground_session_id');
+      localStorage.removeItem('neural_playground_session_created');
+          localStorage.removeItem('neural_playground_session_created');
         }
       }
     } catch (error) {
       console.error('Error checking session:', error);
       localStorage.removeItem('neural_playground_session_id');
+      localStorage.removeItem('neural_playground_session_created');
     }
     setIsLoading(false);
   };
@@ -83,8 +93,9 @@ export default function ProjectsPage() {
           // Generate masked ID for URL
           const maskedId = generateMaskedId(sessionResponse.data.session_id);
           
-          // Store session ID and masked ID mapping
+          // Store session ID, creation timestamp, and masked ID mapping
           localStorage.setItem('neural_playground_session_id', sessionResponse.data.session_id);
+          localStorage.setItem('neural_playground_session_created', Date.now().toString());
           storeMaskedIdMapping(maskedId, sessionResponse.data.session_id);
           
           setGuestSession(sessionResponse.data);

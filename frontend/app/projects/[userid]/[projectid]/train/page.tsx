@@ -3,11 +3,31 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Header from '../../../../../components/Header';
+import config from '../../../../../lib/config';
+import { 
+  getSessionIdFromMaskedId, 
+  isMaskedId, 
+  isSessionId, 
+  generateMaskedId, 
+  storeMaskedIdMapping,
+  getProjectIdFromMaskedId,
+  isMaskedProjectId,
+  isProjectId
+} from '../../../../../lib/session-utils';
 
-interface UserSession {
-  userId: string;
-  createdAt: number;
-  expiresAt: number;
+interface GuestSession {
+  session_id: string;
+  createdAt: string;
+  expiresAt: string;
+  active: boolean;
+  ip_address?: string;
+  user_agent?: string;
+  last_active?: string;
+}
+
+interface GuestSessionResponse {
+  success: boolean;
+  data: GuestSession;
 }
 
 interface Project {
@@ -15,6 +35,9 @@ interface Project {
   name: string;
   type: string;
   createdAt: string;
+  description?: string;
+  status?: string;
+  maskedId?: string;
 }
 
 interface Example {
@@ -37,92 +60,332 @@ export default function TrainPage() {
   const [selectedLabelId, setSelectedLabelId] = useState<string>('');
   const [newLabelName, setNewLabelName] = useState('');
   const [newExampleText, setNewExampleText] = useState('');
-  const [userSession, setUserSession] = useState<UserSession | null>(null);
+  const [guestSession, setGuestSession] = useState<GuestSession | null>(null);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isValidSession, setIsValidSession] = useState(false);
+  const [actualSessionId, setActualSessionId] = useState<string>('');
+  const [actualProjectId, setActualProjectId] = useState<string>('');
+  const [pendingExamples, setPendingExamples] = useState<{[labelId: string]: Example[]}>({});
+  const [isSubmittingToAPI, setIsSubmittingToAPI] = useState(false);
 
   const params = useParams();
   const urlUserId = params?.userid as string;
   const urlProjectId = params?.projectid as string;
 
   useEffect(() => {
-    validateUserSession();
+    validateGuestSession();
   }, [urlUserId, urlProjectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const validateUserSession = () => {
+  const validateGuestSession = async () => {
     if (!urlUserId || !urlProjectId) {
       setIsLoading(false);
       return;
     }
 
     try {
-      const sessionData = localStorage.getItem('neural_playground_session');
-      if (sessionData) {
-        const session: UserSession = JSON.parse(sessionData);
-        const now = Date.now();
-        
-        if (now < session.expiresAt && session.userId === urlUserId) {
-          setUserSession(session);
-          setIsValidSession(true);
-          loadProjectAndLabels(session.userId, urlProjectId);
-        } else if (session.userId !== urlUserId) {
-          window.location.href = `/projects/${session.userId}`;
+      let sessionId: string;
+      let projectId: string;
+
+      // Check if URL param is a masked ID or full session ID
+      if (isMaskedId(urlUserId)) {
+        const realSessionId = getSessionIdFromMaskedId(urlUserId);
+        if (!realSessionId) {
+          window.location.href = '/projects';
           return;
+        }
+        sessionId = realSessionId;
+      } else if (isSessionId(urlUserId)) {
+        const maskedId = generateMaskedId(urlUserId);
+        storeMaskedIdMapping(maskedId, urlUserId);
+        window.location.href = `/projects/${maskedId}/${urlProjectId}/train`;
+        return;
+      } else {
+        window.location.href = '/projects';
+        return;
+      }
+
+      // Check if project ID is masked
+      if (isMaskedProjectId(urlProjectId)) {
+        const realProjectId = getProjectIdFromMaskedId(urlProjectId);
+        if (!realProjectId) {
+          window.location.href = `/projects/${urlUserId}`;
+          return;
+        }
+        projectId = realProjectId;
+      } else if (isProjectId(urlProjectId)) {
+        projectId = urlProjectId;
+      } else {
+        window.location.href = `/projects/${urlUserId}`;
+        return;
+      }
+
+      // Check if session exists in localStorage
+      const storedSessionId = localStorage.getItem('neural_playground_session_id');
+      
+      if (!storedSessionId) {
+        window.location.href = '/projects';
+        return;
+      }
+
+      if (storedSessionId !== sessionId) {
+        const correctMaskedId = generateMaskedId(storedSessionId);
+        storeMaskedIdMapping(correctMaskedId, storedSessionId);
+        window.location.href = `/projects/${correctMaskedId}`;
+        return;
+      }
+
+      // Validate session with backend API
+      const response = await fetch(`${config.apiBaseUrl}${config.api.guests.sessionById(sessionId)}`);
+      
+      if (response.ok) {
+        const sessionResponse: GuestSessionResponse = await response.json();
+        if (sessionResponse.success && sessionResponse.data.active) {
+          const now = new Date();
+          const expiresAt = new Date(sessionResponse.data.expiresAt);
+          
+          if (now < expiresAt) {
+            setActualSessionId(sessionId);
+            setActualProjectId(projectId);
+            setGuestSession(sessionResponse.data);
+            setIsValidSession(true);
+            
+            // Load project and labels after setting session as valid
+            await loadProjectAndLabels(sessionId, projectId);
+          } else {
+            console.error('Session expired');
+            localStorage.removeItem('neural_playground_session_id');
+            localStorage.removeItem('neural_playground_session_created');
+            window.location.href = '/projects';
+            return;
+          }
         } else {
-          localStorage.removeItem('neural_playground_session');
+          console.error('Session inactive');
+          localStorage.removeItem('neural_playground_session_id');
+          localStorage.removeItem('neural_playground_session_created');
           window.location.href = '/projects';
           return;
         }
       } else {
+        console.error('Session validation failed:', response.status);
+        localStorage.removeItem('neural_playground_session_id');
+        localStorage.removeItem('neural_playground_session_created');
         window.location.href = '/projects';
         return;
       }
     } catch (error) {
       console.error('Error validating session:', error);
-      localStorage.removeItem('neural_playground_session');
+      localStorage.removeItem('neural_playground_session_id');
+      localStorage.removeItem('neural_playground_session_created');
       window.location.href = '/projects';
       return;
     }
     setIsLoading(false);
   };
 
-  const loadProjectAndLabels = (userId: string, projectId: string) => {
+  const loadProjectAndLabels = async (sessionId: string, projectId: string) => {
     try {
-      const projectsKey = `neural_playground_projects_${userId}`;
-      const savedProjects = localStorage.getItem(projectsKey);
-      if (savedProjects) {
-        const projects: Project[] = JSON.parse(savedProjects);
-        const project = projects.find(p => p.id === projectId);
-        if (project) {
-          setSelectedProject(project);
+      console.log('Loading project and labels for session:', sessionId, 'project:', projectId);
+      
+      // Load all projects for the session and find the specific project
+      const response = await fetch(`${config.apiBaseUrl}/api/guests/session/${sessionId}/projects`);
+      
+      if (response.ok) {
+        const projectsResponse = await response.json();
+        console.log('Projects response:', projectsResponse);
+        
+        if (projectsResponse.success && projectsResponse.data) {
+          console.log('Available projects:', projectsResponse.data.map((p: Project) => ({ id: p.id, name: p.name })));
+          
+          // Find the specific project by ID
+          const project = projectsResponse.data.find((p: Project) => p.id === projectId);
+          
+          if (project) {
+            console.log('Found project:', project);
+            setSelectedProject(project);
+            
+            // Load labels for this project (for now, use localStorage until API is available)
+            const labelsKey = `neural_playground_labels_${sessionId}_${projectId}`;
+            const savedLabels = localStorage.getItem(labelsKey);
+            if (savedLabels) {
+              setLabels(JSON.parse(savedLabels));
+            }
+          } else {
+            // Project not found in the session's projects
+            console.error('Project not found in session projects. Looking for:', projectId);
+            console.error('Available project IDs:', projectsResponse.data.map((p: Project) => p.id));
+            window.location.href = `/projects/${urlUserId}`;
+            return;
+          }
         } else {
-          window.location.href = `/projects/${userId}`;
+          // No projects found or empty response
+          console.error('No projects found for session or invalid response structure');
+          window.location.href = `/projects/${urlUserId}`;
           return;
         }
-      }
-
-      const labelsKey = `neural_playground_labels_${userId}_${projectId}`;
-      const savedLabels = localStorage.getItem(labelsKey);
-      if (savedLabels) {
-        setLabels(JSON.parse(savedLabels));
+      } else {
+        // Failed to load projects
+        console.error('Failed to load session projects:', response.status);
+        window.location.href = `/projects/${urlUserId}`;
+        return;
       }
     } catch (error) {
       console.error('Error loading project and labels:', error);
+      window.location.href = `/projects/${urlUserId}`;
+      return;
     }
   };
 
-  const saveLabels = (userId: string, projectId: string, labelsData: Label[]) => {
+  const saveLabels = (sessionId: string, projectId: string, labelsData: Label[]) => {
     try {
-      const labelsKey = `neural_playground_labels_${userId}_${projectId}`;
+      const labelsKey = `neural_playground_labels_${sessionId}_${projectId}`;
       localStorage.setItem(labelsKey, JSON.stringify(labelsData));
     } catch (error) {
       console.error('Error saving labels:', error);
     }
   };
 
-  const handleAddLabel = () => {
-    if (newLabelName.trim() && userSession && selectedProject) {
+  const submitExamplesToAPI = async (labelName: string, examples: Example[]) => {
+    // Validation checks
+    if (!actualSessionId || !actualProjectId) {
+      console.log('Missing session or project ID:', { actualSessionId, actualProjectId });
+      return false;
+    }
+
+    if (examples.length === 0) {
+      console.log('No examples to submit');
+      return false;
+    }
+
+    if (!labelName || labelName.trim().length === 0) {
+      console.error('Label name is empty or invalid:', labelName);
+      alert('Label name cannot be empty');
+      return false;
+    }
+
+    // Filter out empty examples
+    const validExamples = examples.filter(example => 
+      example && example.text && example.text.trim().length > 0
+    );
+
+    if (validExamples.length === 0) {
+      console.log('No valid examples to submit after filtering');
+      return false;
+    }
+
+    try {
+      setIsSubmittingToAPI(true);
+      
+      // Try the original format first
+      const payload = {
+        label: labelName.trim(),
+        examples: validExamples.map(example => example.text.trim())
+      };
+
+      // Alternative payload formats to test if the first one fails
+      const alternativePayloads = [
+        // Alternative 1: Different field names
+        {
+          labelName: labelName.trim(),
+          exampleTexts: validExamples.map(example => example.text.trim())
+        },
+        // Alternative 2: Nested structure
+        {
+          data: {
+            label: labelName.trim(),
+            examples: validExamples.map(example => example.text.trim())
+          }
+        },
+        // Alternative 3: Array format
+        validExamples.map(example => ({
+          label: labelName.trim(),
+          text: example.text.trim()
+        }))
+      ];
+
+      console.log('=== API Submission Debug ===');
+      console.log('Session ID:', actualSessionId);
+      console.log('Project ID:', actualProjectId);
+      console.log('Label Name:', labelName);
+      console.log('Original Examples Count:', examples.length);
+      console.log('Valid Examples Count:', validExamples.length);
+      console.log('Primary Payload:', JSON.stringify(payload, null, 2));
+      console.log('Alternative Payloads:', alternativePayloads.map((p, i) => `Alt ${i + 1}: ${JSON.stringify(p, null, 2)}`));
+      console.log('Payload Size (bytes):', new Blob([JSON.stringify(payload)]).size);
+      
+      const apiUrl = `${config.apiBaseUrl}${config.api.guests.examples(actualSessionId, actualProjectId)}`;
+      console.log('API URL:', apiUrl);
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      console.log('Response Status:', response.status);
+      console.log('Response Headers:', Object.fromEntries(response.headers.entries()));
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('✅ Successfully submitted examples to API:', result);
+        return true;
+      } else {
+        console.error('❌ Failed to submit examples to API:', response.status);
+        
+        let errorDetails;
+        try {
+          errorDetails = await response.json();
+          console.error('Error JSON Response:', errorDetails);
+        } catch (jsonError) {
+          const errorText = await response.text();
+          console.error('Error Text Response:', errorText);
+          errorDetails = { message: errorText };
+        }
+
+        // Show user-friendly error
+        if (response.status === 422) {
+          alert(`Validation Error: ${errorDetails.message || 'Invalid data format. Please check your label name and examples.'}`);
+        } else {
+          alert(`API Error (${response.status}): ${errorDetails.message || 'Failed to submit examples'}`);
+        }
+
+        return false;
+      }
+    } catch (error) {
+      console.error('❌ Network error submitting examples to API:', error);
+      alert('Network error: Failed to connect to the server. Please check your connection.');
+      return false;
+    } finally {
+      setIsSubmittingToAPI(false);
+    }
+  };
+
+  const processPendingExamples = async (labelId: string, labelName: string) => {
+    const pending = pendingExamples[labelId] || [];
+    if (pending.length >= 6) {
+      // Submit in batches of 6
+      const batches = [];
+      for (let i = 0; i < pending.length; i += 6) {
+        batches.push(pending.slice(i, i + 6));
+      }
+
+      for (const batch of batches) {
+        const success = await submitExamplesToAPI(labelName, batch);
+        if (success) {
+          // Remove submitted examples from pending
+          setPendingExamples(prev => ({
+            ...prev,
+            [labelId]: prev[labelId]?.filter(ex => !batch.some(b => b.id === ex.id)) || []
+          }));
+        }
+      }
+    }
+  };
+
+  const handleAddLabel = async () => {
+    if (newLabelName.trim() && actualSessionId && actualProjectId) {
       const newLabel: Label = {
         id: `label-${Date.now()}`,
         name: newLabelName.trim(),
@@ -132,15 +395,25 @@ export default function TrainPage() {
       
       const updatedLabels = [...labels, newLabel];
       setLabels(updatedLabels);
-      saveLabels(userSession.userId, selectedProject.id, updatedLabels);
+      saveLabels(actualSessionId, actualProjectId, updatedLabels);
+      
+      // Initialize pending examples for this label
+      setPendingExamples(prev => ({
+        ...prev,
+        [newLabel.id]: []
+      }));
+
+      // Submit label to API immediately (but only if we have examples to submit)
+      // Don't submit empty labels to API as they might cause validation errors
+      console.log('Label created locally, will submit to API when examples are added');
       
       setNewLabelName('');
       setShowAddLabelModal(false);
     }
   };
 
-  const handleAddExample = () => {
-    if (newExampleText.trim() && selectedLabelId && userSession && selectedProject) {
+  const handleAddExample = async () => {
+    if (newExampleText.trim() && selectedLabelId && actualSessionId && actualProjectId) {
       const newExample: Example = {
         id: `example-${Date.now()}`,
         text: newExampleText.trim(),
@@ -158,7 +431,25 @@ export default function TrainPage() {
       });
       
       setLabels(updatedLabels);
-      saveLabels(userSession.userId, selectedProject.id, updatedLabels);
+      saveLabels(actualSessionId, actualProjectId, updatedLabels);
+
+      // Add to pending examples for batching
+      setPendingExamples(prev => ({
+        ...prev,
+        [selectedLabelId]: [...(prev[selectedLabelId] || []), newExample]
+      }));
+
+      // Find the label name for API submission
+      const label = labels.find(l => l.id === selectedLabelId);
+      if (label) {
+        // Check if we should submit to API (every 6 examples)
+        const currentPending = pendingExamples[selectedLabelId] || [];
+        const totalPending = currentPending.length + 1; // +1 for the example we just added
+
+        if (totalPending >= 6) {
+          await processPendingExamples(selectedLabelId, label.name);
+        }
+      }
       
       setNewExampleText('');
       setSelectedLabelId('');
@@ -166,12 +457,12 @@ export default function TrainPage() {
     }
   };
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>, labelId: string) => {
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>, labelId: string) => {
     const file = event.target.files?.[0];
-    if (!file || !userSession || !selectedProject) return;
+    if (!file || !actualSessionId || !actualProjectId) return;
 
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       const text = e.target?.result as string;
       if (text) {
         // Split text by lines and filter out empty lines
@@ -194,7 +485,20 @@ export default function TrainPage() {
         });
         
         setLabels(updatedLabels);
-        saveLabels(userSession.userId, selectedProject.id, updatedLabels);
+        saveLabels(actualSessionId, actualProjectId, updatedLabels);
+
+        // Add all new examples to pending for batching
+        setPendingExamples(prev => ({
+          ...prev,
+          [labelId]: [...(prev[labelId] || []), ...newExamples]
+        }));
+
+        // Find the label name and process batches
+        const label = labels.find(l => l.id === labelId);
+        if (label) {
+          // Process all pending examples in batches
+          await processPendingExamples(labelId, label.name);
+        }
       }
     };
     reader.readAsText(file);
@@ -204,15 +508,15 @@ export default function TrainPage() {
   };
 
   const handleDeleteLabel = (labelId: string) => {
-    if (userSession && selectedProject) {
+    if (actualSessionId && actualProjectId) {
       const updatedLabels = labels.filter(label => label.id !== labelId);
       setLabels(updatedLabels);
-      saveLabels(userSession.userId, selectedProject.id, updatedLabels);
+      saveLabels(actualSessionId, actualProjectId, updatedLabels);
     }
   };
 
   const handleDeleteExample = (labelId: string, exampleId: string) => {
-    if (userSession && selectedProject) {
+    if (actualSessionId && actualProjectId) {
       const updatedLabels = labels.map(label => {
         if (label.id === labelId) {
           return {
@@ -224,7 +528,7 @@ export default function TrainPage() {
       });
       
       setLabels(updatedLabels);
-      saveLabels(userSession.userId, selectedProject.id, updatedLabels);
+      saveLabels(actualSessionId, actualProjectId, updatedLabels);
     }
   };
 
@@ -232,6 +536,30 @@ export default function TrainPage() {
     setSelectedLabelId(labelId);
     setShowAddExampleModal(true);
   };
+
+  const submitAllPendingExamples = async () => {
+    for (const [labelId, examples] of Object.entries(pendingExamples)) {
+      if (examples.length > 0) {
+        const label = labels.find(l => l.id === labelId);
+        if (label) {
+          await submitExamplesToAPI(label.name, examples);
+          // Clear pending examples after submission
+          setPendingExamples(prev => ({
+            ...prev,
+            [labelId]: []
+          }));
+        }
+      }
+    }
+  };
+
+  // Submit remaining examples when component unmounts
+  useEffect(() => {
+    return () => {
+      // This will run when component unmounts
+      submitAllPendingExamples();
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
 
 
@@ -282,7 +610,7 @@ export default function TrainPage() {
 
                      <div className="flex items-center mb-8">
              <a
-               href={`/projects/${urlUserId}/${selectedProject.id}`}
+               href={`/projects/${urlUserId}/${urlProjectId}`}
                className="p-2 text-white/70 hover:text-white hover:bg-[#bc6cd3]/10 rounded-lg transition-all duration-300 flex items-center gap-2 text-sm"
              >
                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -358,8 +686,8 @@ export default function TrainPage() {
                </h1>
              </div>
 
-            {/* Add New Label Button - Always on the Right */}
-              <div className="flex justify-end mb-6">
+            {/* Add New Label Button and Submit Pending - Always on the Right */}
+              <div className="flex justify-end items-center gap-4 mb-6">
                                  {labels.length === 0 && (
                    <div className="bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-lg p-4 mr-4 max-w-md">
                      <p className="text-white text-sm text-center">
@@ -367,15 +695,29 @@ export default function TrainPage() {
                      </p>
                    </div>
                  )}
-                                 <button
-                   onClick={() => setShowAddLabelModal(true)}
-                   className="bg-[#dcfc84] hover:bg-[#dcfc84]/90 text-[#1c1c1c] px-4 py-4 rounded-lg transition-all duration-300 inline-flex items-center gap-2 text-sm font-medium"
-                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                  </svg>
-                  Add new label
-                </button>
+                                                  {/* Submit Pending Examples Button */}
+                 {Object.values(pendingExamples).some(examples => examples.length > 0) && (
+                   <button
+                     onClick={submitAllPendingExamples}
+                     disabled={isSubmittingToAPI}
+                     className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg transition-all duration-300 inline-flex items-center gap-2 text-sm font-medium disabled:opacity-50"
+                   >
+                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                     </svg>
+                     Submit Remaining ({Object.values(pendingExamples).reduce((sum, examples) => sum + examples.length, 0)})
+                   </button>
+                 )}
+
+                 <button
+                  onClick={() => setShowAddLabelModal(true)}
+                  className="bg-[#dcfc84] hover:bg-[#dcfc84]/90 text-[#1c1c1c] px-4 py-4 rounded-lg transition-all duration-300 inline-flex items-center gap-2 text-sm font-medium"
+                >
+                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                 </svg>
+                 Add new label
+               </button>
               </div>
 
                                                {labels.length > 0 ? (
@@ -485,10 +827,15 @@ export default function TrainPage() {
                           
 
                      {label.examples.length > 0 && (
-                             <div className="absolute bottom-2 right-2">
+                             <div className="absolute bottom-2 right-2 flex gap-2">
                                <span className="bg-[#dcfc84] text-[#1c1c1c] text-xs px-2 py-1 rounded-full font-medium">
                            {label.examples.length}
                          </span>
+                         {(pendingExamples[label.id]?.length || 0) > 0 && (
+                           <span className="bg-yellow-500 text-[#1c1c1c] text-xs px-2 py-1 rounded-full font-medium">
+                             {pendingExamples[label.id]?.length} pending
+                           </span>
+                         )}
                        </div>
                            )}
                          </>
@@ -543,10 +890,10 @@ export default function TrainPage() {
               </button>
               <button
                 onClick={handleAddLabel}
-                disabled={!newLabelName.trim()}
+                disabled={!newLabelName.trim() || isSubmittingToAPI}
                 className="px-4 py-2 bg-[#dcfc84] text-[#1c1c1c] rounded hover:bg-[#dcfc84]/90 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
               >
-                ADD
+                {isSubmittingToAPI ? 'ADDING...' : 'ADD'}
               </button>
             </div>
           </div>
@@ -595,10 +942,10 @@ export default function TrainPage() {
               </button>
               <button
                 onClick={handleAddExample}
-                disabled={!newExampleText.trim()}
+                disabled={!newExampleText.trim() || isSubmittingToAPI}
                 className="px-4 py-2 bg-[#dcfc84] text-[#1c1c1c] rounded hover:bg-[#dcfc84]/90 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
               >
-                ADD
+                {isSubmittingToAPI ? 'ADDING...' : 'ADD'}
               </button>
             </div>
           </div>

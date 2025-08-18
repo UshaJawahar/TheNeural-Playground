@@ -8,6 +8,7 @@ export const config = {
     guests: {
       session: '/api/guests/session',
       sessionById: (sessionId: string) => `/api/guests/session/${sessionId}`,
+      examples: (sessionId: string, projectId: string) => `/api/guests/session/${sessionId}/projects/${projectId}/examples`,
     },
   },
 } as const;
