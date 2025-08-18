@@ -272,7 +272,7 @@ export default function ProjectDetailsPage() {
       <main className="pt-24 pb-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           {/* Navigation Breadcrumb */}
-          <div className="mb-6 text-sm text-white">
+          <div className="mb-6 text-lg font-semibold text-white">
             <span>
               <a href={`/projects/${urlUserId}`} className="hover:text-[#dcfc84] transition-colors">
                 Projects List
@@ -310,12 +310,12 @@ export default function ProjectDetailsPage() {
           {/* ML Action Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
             {/* Train Card */}
-            <div className="bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-xl p-8 text-center hover:bg-[#bc6cd3]/5 transition-all duration-300">
-              <h2 className="text-2xl md:text-3xl font-bold text-white mb-6">
-                Train
+            <div className="bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-xl p-8 text-center hover:bg-[#bc6cd3]/5 transition-all duration-300 flex flex-col">
+              <h2 className="text-2xl md:text-3xl font-bold text-blue-400 mb-6">
+                Collect Data
               </h2>
-              <p className="text-white mb-8 text-sm md:text-base leading-relaxed min-h-[3rem]">
-                Collect examples of what you want the computer to recognise
+              <p className="text-white mb-8 text-sm md:text-base leading-relaxed flex-grow">
+                Collect examples of what you want the AI to recognize
               </p>
               <button 
                 onClick={() => {
@@ -323,17 +323,17 @@ export default function ProjectDetailsPage() {
                 }}
                 className="w-full bg-[#dcfc84] hover:bg-[#dcfc84]/90 text-[#1c1c1c] py-3 px-6 rounded-lg font-medium transition-all duration-300"
               >
-                Train
+                Collect Data
               </button>
             </div>
 
             {/* Learn & Test Card */}
-            <div className="bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-xl p-8 text-center hover:bg-[#bc6cd3]/5 transition-all duration-300">
-              <h2 className="text-2xl md:text-3xl font-bold text-white mb-6">
-                Learn & Test
+            <div className="bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-xl p-8 text-center hover:bg-[#bc6cd3]/5 transition-all duration-300 flex flex-col">
+              <h2 className="text-2xl md:text-3xl font-bold text-purple-400 mb-6">
+                Train the AI
               </h2>
-              <p className="text-white mb-8 text-sm md:text-base leading-relaxed min-h-[3rem]">
-                Use the examples to train the computer to recognise text
+              <p className="text-white mb-8 text-sm md:text-base leading-relaxed flex-grow">
+                Use the data from Step 1 to train computer and build an AI model
               </p>
               <button 
                 onClick={() => {
@@ -341,17 +341,17 @@ export default function ProjectDetailsPage() {
                 }}
                 className="w-full bg-[#dcfc84] hover:bg-[#dcfc84]/90 text-[#1c1c1c] py-3 px-6 rounded-lg font-medium transition-all duration-300"
               >
-                Learn & Test
+                Train the AI
               </button>
             </div>
 
             {/* Make Card */}
-            <div className="bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-xl p-8 text-center hover:bg-[#bc6cd3]/5 transition-all duration-300">
-              <h2 className="text-2xl md:text-3xl font-bold text-white mb-6">
-                Make
+            <div className="bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-xl p-8 text-center hover:bg-[#bc6cd3]/5 transition-all duration-300 flex flex-col">
+              <h2 className="text-2xl md:text-3xl font-bold text-orange-400 mb-6">
+                Use the AI
               </h2>
-              <p className="text-white mb-8 text-sm md:text-base leading-relaxed min-h-[3rem]">
-                Use the machine learning model you&apos;ve trained to make a game or app, in Scratch, Python, or EduBlocks
+              <p className="text-white mb-8 text-sm md:text-base leading-relaxed flex-grow">
+                Use the AI / Machine learning model inside your User Interface (UI) like Scratch and more...
               </p>
               <button 
                 onClick={() => {
@@ -359,7 +359,7 @@ export default function ProjectDetailsPage() {
                 }}
                 className="w-full bg-[#dcfc84] hover:bg-[#dcfc84]/90 text-[#1c1c1c] py-3 px-6 rounded-lg font-medium transition-all duration-300"
               >
-                Make
+                Use the AI
               </button>
             </div>
           </div>

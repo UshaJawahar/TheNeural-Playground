@@ -739,103 +739,86 @@ export default function TrainPage() {
            </div>
 
            
-           {/* Specific Requirements Box */}
-           <div className="bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-lg p-4 mb-6">
-             <div className="flex items-start gap-3">
-               <svg className="w-5 h-5 text-[#dcfc84] mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
-               </svg>
-               <div>
-                 <h3 className="text-[#dcfc84] font-medium mb-2">⚠️ Critical Requirements - Must Complete</h3>
-                 <ul className="text-white text-sm space-y-1">
-                   <li className="flex items-center gap-2">
-                     <span className="w-1.5 h-1.5 bg-[#dcfc84] rounded-full"></span>
-                     <strong>Step 1:</strong> Create exactly <strong>2 labels minimum</strong> (e.g., &ldquo;happy&rdquo;, &ldquo;sad&rdquo;)
-                   </li>
-                   <li className="flex items-center gap-2">
-                     <span className="w-1.5 h-1.5 bg-[#dcfc84] rounded-full"></span>
-                     <strong>Step 2:</strong> Add <strong>at least 5 examples</strong> to each label
-                   </li>
-                   <li className="flex items-center gap-2">
-                     <span className="w-1.5 h-1.5 bg-[#dcfc84] rounded-full"></span>
-                     <strong>Step 3:</strong> Examples can be text or uploaded from .txt files
-                   </li>
-                   <li className="flex items-center gap-2">
-                     <span className="w-1.5 h-1.5 bg-[#dcfc84] rounded-full"></span>
-                     <strong>Step 4:</strong> Only then can you proceed to train your model
-                   </li>
-                 </ul>
-               </div>
-             </div>
-           </div>
-
+           {/* First Section: Recognising Text Header */}
            <div className="text-center mb-8">
-                               <h1 className="text-3xl md:text-4xl font-bold mb-3">
-                  <span className="text-white">Recognising </span>
-                  <span className="text-[#dcfc84]">text</span>
-                  {labels.length > 0 && (
-                    <>
-                      <span className="text-white"> as </span>
-                      <span className="text-[#dcfc84]">
-                       {(() => {
-                         if (labels.length === 1) return labels[0].name;
-                         
-                         // Get unique label names
-                         const uniqueNames = [...new Set(labels.map(label => label.name))];
-                         
-                         if (labels.length === 2) {
-                           if (uniqueNames.length === 1) {
-                             return uniqueNames[0];
-                           }
-                           return `${uniqueNames[0]} or ${uniqueNames[1]}`;
-                         }
-                         
-                         if (uniqueNames.length === 1) {
-                           return uniqueNames[0];
-                         } else if (uniqueNames.length === 2) {
-                           return `${uniqueNames[0]} or ${uniqueNames[1]}`;
-                         } else {
-                           return `${uniqueNames[0]} or ${uniqueNames[1]} and ${uniqueNames.length - 2} others`;
-                         }
-                       })()}
-                     </span>
-                   </>
-                 )}
-               </h1>
-             </div>
+             <h1 className="text-3xl md:text-4xl font-bold mb-3">
+               <span className="text-white">Recognising </span>
+               <span className="text-[#dcfc84]">text</span>
+               {labels.length > 0 && (
+                 <>
+                   <span className="text-white"> as </span>
+                   <span className="text-[#dcfc84]">
+                    {(() => {
+                      if (labels.length === 1) return labels[0].name;
+                      
+                      // Get unique label names
+                      const uniqueNames = [...new Set(labels.map(label => label.name))];
+                      
+                      if (labels.length === 2) {
+                        if (uniqueNames.length === 1) {
+                          return uniqueNames[0];
+                        }
+                        return `${uniqueNames[0]} or ${uniqueNames[1]}`;
+                      }
+                      
+                      if (uniqueNames.length === 1) {
+                        return uniqueNames[0];
+                      } else if (uniqueNames.length === 2) {
+                        return `${uniqueNames[0]} or ${uniqueNames[1]}`;
+                      } else {
+                        return `${uniqueNames[0]} or ${uniqueNames[1]} and ${uniqueNames.length - 2} others`;
+                      }
+                    })()}
+                  </span>
+                </>
+              )}
+            </h1>
+            
+            {/* Instruction and Button */}
+            <div className="flex justify-center items-center gap-4 mb-6">
+              {labels.length === 0 && (
+                <div className="bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-lg p-4 max-w-md">
+                  <p className="text-white text-sm text-center">
+                    Click on the &lsquo;plus&rsquo; button on the right to add your first bucket.→
+                  </p>
+                </div>
+              )}
 
-            {/* Add New Label Button - Always on the Right */}
-              <div className="flex justify-end items-center gap-4 mb-6">
-                                 {labels.length === 0 && (
-                   <div className="bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-lg p-4 mr-4 max-w-md">
-                     <p className="text-white text-sm text-center">
-                       Click on the &lsquo;plus&rsquo; button on the right to add your first bucket.→
-                     </p>
-                   </div>
-                 )}
+              <button
+                onClick={() => setShowAddLabelModal(true)}
+                className="bg-[#dcfc84] hover:bg-[#dcfc84]/90 text-[#1c1c1c] px-4 py-4 rounded-lg transition-all duration-300 inline-flex items-center gap-2 text-sm font-medium"
+              >
+               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+               </svg>
+               Add new label
+             </button>
+            </div>
+          </div>
 
-                 <button
-                   onClick={refreshExamplesFromAPI}
-                   disabled={isSubmittingToAPI || isDeletingExample}
-                   className="bg-[#1c1c1c] border border-[#bc6cd3]/20 hover:bg-[#bc6cd3]/10 text-white px-4 py-4 rounded-lg transition-all duration-300 inline-flex items-center gap-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                   title="Refresh examples from server"
-                 >
-                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                   </svg>
-                   Refresh
-                 </button>
-
-                 <button
-                  onClick={() => setShowAddLabelModal(true)}
-                  className="bg-[#dcfc84] hover:bg-[#dcfc84]/90 text-[#1c1c1c] px-4 py-4 rounded-lg transition-all duration-300 inline-flex items-center gap-2 text-sm font-medium"
-                >
-                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                 </svg>
-                 Add new label
-               </button>
+          {/* Second Section: Requirements Note */}
+          <div className="bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-lg p-4 mb-6">
+            <div className="flex items-start gap-3">
+              <svg className="w-5 h-5 text-[#dcfc84] mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+              <div>
+                <h3 className="text-[#dcfc84] font-medium mb-2">Note: Before you can proceed to next step</h3>
+                <ul className="text-white text-sm space-y-1">
+                  <li className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 bg-[#dcfc84] rounded-full"></span>
+                    <strong>1.</strong> You need to create at least <strong>2 classes/labels</strong> (e.g., &ldquo;happy&rdquo;, &ldquo;sad&rdquo;)
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 bg-[#dcfc84] rounded-full"></span>
+                    <strong>2.</strong> For each label fill in at least <strong>5 examples at minimum</strong>
+                  </li>
+                </ul>
               </div>
+            </div>
+          </div>
+
+            
 
                                                {labels.length > 0 ? (
                       <div className={`grid gap-4 ${
@@ -982,9 +965,9 @@ export default function TrainPage() {
             </div>
             
             <div className="p-6">
-              <label className="block text-sm font-medium text-[#dcfc84] mb-2">
-                Enter new label to recognise *
-              </label>
+                             <label className="block text-sm font-medium text-[#dcfc84] mb-2">
+                 Enter a Label / Class for what you want the AI to classify like "Happy" or "Sad" 
+               </label>
               <input
                 type="text"
                 value={newLabelName}
@@ -1035,7 +1018,7 @@ export default function TrainPage() {
             
             <div className="p-6">
               <label className="block text-sm font-medium text-[#dcfc84] mb-2">
-                Enter an example of &lsquo;{labels.find(l => l.id === selectedLabelId)?.name}&rsquo; *
+                Enter examples of what you want the AI to recognise as '{labels.find(l => l.id === selectedLabelId)?.name}'
               </label>
               <textarea
                 value={newExampleText}

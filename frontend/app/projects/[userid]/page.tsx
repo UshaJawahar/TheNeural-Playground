@@ -402,7 +402,7 @@ function CreateProjectPage() {
       <main className="pt-24 pb-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           {/* Navigation Breadcrumb */}
-                      <div className="mb-6 text-sm text-white">
+                      <div className="mb-6 text-lg font-semibold text-white">
               {currentSection === 'projects-list' && (
                 <span>Projects List</span>
               )}
@@ -680,6 +680,10 @@ function CreateProjectPage() {
                     
                     <div className="text-xs text-white/50">
                       Created: {new Date(project.createdAt).toLocaleDateString()}
+                    </div>
+                    
+                    <div className="text-xs text-white/50 mt-1">
+                      Deletion time: {new Date(project.createdAt).toLocaleDateString()}
                     </div>
                   </div>
                 ))}
