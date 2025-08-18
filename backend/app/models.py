@@ -190,6 +190,7 @@ class ProjectUpdate(BaseModel):
     tags: Optional[List[str]] = None
     notes: Optional[str] = Field(None, max_length=1000)
     config: Optional[ProjectConfig] = None
+    dataset: Optional[Dataset] = None
 
 
 class TrainingConfig(BaseModel):

@@ -10,7 +10,7 @@ from ...models import (
     ProjectResponse, ProjectStatusResponseWrapper, TrainingConfig,
     FileUploadResponse, TrainingResponse, ErrorResponse,
     ExampleAdd, ExamplesBulkAdd, PredictionRequest, PredictionResponse,
-    GuestSessionResponse, TrainedModel
+    GuestSessionResponse, TrainedModel, Dataset, TextExample
 )
 from ...services.guest_service import GuestService
 from ...services.project_service import ProjectService
@@ -925,6 +925,20 @@ async def delete_examples_by_label(
             logger.error(f"Project {project_id} does not belong to session {session_id}")
             raise HTTPException(status_code=403, detail="Project does not belong to this session")
         
+        # Ensure dataset is properly typed (in case deserialization had issues)
+        if isinstance(project.dataset, dict):
+            logger.info(f"Debug: Converting dataset dict to Dataset object for project {project_id}")
+            # Convert examples if needed
+            if 'examples' in project.dataset and isinstance(project.dataset['examples'], list):
+                examples = []
+                for example_data in project.dataset['examples']:
+                    if isinstance(example_data, dict):
+                        examples.append(TextExample(**example_data))
+                    else:
+                        examples.append(example_data)
+                project.dataset['examples'] = examples
+            project.dataset = Dataset(**project.dataset)
+        
         # Check if project has examples
         if not project.dataset or not project.dataset.examples:
             logger.warning(f"Project {project_id} has no examples to delete")
@@ -934,6 +948,9 @@ async def delete_examples_by_label(
         examples_before = len(project.dataset.examples)
         examples_with_label = [ex for ex in project.dataset.examples if ex.label == label]
         examples_to_delete = len(examples_with_label)
+        
+        logger.info(f"Project {project_id} has {examples_before} total examples before deletion")
+        logger.info(f"Found {examples_to_delete} examples with label '{label}' to delete")
         
         if examples_to_delete == 0:
             logger.warning(f"No examples found with label '{label}' in project {project_id}")
@@ -950,19 +967,29 @@ async def delete_examples_by_label(
         # Update dataset size
         project.dataset.records = len(project.dataset.examples)
         
-        # Update project timestamp
-        project.updatedAt = datetime.now(timezone.utc)
+        logger.info(f"After deletion, project has {len(project.dataset.examples)} examples")
+        logger.info(f"Dataset records updated to: {project.dataset.records}")
         
-        # Update in database
+        # Save the complete project with updated dataset to database
         try:
-            await project_service.update_project(project_id, ProjectUpdate(
-                updatedAt=datetime.now(timezone.utc)
-            ))
+            # Ensure all dataset fields are properly set
+            if not hasattr(project.dataset, 'labels') or project.dataset.labels is None:
+                # Regenerate labels from remaining examples
+                all_labels = set(example.label for example in project.dataset.examples)
+                project.dataset.labels = list(all_labels)
+            
+            # Use the save_project method to avoid any ProjectUpdate serialization issues
+            await project_service.save_project(project)
             
             logger.info(f"Successfully deleted {examples_to_delete} examples with label '{label}' from project {project_id}")
+            logger.info(f"Project saved to database with {project.dataset.records} examples")
             
         except Exception as e:
             logger.error(f"Error updating project after example deletion: {str(e)}")
+            logger.error(f"Debug: Dataset type: {type(project.dataset)}")
+            logger.error(f"Debug: Dataset has records attr: {hasattr(project.dataset, 'records')}")
+            if hasattr(project.dataset, 'examples'):
+                logger.error(f"Debug: Examples type: {type(project.dataset.examples)}")
             raise HTTPException(status_code=500, detail=f"Failed to update project: {str(e)}")
         
         return {
@@ -1008,6 +1035,20 @@ async def delete_specific_example(
             logger.error(f"Project {project_id} does not belong to session {session_id}")
             raise HTTPException(status_code=403, detail="Project does not belong to this session")
         
+        # Ensure dataset is properly typed (in case deserialization had issues)
+        if isinstance(project.dataset, dict):
+            logger.info(f"Debug: Converting dataset dict to Dataset object for project {project_id}")
+            # Convert examples if needed
+            if 'examples' in project.dataset and isinstance(project.dataset['examples'], list):
+                examples = []
+                for example_data in project.dataset['examples']:
+                    if isinstance(example_data, dict):
+                        examples.append(TextExample(**example_data))
+                    else:
+                        examples.append(example_data)
+                project.dataset['examples'] = examples
+            project.dataset = Dataset(**project.dataset)
+        
         # Check if project has examples
         if not project.dataset or not project.dataset.examples:
             logger.warning(f"Project {project_id} has no examples to delete")
@@ -1037,19 +1078,26 @@ async def delete_specific_example(
         # Update dataset size
         project.dataset.records = len(project.dataset.examples)
         
-        # Update project timestamp
-        project.updatedAt = datetime.now(timezone.utc)
-        
-        # Update in database
+        # Save the complete project with updated dataset to database
         try:
-            await project_service.update_project(project_id, ProjectUpdate(
-                updatedAt=datetime.now(timezone.utc)
-            ))
+            # Ensure all dataset fields are properly set
+            if not hasattr(project.dataset, 'labels') or project.dataset.labels is None:
+                # Regenerate labels from remaining examples
+                all_labels = set(example.label for example in project.dataset.examples)
+                project.dataset.labels = list(all_labels)
+            
+            # Use the save_project method to avoid any ProjectUpdate serialization issues
+            await project_service.save_project(project)
             
             logger.info(f"Successfully deleted example '{example_to_delete.text[:50]}...' with label '{label}' from project {project_id}")
+            logger.info(f"Project saved to database with {project.dataset.records} examples")
             
         except Exception as e:
             logger.error(f"Error updating project after specific example deletion: {str(e)}")
+            logger.error(f"Debug: Dataset type: {type(project.dataset)}")
+            logger.error(f"Debug: Dataset has records attr: {hasattr(project.dataset, 'records')}")
+            if hasattr(project.dataset, 'examples'):
+                logger.error(f"Debug: Examples type: {type(project.dataset.examples)}")
             raise HTTPException(status_code=500, detail=f"Failed to update project: {str(e)}")
         
         return {
