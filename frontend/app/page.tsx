@@ -215,7 +215,7 @@ export default function Home() {
           
           <p className="text-xl md:text-2xl text-white mb-12 max-w-4xl mx-auto">
             Discover the fascinating world of machine learning through interactive game development. 
-            Learn, create, and train AI models in an engaging Scratch environment.
+            Learn and create your own AI Model - Gather Data, Train the AI models and deploy as part of your UI environment to see it in action.
           </p>
           
           <div className="flex flex-col sm:flex-row gap-6 justify-center">
@@ -261,11 +261,11 @@ export default function Home() {
                 title: "Train Your Model",
                 description: "Use our intuitive training interface to teach your computer to recognize the patterns in your examples."
               },
-              {
-                number: "3",
-                title: "Create & Play", 
-                description: "Build exciting games in Scratch that leverage your trained AI model for interactive gameplay experiences."
-              }
+                             {
+                 number: "3",
+                 title: "Create & Play", 
+                 description: "Build and deploy your AI models inside games in Scratch and more to leverage your trained AI model for interactive experiences."
+               }
             ].map((step, index) => (
               <div key={index} className="relative">
                 <div className="bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-lg p-8 h-full">
