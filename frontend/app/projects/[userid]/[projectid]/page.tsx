@@ -8,12 +8,12 @@ import {
   getSessionIdFromMaskedId, 
   isMaskedId, 
   isSessionId, 
-  generateMaskedId, 
-  storeMaskedIdMapping,
+  getOrCreateMaskedId,
   getProjectIdFromMaskedId,
   isMaskedProjectId,
   isProjectId
 } from '../../../../lib/session-utils';
+import { cleanupSessionWithReason, SessionCleanupReason } from '../../../../lib/session-cleanup';
 
 interface GuestSession {
   session_id: string;
@@ -75,8 +75,7 @@ export default function ProjectDetailsPage() {
         }
         sessionId = realSessionId;
       } else if (isSessionId(urlUserId)) {
-        const maskedId = generateMaskedId(urlUserId);
-        storeMaskedIdMapping(maskedId, urlUserId);
+        const maskedId = getOrCreateMaskedId(urlUserId);
         window.location.href = `/projects/${maskedId}/${urlProjectId}`;
         return;
       } else {
@@ -108,8 +107,7 @@ export default function ProjectDetailsPage() {
       }
 
       if (storedSessionId !== sessionId) {
-        const correctMaskedId = generateMaskedId(storedSessionId);
-        storeMaskedIdMapping(correctMaskedId, storedSessionId);
+        const correctMaskedId = getOrCreateMaskedId(storedSessionId);
         window.location.href = `/projects/${correctMaskedId}`;
         return;
       }
@@ -133,35 +131,25 @@ export default function ProjectDetailsPage() {
             await loadProject(sessionId, projectId);
           } else {
             console.error('Session expired');
-            localStorage.removeItem('neural_playground_session_id');
-      localStorage.removeItem('neural_playground_session_created');
-        localStorage.removeItem('neural_playground_session_created');
-          localStorage.removeItem('neural_playground_session_created');
-            localStorage.removeItem('neural_playground_session_created');
+                        await cleanupSessionWithReason(SessionCleanupReason.EXPIRED_BACKEND);
             window.location.href = '/projects';
             return;
           }
         } else {
           console.error('Session inactive');
-          localStorage.removeItem('neural_playground_session_id');
-      localStorage.removeItem('neural_playground_session_created');
-        localStorage.removeItem('neural_playground_session_created');
-          localStorage.removeItem('neural_playground_session_created');
+                      await cleanupSessionWithReason(SessionCleanupReason.INACTIVE_BACKEND);
           window.location.href = '/projects';
           return;
         }
       } else {
         console.error('Session validation failed:', response.status);
-        localStorage.removeItem('neural_playground_session_id');
-      localStorage.removeItem('neural_playground_session_created');
-        localStorage.removeItem('neural_playground_session_created');
+                    await cleanupSessionWithReason(SessionCleanupReason.NOT_FOUND_BACKEND);
         window.location.href = '/projects';
         return;
       }
     } catch (error) {
       console.error('Error validating session:', error);
-      localStorage.removeItem('neural_playground_session_id');
-      localStorage.removeItem('neural_playground_session_created');
+                  await cleanupSessionWithReason(SessionCleanupReason.EXPIRED_BACKEND);
       window.location.href = '/projects';
       return;
     }

@@ -8,12 +8,12 @@ import {
   getSessionIdFromMaskedId, 
   isMaskedId, 
   isSessionId, 
-  generateMaskedId, 
-  storeMaskedIdMapping,
+  getOrCreateMaskedId,
   getProjectIdFromMaskedId,
   isMaskedProjectId,
   isProjectId
 } from '../../../../../lib/session-utils';
+import { cleanupSessionWithReason, SessionCleanupReason } from '../../../../../lib/session-cleanup';
 
 interface GuestSession {
   session_id: string;
@@ -66,7 +66,7 @@ export default function TrainPage() {
   const [isValidSession, setIsValidSession] = useState(false);
   const [actualSessionId, setActualSessionId] = useState<string>('');
   const [actualProjectId, setActualProjectId] = useState<string>('');
-  const [pendingExamples, setPendingExamples] = useState<{[labelId: string]: Example[]}>({});
+
   const [isSubmittingToAPI, setIsSubmittingToAPI] = useState(false);
 
   const params = useParams();
@@ -96,8 +96,7 @@ export default function TrainPage() {
         }
         sessionId = realSessionId;
       } else if (isSessionId(urlUserId)) {
-        const maskedId = generateMaskedId(urlUserId);
-        storeMaskedIdMapping(maskedId, urlUserId);
+        const maskedId = getOrCreateMaskedId(urlUserId);
         window.location.href = `/projects/${maskedId}/${urlProjectId}/train`;
         return;
       } else {
@@ -129,8 +128,7 @@ export default function TrainPage() {
       }
 
       if (storedSessionId !== sessionId) {
-        const correctMaskedId = generateMaskedId(storedSessionId);
-        storeMaskedIdMapping(correctMaskedId, storedSessionId);
+        const correctMaskedId = getOrCreateMaskedId(storedSessionId);
         window.location.href = `/projects/${correctMaskedId}`;
         return;
       }
@@ -154,8 +152,7 @@ export default function TrainPage() {
             await loadProjectAndLabels(sessionId, projectId);
           } else {
             console.error('Session expired');
-            localStorage.removeItem('neural_playground_session_id');
-            localStorage.removeItem('neural_playground_session_created');
+            await cleanupSessionWithReason(SessionCleanupReason.EXPIRED_BACKEND);
             window.location.href = '/projects';
             return;
           }
@@ -168,8 +165,7 @@ export default function TrainPage() {
         }
       } else {
         console.error('Session validation failed:', response.status);
-        localStorage.removeItem('neural_playground_session_id');
-        localStorage.removeItem('neural_playground_session_created');
+        await cleanupSessionWithReason(SessionCleanupReason.ERROR_FALLBACK);
         window.location.href = '/projects';
         return;
       }
@@ -248,17 +244,17 @@ export default function TrainPage() {
   const submitExamplesToAPI = async (labelName: string, examples: Example[]) => {
     // Validation checks
     if (!actualSessionId || !actualProjectId) {
-      console.log('Missing session or project ID:', { actualSessionId, actualProjectId });
+      console.log('❌ Missing session or project ID:', { actualSessionId, actualProjectId });
       return false;
     }
 
     if (examples.length === 0) {
-      console.log('No examples to submit');
+      console.log('❌ No examples to submit');
       return false;
     }
 
     if (!labelName || labelName.trim().length === 0) {
-      console.error('Label name is empty or invalid:', labelName);
+      console.error('❌ Label name is empty or invalid:', labelName);
       alert('Label name cannot be empty');
       return false;
     }
@@ -269,52 +265,28 @@ export default function TrainPage() {
     );
 
     if (validExamples.length === 0) {
-      console.log('No valid examples to submit after filtering');
+      console.log('❌ No valid examples to submit after filtering');
       return false;
     }
 
     try {
       setIsSubmittingToAPI(true);
       
-      // Try the original format first
+      // Use the correct API format as specified
       const payload = {
-        label: labelName.trim(),
-        examples: validExamples.map(example => example.text.trim())
+        examples: validExamples.map(example => ({
+          text: example.text.trim(),
+          label: labelName.trim()
+        }))
       };
 
-      // Alternative payload formats to test if the first one fails
-      const alternativePayloads = [
-        // Alternative 1: Different field names
-        {
-          labelName: labelName.trim(),
-          exampleTexts: validExamples.map(example => example.text.trim())
-        },
-        // Alternative 2: Nested structure
-        {
-          data: {
-            label: labelName.trim(),
-            examples: validExamples.map(example => example.text.trim())
-          }
-        },
-        // Alternative 3: Array format
-        validExamples.map(example => ({
-          label: labelName.trim(),
-          text: example.text.trim()
-        }))
-      ];
-
-      console.log('=== API Submission Debug ===');
-      console.log('Session ID:', actualSessionId);
-      console.log('Project ID:', actualProjectId);
-      console.log('Label Name:', labelName);
-      console.log('Original Examples Count:', examples.length);
-      console.log('Valid Examples Count:', validExamples.length);
-      console.log('Primary Payload:', JSON.stringify(payload, null, 2));
-      console.log('Alternative Payloads:', alternativePayloads.map((p, i) => `Alt ${i + 1}: ${JSON.stringify(p, null, 2)}`));
-      console.log('Payload Size (bytes):', new Blob([JSON.stringify(payload)]).size);
+      console.log('🚀 Submitting examples to API');
+      console.log('📋 Payload:', JSON.stringify(payload, null, 2));
+      console.log('📊 Examples count:', validExamples.length);
+      console.log('🏷️ Label:', labelName);
       
       const apiUrl = `${config.apiBaseUrl}${config.api.guests.examples(actualSessionId, actualProjectId)}`;
-      console.log('API URL:', apiUrl);
+      console.log('🌐 API URL:', apiUrl);
 
       const response = await fetch(apiUrl, {
         method: 'POST',
@@ -324,29 +296,33 @@ export default function TrainPage() {
         body: JSON.stringify(payload),
       });
 
-      console.log('Response Status:', response.status);
-      console.log('Response Headers:', Object.fromEntries(response.headers.entries()));
+      console.log('📤 Response Status:', response.status);
 
       if (response.ok) {
         const result = await response.json();
         console.log('✅ Successfully submitted examples to API:', result);
         return true;
       } else {
-        console.error('❌ Failed to submit examples to API:', response.status);
+        console.error('❌ API submission failed:', response.status);
         
         let errorDetails;
         try {
           errorDetails = await response.json();
-          console.error('Error JSON Response:', errorDetails);
+          console.error('📋 Error Details:', errorDetails);
         } catch (jsonError) {
           const errorText = await response.text();
-          console.error('Error Text Response:', errorText);
+          console.error('📝 Error Text:', errorText);
           errorDetails = { message: errorText };
         }
 
         // Show user-friendly error
         if (response.status === 422) {
-          alert(`Validation Error: ${errorDetails.message || 'Invalid data format. Please check your label name and examples.'}`);
+          const errorMsg = errorDetails.message || 'Invalid data format';
+          alert(`Validation Error: ${errorMsg}`);
+        } else if (response.status === 404) {
+          alert('API endpoint not found. Please check if the server is running.');
+        } else if (response.status === 500) {
+          alert('Server error. Please try again later.');
         } else {
           alert(`API Error (${response.status}): ${errorDetails.message || 'Failed to submit examples'}`);
         }
@@ -362,26 +338,24 @@ export default function TrainPage() {
     }
   };
 
-  const processPendingExamples = async (labelId: string, labelName: string) => {
-    const pending = pendingExamples[labelId] || [];
-    if (pending.length >= 6) {
-      // Submit in batches of 6
-      const batches = [];
-      for (let i = 0; i < pending.length; i += 6) {
-        batches.push(pending.slice(i, i + 6));
-      }
+  // Submit examples immediately to API
+  const submitExampleImmediately = async (labelName: string, exampleText: string) => {
+    const example: Example = {
+      id: `example-${Date.now()}`,
+      text: exampleText.trim(),
+      createdAt: new Date().toLocaleDateString()
+    };
 
-      for (const batch of batches) {
-        const success = await submitExamplesToAPI(labelName, batch);
-        if (success) {
-          // Remove submitted examples from pending
-          setPendingExamples(prev => ({
-            ...prev,
-            [labelId]: prev[labelId]?.filter(ex => !batch.some(b => b.id === ex.id)) || []
-          }));
-        }
-      }
+    // Submit to API immediately
+    const success = await submitExamplesToAPI(labelName, [example]);
+    
+    if (success) {
+      console.log('✅ Example submitted successfully to API');
+    } else {
+      console.log('❌ Failed to submit example to API');
     }
+    
+    return success;
   };
 
   const handleAddLabel = async () => {
@@ -397,13 +371,7 @@ export default function TrainPage() {
       setLabels(updatedLabels);
       saveLabels(actualSessionId, actualProjectId, updatedLabels);
       
-      // Initialize pending examples for this label
-      setPendingExamples(prev => ({
-        ...prev,
-        [newLabel.id]: []
-      }));
-
-      // Submit label to API immediately (but only if we have examples to submit)
+      // Label created successfully - examples will be submitted when added
       // Don't submit empty labels to API as they might cause validation errors
       console.log('Label created locally, will submit to API when examples are added');
       
@@ -414,46 +382,44 @@ export default function TrainPage() {
 
   const handleAddExample = async () => {
     if (newExampleText.trim() && selectedLabelId && actualSessionId && actualProjectId) {
-      const newExample: Example = {
-        id: `example-${Date.now()}`,
-        text: newExampleText.trim(),
-        createdAt: new Date().toLocaleDateString()
-      };
-      
-      const updatedLabels = labels.map(label => {
-        if (label.id === selectedLabelId) {
-          return {
-            ...label,
-            examples: [...label.examples, newExample]
-          };
-        }
-        return label;
-      });
-      
-      setLabels(updatedLabels);
-      saveLabels(actualSessionId, actualProjectId, updatedLabels);
-
-      // Add to pending examples for batching
-      setPendingExamples(prev => ({
-        ...prev,
-        [selectedLabelId]: [...(prev[selectedLabelId] || []), newExample]
-      }));
-
       // Find the label name for API submission
       const label = labels.find(l => l.id === selectedLabelId);
-      if (label) {
-        // Check if we should submit to API (every 6 examples)
-        const currentPending = pendingExamples[selectedLabelId] || [];
-        const totalPending = currentPending.length + 1; // +1 for the example we just added
-
-        if (totalPending >= 6) {
-          await processPendingExamples(selectedLabelId, label.name);
-        }
+      if (!label) {
+        alert('Label not found');
+        return;
       }
+
+      // Submit to API immediately
+      const success = await submitExampleImmediately(label.name, newExampleText.trim());
       
-      setNewExampleText('');
-      setSelectedLabelId('');
-      setShowAddExampleModal(false);
+      if (success) {
+        // Only add to local state if API submission was successful
+        const newExample: Example = {
+          id: `example-${Date.now()}`,
+          text: newExampleText.trim(),
+          createdAt: new Date().toLocaleDateString()
+        };
+        
+        const updatedLabels = labels.map(labelItem => {
+          if (labelItem.id === selectedLabelId) {
+            return {
+              ...labelItem,
+              examples: [...labelItem.examples, newExample]
+            };
+          }
+          return labelItem;
+        });
+        
+        setLabels(updatedLabels);
+        saveLabels(actualSessionId, actualProjectId, updatedLabels);
+
+        // Reset form and close modal
+        setNewExampleText('');
+        setSelectedLabelId('');
+        setShowAddExampleModal(false);
+      } else {
+        alert('Failed to submit example to API. Please try again.');
+      }
     }
   };
 
@@ -468,36 +434,42 @@ export default function TrainPage() {
         // Split text by lines and filter out empty lines
         const lines = text.split('\n').filter(line => line.trim().length > 0);
         
+        // Find the label name for API submission
+        const label = labels.find(l => l.id === labelId);
+        if (!label) {
+          alert('Label not found');
+          return;
+        }
+
+        console.log(`📁 Processing file upload: ${lines.length} examples for label "${label.name}"`);
+
+        // Submit all examples to API immediately
         const newExamples: Example[] = lines.map(line => ({
           id: `example-${Date.now()}-${Math.random()}`,
           text: line.trim(),
           createdAt: new Date().toLocaleDateString()
         }));
 
-        const updatedLabels = labels.map(label => {
-          if (label.id === labelId) {
-            return {
-              ...label,
-              examples: [...label.examples, ...newExamples]
-            };
-          }
-          return label;
-        });
+        const success = await submitExamplesToAPI(label.name, newExamples);
         
-        setLabels(updatedLabels);
-        saveLabels(actualSessionId, actualProjectId, updatedLabels);
-
-        // Add all new examples to pending for batching
-        setPendingExamples(prev => ({
-          ...prev,
-          [labelId]: [...(prev[labelId] || []), ...newExamples]
-        }));
-
-        // Find the label name and process batches
-        const label = labels.find(l => l.id === labelId);
-        if (label) {
-          // Process all pending examples in batches
-          await processPendingExamples(labelId, label.name);
+        if (success) {
+          // Only add to local state if API submission was successful
+          const updatedLabels = labels.map(labelItem => {
+            if (labelItem.id === labelId) {
+              return {
+                ...labelItem,
+                examples: [...labelItem.examples, ...newExamples]
+              };
+            }
+            return labelItem;
+          });
+          
+          setLabels(updatedLabels);
+          saveLabels(actualSessionId, actualProjectId, updatedLabels);
+          
+          console.log(`✅ Successfully uploaded ${newExamples.length} examples from file`);
+        } else {
+          alert(`Failed to upload examples from file. Please try again.`);
         }
       }
     };
@@ -537,29 +509,7 @@ export default function TrainPage() {
     setShowAddExampleModal(true);
   };
 
-  const submitAllPendingExamples = async () => {
-    for (const [labelId, examples] of Object.entries(pendingExamples)) {
-      if (examples.length > 0) {
-        const label = labels.find(l => l.id === labelId);
-        if (label) {
-          await submitExamplesToAPI(label.name, examples);
-          // Clear pending examples after submission
-          setPendingExamples(prev => ({
-            ...prev,
-            [labelId]: []
-          }));
-        }
-      }
-    }
-  };
 
-  // Submit remaining examples when component unmounts
-  useEffect(() => {
-    return () => {
-      // This will run when component unmounts
-      submitAllPendingExamples();
-    };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
 
 
@@ -686,7 +636,7 @@ export default function TrainPage() {
                </h1>
              </div>
 
-            {/* Add New Label Button and Submit Pending - Always on the Right */}
+            {/* Add New Label Button - Always on the Right */}
               <div className="flex justify-end items-center gap-4 mb-6">
                                  {labels.length === 0 && (
                    <div className="bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-lg p-4 mr-4 max-w-md">
@@ -695,19 +645,7 @@ export default function TrainPage() {
                      </p>
                    </div>
                  )}
-                                                  {/* Submit Pending Examples Button */}
-                 {Object.values(pendingExamples).some(examples => examples.length > 0) && (
-                   <button
-                     onClick={submitAllPendingExamples}
-                     disabled={isSubmittingToAPI}
-                     className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg transition-all duration-300 inline-flex items-center gap-2 text-sm font-medium disabled:opacity-50"
-                   >
-                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
-                     </svg>
-                     Submit Remaining ({Object.values(pendingExamples).reduce((sum, examples) => sum + examples.length, 0)})
-                   </button>
-                 )}
+
 
                  <button
                   onClick={() => setShowAddLabelModal(true)}
@@ -727,12 +665,12 @@ export default function TrainPage() {
                         'grid-cols-5 max-w-7xl mx-auto'
                       }`}>
                 {labels.map((label) => (
-                                                     <div key={label.id} className={`bg-[#1c1c1c] border-2 border-[#bc6cd3]/20 rounded-lg overflow-hidden relative ${
-                             labels.length === 1 ? 'h-[600px]' :
-                             labels.length === 2 ? 'h-[500px]' :
-                             labels.length === 3 ? 'h-[400px]' :
-                             labels.length === 4 ? 'h-[300px]' :
-                             'h-[250px]'
+                  <div key={label.id} className={`bg-[#1c1c1c] border-2 border-[#bc6cd3]/20 rounded-lg overflow-hidden relative ${
+                             labels.length === 1 ? 'h-[500px]' :
+                             labels.length === 2 ? 'h-[420px]' :
+                             labels.length === 3 ? 'h-[350px]' :
+                             labels.length === 4 ? 'h-[280px]' :
+                             'h-[220px]'
                            }`}>
                    <div className="bg-[#bc6cd3]/20 px-3 py-2 flex justify-between items-center">
                      <h3 className="text-white font-semibold text-base">{label.name}</h3>
@@ -747,100 +685,92 @@ export default function TrainPage() {
                      </button>
                    </div>
 
-                                         <div className="p-4 bg-[#1c1c1c] text-white flex flex-col h-full">
-                      {label.examples.length === 0 ? (
-                        // When no examples, show buttons at the top
-                        <div className="space-y-2">
-                          <button
-                            onClick={() => openAddExampleModal(label.id)}
-                            className="w-full flex items-center justify-center gap-2 py-2 border-2 border-dashed border-[#bc6cd3]/40 text-[#dcfc84] hover:border-[#bc6cd3]/60 hover:text-[#dcfc84]/80 transition-all duration-300 rounded text-xs font-medium"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                            </svg>
-                            Add example
-                          </button>
+                                                           <div className="p-3 bg-[#1c1c1c] text-white flex flex-col h-full">
+                    {/* Action buttons - always at top, side by side */}
+                    <div className="flex gap-2 mb-3 flex-shrink-0">
+                      <button
+                        onClick={() => openAddExampleModal(label.id)}
+                        className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 border-2 border-dashed border-[#bc6cd3]/40 text-[#dcfc84] hover:border-[#bc6cd3]/60 hover:text-[#dcfc84]/80 hover:bg-[#bc6cd3]/5 transition-all duration-300 rounded-lg text-xs font-medium"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
+                        <span className="hidden sm:inline">Add example</span>
+                        <span className="sm:hidden">Add</span>
+                      </button>
 
-                          <label className="w-full flex items-center justify-center gap-2 py-2 border-2 border-dashed border-[#bc6cd3]/40 text-[#dcfc84] hover:border-[#bc6cd3]/60 hover:text-[#dcfc84]/80 transition-all duration-300 rounded text-xs font-medium cursor-pointer">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                      <label className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 border-2 border-dashed border-[#bc6cd3]/40 text-[#dcfc84] hover:border-[#bc6cd3]/60 hover:text-[#dcfc84]/80 hover:bg-[#bc6cd3]/5 transition-all duration-300 rounded-lg text-xs font-medium cursor-pointer">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                        </svg>
+                        <span className="hidden sm:inline">Add file</span>
+                        <span className="sm:hidden">File</span>
+                        <input
+                          type="file"
+                          accept=".txt,.csv"
+                          onChange={(e) => handleFileUpload(e, label.id)}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+
+                    {/* Examples display area */}
+                    {label.examples.length === 0 ? (
+                      <div className="flex-1 flex items-center justify-center text-center text-white/40 text-sm">
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-center w-12 h-12 mx-auto bg-[#bc6cd3]/10 rounded-full">
+                            <svg className="w-6 h-6 text-[#bc6cd3]/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                             </svg>
-                            Add file
-                            <input
-                              type="file"
-                              accept=".txt,.csv"
-                              onChange={(e) => handleFileUpload(e, label.id)}
-                              className="hidden"
-                            />
-                          </label>
+                          </div>
+                          <div>
+                            <p className="font-medium text-white/60">No examples yet</p>
+                            <p className="text-xs mt-1 text-white/40">Start training by adding examples above</p>
+                          </div>
                         </div>
-                      ) : (
-                        // When examples exist, show scrollable content with buttons at bottom
-                        <>
-                                                     <div className="h-40 overflow-y-auto space-y-2 mb-1 pr-1">
-                       {label.examples.map((example) => (
-                         <div
-                           key={example.id}
-                                className="bg-[#bc6cd3]/10 px-2 py-1 rounded text-xs flex justify-between items-center group hover:bg-[#bc6cd3]/20 transition-all duration-200"
-                         >
-                           <span className="flex-1">{example.text}</span>
-                           <button
-                             onClick={() => handleDeleteExample(label.id, example.id)}
-                             className="text-red-500 hover:text-red-700 opacity-0 group-hover:opacity-100 transition-all duration-300 ml-2"
-                             title="Delete example"
-                           >
-                             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                             </svg>
-                           </button>
-                         </div>
-                       ))}
-                     </div>
+                      </div>
+                    ) : (
+                      <div className="flex-1 overflow-hidden">
+                        {/* Examples as pills in a flexible grid */}
+                        <div className="h-full overflow-y-auto scrollbar-thin scrollbar-thumb-[#bc6cd3]/30 scrollbar-track-transparent">
+                          <div className="flex flex-wrap gap-2 pb-2">
+                            {label.examples.map((example) => (
+                              <div
+                                key={example.id}
+                                className="inline-flex items-center gap-2 bg-gradient-to-r from-[#bc6cd3]/15 to-[#bc6cd3]/10 hover:from-[#bc6cd3]/25 hover:to-[#bc6cd3]/20 border border-[#bc6cd3]/30 hover:border-[#bc6cd3]/50 px-3 py-1.5 rounded-full text-xs transition-all duration-200 group max-w-full shadow-sm"
+                              >
+                                <span 
+                                  className="truncate font-medium text-white/90" 
+                                  style={{ maxWidth: labels.length === 1 ? '200px' : labels.length === 2 ? '150px' : '100px' }}
+                                  title={example.text}
+                                >
+                                  {example.text}
+                                </span>
+                                <button
+                                  onClick={() => handleDeleteExample(label.id, example.id)}
+                                  className="text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-full p-0.5 opacity-70 group-hover:opacity-100 transition-all duration-300 flex-shrink-0"
+                                  title="Delete example"
+                                >
+                                  <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
-                          
-
-                          <div className="space-y-2 flex-shrink-0">
-                     <button
-                       onClick={() => openAddExampleModal(label.id)}
-                              className="w-full flex items-center justify-center gap-2 py-2 border-2 border-dashed border-[#bc6cd3]/40 text-[#dcfc84] hover:border-[#bc6cd3]/60 hover:text-[#dcfc84]/80 transition-all duration-300 rounded text-xs font-medium"
-                     >
-                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                       </svg>
-                       Add example
-                     </button>
-
-                            <label className="w-full flex items-center justify-center gap-2 py-2 border-2 border-dashed border-[#bc6cd3]/40 text-[#dcfc84] hover:border-[#bc6cd3]/60 hover:text-[#dcfc84]/80 transition-all duration-300 rounded text-xs font-medium cursor-pointer">
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
-                           </svg>
-                              Add file
-                              <input
-                                type="file"
-                                accept=".txt,.csv"
-                                onChange={(e) => handleFileUpload(e, label.id)}
-                                className="hidden"
-                              />
-                            </label>
-                       </div>
-
-                          
-
-                     {label.examples.length > 0 && (
-                             <div className="absolute bottom-2 right-2 flex gap-2">
-                               <span className="bg-[#dcfc84] text-[#1c1c1c] text-xs px-2 py-1 rounded-full font-medium">
-                           {label.examples.length}
-                         </span>
-                         {(pendingExamples[label.id]?.length || 0) > 0 && (
-                           <span className="bg-yellow-500 text-[#1c1c1c] text-xs px-2 py-1 rounded-full font-medium">
-                             {pendingExamples[label.id]?.length} pending
-                           </span>
-                         )}
-                       </div>
-                           )}
-                         </>
-                     )}
-                   </div>
+                    {/* Example count badge */}
+                    {label.examples.length > 0 && (
+                      <div className="absolute bottom-2 right-2">
+                        <span className="bg-[#dcfc84] text-[#1c1c1c] text-xs px-2 py-1 rounded-full font-medium">
+                          {label.examples.length}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                  </div>
                ))}
              </div>

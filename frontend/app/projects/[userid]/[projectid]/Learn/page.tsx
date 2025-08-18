@@ -1,14 +1,33 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import Link from 'next/link';
+import { useParams } from 'next/navigation';
 import Header from '../../../../../components/Header';
+import config from '../../../../../lib/config';
+import { 
+  getSessionIdFromMaskedId, 
+  isMaskedId, 
+  isSessionId, 
+  getOrCreateMaskedId,
+  getProjectIdFromMaskedId,
+  isMaskedProjectId,
+  isProjectId
+} from '../../../../../lib/session-utils';
+import { cleanupSessionWithReason, SessionCleanupReason } from '../../../../../lib/session-cleanup';
 
-interface UserSession {
-  userId: string;
-  createdAt: number;
-  expiresAt: number;
+interface GuestSession {
+  session_id: string;
+  createdAt: string;
+  expiresAt: string;
+  active: boolean;
+  ip_address?: string;
+  user_agent?: string;
+  last_active?: string;
+}
+
+interface GuestSessionResponse {
+  success: boolean;
+  data: GuestSession;
 }
 
 interface Project {
@@ -16,6 +35,40 @@ interface Project {
   name: string;
   type: string;
   createdAt: string;
+  description?: string;
+  status?: string;
+  maskedId?: string;
+}
+
+interface DatasetExample {
+  text: string;
+  label: string;
+  addedAt: string;
+}
+
+interface Dataset {
+  filename: string;
+  size: number;
+  records: number;
+  uploadedAt: string | null;
+  gcsPath: string;
+  examples: DatasetExample[];
+  labels: string[];
+}
+
+interface ProjectDetailResponse {
+  success: boolean;
+  data: {
+    id: string;
+    name: string;
+    description: string;
+    type: string;
+    status: string;
+    createdAt: string;
+    updatedAt: string;
+    dataset: Dataset;
+    // ... other fields
+  };
 }
 
 interface Example {
@@ -43,12 +96,58 @@ interface TrainedModel {
   }>;
 }
 
+interface TrainingJob {
+  id: string;
+  projectId: string;
+  status: 'pending' | 'running' | 'ready' | 'failed';
+  createdAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  error: string | null;
+  progress: number;
+  config: {
+    epochs: number;
+    batchSize: number;
+    learningRate: number;
+    validationSplit: number;
+  };
+  result?: {
+    total_features: number;
+    feature_importance: {
+      [label: string]: string[];
+    };
+    labels: string[];
+    accuracy: number;
+    validation_examples: number;
+    training_examples: number;
+  };
+}
+
+interface TrainingStatusResponse {
+  success: boolean;
+  projectStatus: 'untrained' | 'training' | 'trained' | 'failed';
+  currentJob: TrainingJob | null;
+  allJobs: TrainingJob[];
+  totalJobs: number;
+}
+
+interface PredictionResponse {
+  success: boolean;
+  label: string;
+  confidence: number;
+  alternatives: Array<{
+    label: string;
+    confidence: number;
+  }>;
+}
+
 export default function LearnPage() {
-  const [userSession, setUserSession] = useState<UserSession | null>(null);
+  const [guestSession, setGuestSession] = useState<GuestSession | null>(null);
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [isValidSession, setIsValidSession] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [, setProject] = useState<Project | null>(null);
-  const [labels, setLabels] = useState<Label[]>([]);
+  const [actualSessionId, setActualSessionId] = useState<string>('');
+  const [actualProjectId, setActualProjectId] = useState<string>('');
   const [trainingStats, setTrainingStats] = useState({
     totalExamples: 0,
     totalLabels: 0,
@@ -56,96 +155,206 @@ export default function LearnPage() {
   });
   const [isTraining, setIsTraining] = useState(false);
   const [trainedModel, setTrainedModel] = useState<TrainedModel | null>(null);
+  const [currentTrainingJob, setCurrentTrainingJob] = useState<TrainingJob | null>(null);
   const [testText, setTestText] = useState('');
-  const [testResults, setTestResults] = useState<Array<{
+  const [testResult, setTestResult] = useState<{
     text: string;
     prediction: string;
     confidence: number;
-  }>>([]);
+    alternatives?: Array<{
+      label: string;
+      confidence: number;
+    }>;
+  } | null>(null);
+  const [isTestingModel, setIsTestingModel] = useState(false);
 
   const params = useParams();
-  const router = useRouter();
   const urlUserId = params?.userid as string;
-  const projectId = params?.projectid as string;
+  const urlProjectId = params?.projectid as string;
 
   useEffect(() => {
-    validateUserSession();
-  }, [urlUserId, projectId]); // eslint-disable-line react-hooks/exhaustive-deps
+    validateGuestSession();
+  }, [urlUserId, urlProjectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const validateUserSession = () => {
-    if (!urlUserId || !projectId) {
+  const validateGuestSession = async () => {
+    if (!urlUserId || !urlProjectId) {
       setIsLoading(false);
       return;
     }
 
     try {
-      const sessionData = localStorage.getItem('neural_playground_session');
-      if (sessionData) {
-        const session: UserSession = JSON.parse(sessionData);
-        const now = Date.now();
-        
-        if (now < session.expiresAt && session.userId === urlUserId) {
-          setUserSession(session);
-          setIsValidSession(true);
-          loadProjectAndTrainingData(session.userId, projectId);
-        } else if (session.userId !== urlUserId) {
-          window.location.href = `/projects/${session.userId}`;
+      let sessionId: string;
+      let projectId: string;
+
+      // Check if URL param is a masked ID or full session ID
+      if (isMaskedId(urlUserId)) {
+        const realSessionId = getSessionIdFromMaskedId(urlUserId);
+        if (!realSessionId) {
+          window.location.href = '/projects';
+          return;
+        }
+        sessionId = realSessionId;
+      } else if (isSessionId(urlUserId)) {
+        const maskedId = getOrCreateMaskedId(urlUserId);
+        window.location.href = `/projects/${maskedId}/${urlProjectId}/learn`;
           return;
         } else {
-          localStorage.removeItem('neural_playground_session');
+        window.location.href = '/projects';
+        return;
+      }
+
+      // Check if project ID is masked
+      if (isMaskedProjectId(urlProjectId)) {
+        const realProjectId = getProjectIdFromMaskedId(urlProjectId);
+        if (!realProjectId) {
+          window.location.href = `/projects/${urlUserId}`;
+          return;
+        }
+        projectId = realProjectId;
+      } else if (isProjectId(urlProjectId)) {
+        projectId = urlProjectId;
+      } else {
+        window.location.href = `/projects/${urlUserId}`;
+        return;
+      }
+
+      // Check if session exists in localStorage
+      const storedSessionId = localStorage.getItem('neural_playground_session_id');
+      
+      if (!storedSessionId) {
+        window.location.href = '/projects';
+        return;
+      }
+
+      if (storedSessionId !== sessionId) {
+        const correctMaskedId = getOrCreateMaskedId(storedSessionId);
+        window.location.href = `/projects/${correctMaskedId}`;
+        return;
+      }
+
+      // Validate session with backend API
+      const response = await fetch(`${config.apiBaseUrl}${config.api.guests.sessionById(sessionId)}`);
+      
+      if (response.ok) {
+        const sessionResponse: GuestSessionResponse = await response.json();
+        if (sessionResponse.success && sessionResponse.data.active) {
+          const now = new Date();
+          const expiresAt = new Date(sessionResponse.data.expiresAt);
+          
+          if (now < expiresAt) {
+            setActualSessionId(sessionId);
+            setActualProjectId(projectId);
+            setGuestSession(sessionResponse.data);
+            setIsValidSession(true);
+            
+            // Load project and training data after setting session as valid
+            await loadProjectAndTrainingData(sessionId, projectId);
+          } else {
+            console.error('Session expired');
+            await cleanupSessionWithReason(SessionCleanupReason.EXPIRED_BACKEND);
+            window.location.href = '/projects';
+            return;
+          }
+        } else {
+          console.error('Session inactive');
+          await cleanupSessionWithReason(SessionCleanupReason.INACTIVE_BACKEND);
           window.location.href = '/projects';
           return;
         }
       } else {
+        console.error('Session validation failed:', response.status);
+        await cleanupSessionWithReason(SessionCleanupReason.NOT_FOUND_BACKEND);
         window.location.href = '/projects';
         return;
       }
     } catch (error) {
       console.error('Error validating session:', error);
-      localStorage.removeItem('neural_playground_session');
+      await cleanupSessionWithReason(SessionCleanupReason.ERROR_FALLBACK);
       window.location.href = '/projects';
       return;
     }
     setIsLoading(false);
   };
 
-  const loadProjectAndTrainingData = (userId: string, projectId: string) => {
+  const loadProjectAndTrainingData = async (sessionId: string, projectId: string) => {
     try {
-      // Load project data
-      const projectsKey = `neural_playground_projects_${userId}`;
-      const savedProjects = localStorage.getItem(projectsKey);
-      if (savedProjects) {
-        const projects: Project[] = JSON.parse(savedProjects);
-        const foundProject = projects.find(p => p.id === projectId);
-        if (foundProject) {
-          setProject(foundProject);
-        }
-      }
-
-      // Load training labels and examples
-      const labelsKey = `neural_playground_labels_${userId}_${projectId}`;
-      const savedLabels = localStorage.getItem(labelsKey);
-      if (savedLabels) {
-        const labelsData: Label[] = JSON.parse(savedLabels);
-        setLabels(labelsData);
+      console.log('Loading project and training data for:', projectId);
+      
+      // Load project data with dataset from the specific project API
+      const response = await fetch(`${config.apiBaseUrl}${config.api.guests.projectById(sessionId, projectId)}`);
+      
+      if (response.ok) {
+        const projectResponse: ProjectDetailResponse = await response.json();
+        console.log('Project response:', projectResponse);
         
-        // Calculate training statistics
-        const totalExamples = labelsData.reduce((sum, label) => sum + label.examples.length, 0);
-        const totalLabels = labelsData.length;
-        const labelBreakdown = labelsData.map(label => ({
-          name: label.name,
-          count: label.examples.length
-        }));
+        if (projectResponse.success && projectResponse.data) {
+          const projectData = projectResponse.data;
+          console.log('Found project with dataset:', projectData);
+          
+          // Set the project
+          setSelectedProject({
+            id: projectData.id,
+            name: projectData.name,
+            type: projectData.type,
+            createdAt: projectData.createdAt,
+            description: projectData.description,
+            status: projectData.status
+          });
 
+          // Process the dataset to calculate training statistics
+          if (projectData.dataset && projectData.dataset.examples) {
+            const examples = projectData.dataset.examples;
+            const labels = projectData.dataset.labels || [];
+            
+            console.log('Dataset examples:', examples.length);
+            console.log('Dataset labels:', labels);
+            
+            // Group examples by label and count them
+            const labelCounts: { [key: string]: number } = {};
+            examples.forEach(example => {
+              labelCounts[example.label] = (labelCounts[example.label] || 0) + 1;
+            });
+            
+            // Create label breakdown for display
+            const labelBreakdown = labels.map(labelName => ({
+              name: labelName,
+              count: labelCounts[labelName] || 0
+            }));
+            
+            // Set training statistics from API data
         setTrainingStats({
-          totalExamples,
-          totalLabels,
+              totalExamples: examples.length,
+              totalLabels: labels.length,
+              labelBreakdown
+            });
+
+            console.log('Training stats calculated:', {
+              totalExamples: examples.length,
+              totalLabels: labels.length,
           labelBreakdown
         });
+          } else {
+            console.log('No dataset found in project response');
+            // Set empty stats if no dataset
+            setTrainingStats({
+              totalExamples: 0,
+              totalLabels: 0,
+              labelBreakdown: []
+            });
+          }
+        } else {
+          console.error('Invalid project response structure');
+          window.location.href = `/projects/${urlUserId}`;
+          return;
+        }
+      } else {
+        console.error('Failed to load project details:', response.status);
+        window.location.href = `/projects/${urlUserId}`;
+        return;
       }
 
-      // Load trained model if exists
-      const modelKey = `neural_playground_model_${userId}_${projectId}`;
+      // Load trained model if exists (still from localStorage for now)
+      const modelKey = `neural_playground_model_${sessionId}_${projectId}`;
       const savedModel = localStorage.getItem(modelKey);
       if (savedModel) {
         const modelData = JSON.parse(savedModel);
@@ -159,8 +368,98 @@ export default function LearnPage() {
       }
     } catch (error) {
       console.error('Error loading project and training data:', error);
+      window.location.href = `/projects/${urlUserId}`;
     }
   };
+
+  // Function to fetch training status from API
+  const fetchTrainingStatus = async () => {
+    if (!actualSessionId || !actualProjectId) return;
+    
+    try {
+      console.log('🔍 Checking training status...');
+      
+      const response = await fetch(`${config.apiBaseUrl}${config.api.guests.trainingStatus(actualSessionId, actualProjectId)}`);
+      
+      if (response.ok) {
+        const statusData: TrainingStatusResponse = await response.json();
+        console.log('📊 Training status response:', statusData);
+        
+        if (statusData.success) {
+          const { projectStatus, currentJob } = statusData;
+          
+          // Update current training job
+          setCurrentTrainingJob(currentJob);
+          
+          // Update training state based on project status and current job
+          if (projectStatus === 'training' && currentJob) {
+            setIsTraining(true);
+            
+            // Check if training is complete
+            if (currentJob.status === 'ready' && currentJob.completedAt) {
+              // Training completed successfully
+              setIsTraining(false);
+              
+              const completedModel: TrainedModel = {
+                id: currentJob.id,
+                status: 'available',
+                startedAt: new Date(currentJob.startedAt || currentJob.createdAt),
+                expiresAt: new Date(Date.now() + 4 * 60 * 60 * 1000) // 4 hours from now
+              };
+              
+              setTrainedModel(completedModel);
+              
+              // Save to localStorage
+              const modelKey = `neural_playground_model_${actualSessionId}_${actualProjectId}`;
+              localStorage.setItem(modelKey, JSON.stringify(completedModel));
+            }
+          } else if (projectStatus === 'trained' && currentJob && currentJob.status === 'ready') {
+            // Project already has a trained model
+            setIsTraining(false);
+            
+            const existingModel: TrainedModel = {
+              id: currentJob.id,
+              status: 'available',
+              startedAt: new Date(currentJob.startedAt || currentJob.createdAt),
+              expiresAt: new Date(Date.now() + 4 * 60 * 60 * 1000)
+            };
+            
+            setTrainedModel(existingModel);
+          } else if (projectStatus === 'failed' || (currentJob && currentJob.status === 'failed')) {
+            // Training failed
+            setIsTraining(false);
+            setTrainedModel(null);
+            setCurrentTrainingJob(null);
+          }
+        }
+      } else {
+        console.error('❌ Failed to fetch training status:', response.status);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching training status:', error);
+    }
+  };
+
+  // Polling interval for training status
+  useEffect(() => {
+    let pollInterval: NodeJS.Timeout | null = null;
+    
+    if (actualSessionId && actualProjectId) {
+      // Initial status check
+      fetchTrainingStatus();
+      
+      // Set up polling when training is in progress
+      if (isTraining || currentTrainingJob?.status === 'running' || currentTrainingJob?.status === 'pending') {
+        pollInterval = setInterval(fetchTrainingStatus, 2000); // Poll every 2 seconds
+      }
+    }
+    
+    return () => {
+      if (pollInterval) {
+        clearInterval(pollInterval);
+      }
+    };
+  }, [actualSessionId, actualProjectId, isTraining, currentTrainingJob?.status]);
 
 
 
@@ -169,68 +468,204 @@ export default function LearnPage() {
     
     setIsTraining(true);
     
-    // Simulate training process for 3 seconds
-    setTimeout(() => {
+    try {
+      console.log('🚀 Starting model training via API');
+      console.log('Session ID:', actualSessionId);
+      console.log('Project ID:', actualProjectId);
+      
+      // Training configuration payload
+      const trainingConfig = {
+        epochs: 100,
+        batchSize: 32,
+        learningRate: 0.001,
+        validationSplit: 0.2
+      };
+      
+      console.log('📋 Training config:', trainingConfig);
+      
+      const response = await fetch(`${config.apiBaseUrl}${config.api.guests.trainModel(actualSessionId, actualProjectId)}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(trainingConfig),
+      });
+      
+      console.log('📤 Training API Response Status:', response.status);
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log('✅ Training started successfully:', result);
+        
+        // Create model object for UI
       const now = new Date();
       const expiresAt = new Date(now.getTime() + 4 * 60 * 60 * 1000); // 4 hours from now
       
       const newModel: TrainedModel = {
-        id: `model-${Date.now()}`,
-        status: 'available',
+          id: result.jobId || `model-${Date.now()}`,
+          status: 'training',
         startedAt: now,
         expiresAt: expiresAt
       };
       
-      setTrainedModel(newModel);
-      setIsTraining(false);
-      
-      // Save model to localStorage
-      if (userSession) {
-        const modelKey = `neural_playground_model_${userSession.userId}_${projectId}`;
-        localStorage.setItem(modelKey, JSON.stringify(newModel));
+        // Start polling for status updates - the API will handle the actual training
+        // setIsTraining will remain true until the polling detects completion
+        
+      } else {
+        console.error('❌ Training API failed:', response.status);
+        
+        let errorDetails;
+        try {
+          errorDetails = await response.json();
+          console.error('📋 Error Details:', errorDetails);
+        } catch (jsonError) {
+          const errorText = await response.text();
+          console.error('📝 Error Text:', errorText);
+          errorDetails = { message: errorText };
+        }
+        
+        // Show user-friendly error
+        if (response.status === 422) {
+          const errorMsg = errorDetails.message || 'Invalid training configuration';
+          alert(`Training Error: ${errorMsg}`);
+        } else if (response.status === 404) {
+          alert('Training endpoint not found. Please check if the server is running.');
+        } else if (response.status === 500) {
+          alert('Server error during training. Please try again later.');
+        } else {
+          alert(`Training failed (${response.status}): ${errorDetails.message || 'Unknown error'}`);
+        }
+        
+        setIsTraining(false);
       }
-    }, 3000);
+    } catch (error) {
+      console.error('❌ Network error during training:', error);
+      alert('Network error: Failed to connect to the training server. Please check your connection.');
+      setIsTraining(false);
+      }
   };
 
   const handleGoToTrain = () => {
-    router.push(`/projects/${urlUserId}/${projectId}/train`);
+    window.location.href = `/projects/${urlUserId}/${urlProjectId}/train`;
   };
 
   const handleDeleteModel = () => {
-    if (userSession) {
-      const modelKey = `neural_playground_model_${userSession.userId}_${projectId}`;
+    if (actualSessionId && actualProjectId) {
+      const modelKey = `neural_playground_model_${actualSessionId}_${actualProjectId}`;
       localStorage.removeItem(modelKey);
       setTrainedModel(null);
-      setTestResults([]);
+      setTestResult(null);
     }
   };
 
   const handleTrainNewModel = () => {
     setTrainedModel(null);
-    setTestResults([]);
+    setTestResult(null);
   };
 
-  const handleTestModel = () => {
-    if (!testText.trim() || !trainedModel) return;
+  const handleTestModel = async () => {
+    if (!testText.trim() || !trainedModel || !actualSessionId || !actualProjectId) return;
+
+    // Check if we have a completed training job
+    if (!currentTrainingJob || currentTrainingJob.status !== 'ready') {
+      console.warn('⚠️ Model not ready for predictions. Training job status:', currentTrainingJob?.status);
+      alert('Model is not ready for predictions yet. Please wait for training to complete.');
+      return;
+    }
+
+    setIsTestingModel(true);
     
-    // Simulate model prediction
-    const predictions = labels.map(label => ({
-      label: label.name,
-      confidence: Math.random() * 0.4 + 0.6 // Random confidence between 0.6 and 1.0
-    }));
-    
-    // Sort by confidence and get the best prediction
-    predictions.sort((a, b) => b.confidence - a.confidence);
-    const bestPrediction = predictions[0];
-    
+    try {
+      console.log('🔮 ===== PREDICTION REQUEST DEBUG =====');
+      console.log('Text to predict:', testText);
+      console.log('Text length:', testText.trim().length);
+      console.log('Session ID:', actualSessionId);
+      console.log('Project ID:', actualProjectId);
+      console.log('Trained Model:', trainedModel);
+      console.log('Current Training Job:', currentTrainingJob);
+      
+      const requestUrl = `${config.apiBaseUrl}${config.api.guests.predict(actualSessionId, actualProjectId)}`;
+      console.log('Full request URL:', requestUrl);
+      
+      const requestPayload = {
+        text: testText.trim()
+      };
+      console.log('Request payload:', requestPayload);
+
+      const response = await fetch(requestUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestPayload)
+      });
+
+      console.log('🔮 Prediction API response status:', response.status);
+      console.log('🔮 Response headers:', Object.fromEntries(response.headers.entries()));
+
+      if (response.ok) {
+        const responseText = await response.text();
+        console.log('🔮 Raw response text:', responseText);
+        
+        try {
+          const predictionData: PredictionResponse = JSON.parse(responseText);
+          console.log('🔮 Parsed prediction response:', predictionData);
+
+          if (predictionData.success && predictionData.label && typeof predictionData.confidence === 'number') {
     const newResult = {
       text: testText,
-      prediction: bestPrediction.label,
-      confidence: bestPrediction.confidence
+              prediction: predictionData.label,
+              confidence: Math.round(predictionData.confidence * 100) / 100,
+              alternatives: predictionData.alternatives || []
     };
     
-    setTestResults(prev => [newResult, ...prev]);
+            setTestResult(newResult);
     setTestText('');
+            
+            console.log('✅ Prediction successful:', newResult);
+            console.log('📊 Prediction alternatives:', predictionData.alternatives);
+          } else {
+            console.error('❌ Prediction failed: Invalid response format');
+            console.error('Response success:', predictionData.success);
+            console.error('Response label:', predictionData.label);
+            console.error('Response confidence:', predictionData.confidence);
+            alert('Failed to get prediction. Invalid response format from server.');
+          }
+        } catch (parseError) {
+          console.error('❌ JSON parse error:', parseError);
+          console.error('Response was not valid JSON:', responseText);
+          alert('Failed to parse prediction response. Server returned invalid data.');
+        }
+      } else {
+        const errorText = await response.text();
+        console.error('❌ Prediction API failed:', response.status);
+        console.error('❌ Error response body:', errorText);
+        
+        let errorMessage = 'Failed to get prediction. ';
+        if (response.status === 404) {
+          errorMessage += 'Model not found or not ready.';
+        } else if (response.status === 422) {
+          errorMessage += 'Invalid input text.';
+        } else if (response.status === 500) {
+          errorMessage += 'Server error occurred.';
+        } else {
+          errorMessage += `HTTP ${response.status}: ${errorText || 'Unknown error'}`;
+        }
+        
+        alert(errorMessage);
+      }
+    } catch (error) {
+      console.error('❌ Network/fetch error:', error);
+      console.error('❌ Error details:', {
+        name: error instanceof Error ? error.name : 'Unknown',
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      });
+      alert('Network error. Please check your connection and try again.');
+    } finally {
+      setIsTestingModel(false);
+      console.log('🔮 ===== PREDICTION REQUEST END =====');
+    }
   };
 
   const handleDescribeModel = () => {
@@ -268,12 +703,12 @@ export default function LearnPage() {
             <p className="text-lg text-white mb-8">
               Your session has expired. Please start a new session.
             </p>
-            <Link 
+            <a 
               href="/projects"
               className="bg-[#dcfc84] text-[#1c1c1c] px-8 py-4 rounded-lg text-lg font-medium hover:scale-105 transition-all duration-300 inline-block"
             >
               Start New Session
-            </Link>
+            </a>
           </div>
         </main>
       </div>
@@ -289,15 +724,15 @@ export default function LearnPage() {
         <div className="max-w-7xl mx-auto">
           {/* Back to Project Link */}
           <div className="mb-6">
-            <Link
-              href={`/projects/${urlUserId}/${projectId}`}
+            <a
+              href={`/projects/${urlUserId}/${urlProjectId}`}
               className="px-4 py-4 text-white/70 hover:text-white hover:bg-[#bc6cd3]/10 rounded-lg transition-all duration-300 flex items-center gap-2 text-sm"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
               Back to project
-            </Link>
+            </a>
           </div>
 
           {/* Main Title */}
@@ -317,7 +752,7 @@ export default function LearnPage() {
               </h2>
               <div className="text-white space-y-4">
                 <p className="text-base leading-relaxed">
-                  You have collected examples of text for a computer to use to recognise when text is happy or sad.
+                  You have collected examples of text for a computer to use to recognise different types of text.
                 </p>
                 <p className="text-base font-medium">You&apos;ve collected:</p>
                 {trainingStats.labelBreakdown.length > 0 ? (
@@ -391,15 +826,22 @@ export default function LearnPage() {
                   <div className="space-y-2 text-left">
                     <div className="flex justify-between">
                       <span className="text-white/70">Status:</span>
-                      <span className="text-[#dcfc84] font-medium">Training</span>
+                      <span className="text-[#dcfc84] font-medium">
+                        {currentTrainingJob?.status === 'running' ? 'Training' : 
+                         currentTrainingJob?.status === 'pending' ? 'Starting...' : 'Training'}
+                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-white/70">Progress:</span>
-                      <span className="text-[#dcfc84] font-medium">Processing examples...</span>
+                      <span className="text-[#dcfc84] font-medium">
+                        {currentTrainingJob?.progress ? `${currentTrainingJob.progress}%` : 'Processing examples...'}
+                      </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-white/70">Time remaining:</span>
-                      <span className="text-[#dcfc84] font-medium">~3 seconds</span>
+                      <span className="text-white/70">Job ID:</span>
+                      <span className="text-[#dcfc84] font-medium text-xs">
+                        {currentTrainingJob?.id ? currentTrainingJob.id.substring(0, 8) + '...' : 'Starting...'}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -420,16 +862,29 @@ export default function LearnPage() {
                         type="text"
                         value={testText}
                         onChange={(e) => setTestText(e.target.value)}
-                        placeholder="enter a test text here"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && e.ctrlKey && testText.trim() && !isTestingModel) {
+                            e.preventDefault();
+                            handleTestModel();
+                          }
+                        }}
+                        placeholder="enter a test text here (Ctrl+Enter to test)"
                         className="w-full px-4 py-3 bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:border-[#dcfc84] focus:ring-1 focus:ring-[#dcfc84] transition-all duration-300"
                       />
                     </div>
                     <button
                       onClick={handleTestModel}
-                      disabled={!testText.trim()}
+                      disabled={!testText.trim() || isTestingModel}
                       className="bg-[#bc6cd3] hover:bg-[#bc6cd3]/90 disabled:bg-[#1c1c1c] disabled:border disabled:border-[#bc6cd3]/20 disabled:text-white/50 text-white px-6 py-3 rounded-lg font-medium transition-colors duration-300"
                     >
-                      Test
+                      {isTestingModel ? (
+                        <div className="flex items-center gap-2">
+                          <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+                          Testing...
+                        </div>
+                      ) : (
+                        'Test'
+                      )}
                     </button>
                     <button
                       onClick={handleDescribeModel}
@@ -440,17 +895,90 @@ export default function LearnPage() {
                   </div>
 
                   {/* Test Results */}
-                  {testResults.length > 0 && (
+                  {testResult && (
                     <div className="mt-4">
-                      <h5 className="text-md font-medium text-white mb-3">Test Results:</h5>
-                      <div className="space-y-2">
-                        {testResults.map((result, index) => (
-                          <div key={index} className="bg-[#bc6cd3]/10 p-3 rounded-lg border border-[#bc6cd3]/20">
-                            <div className="flex justify-between items-center">
-                              <span className="text-white">&ldquo;{result.text}&rdquo;</span>
+                      <h5 className="text-md font-medium text-white mb-3">Test Result:</h5>
+                      <div className="bg-[#bc6cd3]/10 p-4 rounded-lg border border-[#bc6cd3]/20">
+                        <div className="mb-2">
+                          <span className="text-white font-medium">&ldquo;{testResult.text}&rdquo;</span>
+                        </div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-white/70">Primary:</span>
                               <span className="text-[#dcfc84] font-medium">
-                                Predicted as: {result.prediction} ({(result.confidence * 100).toFixed(1)}%)
+                            {testResult.prediction} ({testResult.confidence.toFixed(1)}%)
                               </span>
+                        </div>
+                        {testResult.alternatives && testResult.alternatives.length > 0 && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-white/70">Other possibilities:</span>
+                            <div className="flex gap-2 flex-wrap">
+                              {testResult.alternatives.map((alt, altIndex) => (
+                                <span key={altIndex} className="text-xs bg-[#1c1c1c] border border-[#bc6cd3]/20 text-white/80 px-2 py-1 rounded">
+                                  {alt.label} ({alt.confidence.toFixed(1)}%)
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Training Results */}
+                {currentTrainingJob && currentTrainingJob.result && (
+                  <div className="bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-lg p-6 mb-6">
+                    <h4 className="text-lg font-semibold text-white mb-4">Training Results</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <span className="text-white/70">Accuracy:</span>
+                          <span className="text-[#dcfc84] font-medium">{currentTrainingJob.result.accuracy}%</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-white/70">Training Examples:</span>
+                          <span className="text-white font-medium">{currentTrainingJob.result.training_examples}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-white/70">Validation Examples:</span>
+                          <span className="text-white font-medium">{currentTrainingJob.result.validation_examples}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-white/70">Total Features:</span>
+                          <span className="text-white font-medium">{currentTrainingJob.result.total_features}</span>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <span className="text-white/70">Labels:</span>
+                          <span className="text-white font-medium">{currentTrainingJob.result.labels.join(', ')}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-white/70">Job ID:</span>
+                          <span className="text-white font-medium text-xs">{currentTrainingJob.id.substring(0, 8)}...</span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Feature Importance */}
+                    {currentTrainingJob.result.feature_importance && Object.keys(currentTrainingJob.result.feature_importance).length > 0 && (
+                      <div className="mt-4">
+                        <h5 className="text-md font-medium text-white mb-3">Important Features by Label:</h5>
+                        <div className="space-y-3">
+                          {Object.entries(currentTrainingJob.result.feature_importance).map(([label, features]) => (
+                            <div key={label}>
+                              <h6 className="text-sm font-medium text-[#dcfc84] mb-1">{label}:</h6>
+                              <div className="flex flex-wrap gap-1">
+                                {features.slice(0, 5).map((feature, index) => (
+                                  <span key={index} className="inline-block bg-[#bc6cd3]/15 text-white text-xs px-2 py-1 rounded-full">
+                                    {feature}
+                                  </span>
+                                ))}
+                                {features.length > 5 && (
+                                  <span className="inline-block text-white/50 text-xs px-2 py-1">
+                                    +{features.length - 5} more
+                                  </span>
+                                )}
                             </div>
                           </div>
                         ))}
@@ -458,6 +986,7 @@ export default function LearnPage() {
                     </div>
                   )}
                 </div>
+                )}
 
                 {/* Model Information */}
                 <div className="bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-lg p-6">
@@ -557,3 +1086,4 @@ export default function LearnPage() {
     </div>
   );
 }
+

@@ -94,8 +94,13 @@ export default function ProjectsPage() {
           const maskedId = generateMaskedId(sessionResponse.data.session_id);
           
           // Store session ID, creation timestamp, and masked ID mapping
+          const now = Date.now();
+          const sevenDaysFromNow = now + (7 * 24 * 60 * 60 * 1000); // 7 days in milliseconds
+          
           localStorage.setItem('neural_playground_session_id', sessionResponse.data.session_id);
-          localStorage.setItem('neural_playground_session_created', Date.now().toString());
+          localStorage.setItem('neural_playground_session_created', now.toString());
+          localStorage.setItem('neural_playground_session_expires', sevenDaysFromNow.toString());
+          localStorage.setItem('neural_playground_session_last_activity', now.toString());
           storeMaskedIdMapping(maskedId, sessionResponse.data.session_id);
           
           setGuestSession(sessionResponse.data);

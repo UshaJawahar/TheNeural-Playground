@@ -7,9 +7,9 @@ import config from '../lib/config';
 import { 
   getSessionIdFromMaskedId, 
   isMaskedId, 
-  generateMaskedId, 
-  storeMaskedIdMapping 
+  getOrCreateMaskedId
 } from '../lib/session-utils';
+import { cleanupSessionWithReason, SessionCleanupReason } from '../lib/session-cleanup';
 
 interface GuestSession {
   session_id: string;
@@ -31,76 +31,153 @@ export default function Home() {
   const [userSessionId, setUserSessionId] = useState<string>('');
   const [isCheckingSession, setIsCheckingSession] = useState(true);
 
+  // Function to clean up session and reset local state
+  const handleSessionCleanup = async (reason: SessionCleanupReason, sessionId?: string) => {
+    await cleanupSessionWithReason(reason, sessionId);
+    
+    // Reset local state
+    setHasActiveSession(false);
+    setUserSessionId('');
+  };
+
   useEffect(() => {
     checkExistingSession();
   }, []);
 
   const checkExistingSession = async () => {
+    console.log('🔍 Checking for existing session...');
+    
     try {
       const storedSessionId = localStorage.getItem('neural_playground_session_id');
+      const sessionCreatedAt = localStorage.getItem('neural_playground_session_created');
+      
+      console.log('📋 Session check details:', {
+        hasSessionId: !!storedSessionId,
+        sessionId: storedSessionId?.substring(0, 8) + '...',
+        hasCreatedTime: !!sessionCreatedAt,
+        createdTime: sessionCreatedAt ? new Date(parseInt(sessionCreatedAt)).toISOString() : null
+      });
       
       if (!storedSessionId) {
+        console.log('❌ No session ID found in localStorage');
         setIsCheckingSession(false);
         return;
       }
 
       // Check if session is expired based on 7-day rule
-      const sessionCreatedAt = localStorage.getItem('neural_playground_session_created');
-      if (sessionCreatedAt) {
+      const sessionExpiresAt = localStorage.getItem('neural_playground_session_expires');
+      const now = Date.now();
+      
+      // First check explicit expiry time if available
+      if (sessionExpiresAt) {
+        const expiryTime = parseInt(sessionExpiresAt);
+        if (now > expiryTime) {
+          console.log('⏰ Session expired based on explicit expiry time, cleaning up');
+          await handleSessionCleanup(SessionCleanupReason.EXPIRED_7_DAYS, storedSessionId);
+          setIsCheckingSession(false);
+          return;
+        }
+        console.log(`📅 Session expires at: ${new Date(expiryTime).toISOString()}`);
+      } else if (sessionCreatedAt) {
+        // Fallback to creation time check for older sessions
         const createdDate = new Date(parseInt(sessionCreatedAt));
-        const now = new Date();
-        const daysDiff = (now.getTime() - createdDate.getTime()) / (1000 * 3600 * 24);
+        const daysDiff = (now - createdDate.getTime()) / (1000 * 3600 * 24);
+        
+        console.log(`📅 Session age: ${daysDiff.toFixed(1)} days (fallback check)`);
         
         if (daysDiff >= 7) {
-          // Session is older than 7 days, clean it up
-          console.log('Session expired after 7 days, cleaning up');
-          localStorage.removeItem('neural_playground_session_id');
-          localStorage.removeItem('neural_playground_session_created');
+          console.log('⏰ Session expired after 7 days (fallback), cleaning up');
+          await handleSessionCleanup(SessionCleanupReason.EXPIRED_7_DAYS, storedSessionId);
           setIsCheckingSession(false);
           return;
         }
       }
 
       // Validate session with backend
+      console.log('🌐 Validating session with backend API...');
       const response = await fetch(`${config.apiBaseUrl}${config.api.guests.sessionById(storedSessionId)}`);
+      
+      console.log('📡 API Response:', {
+        status: response.status,
+        ok: response.ok,
+        url: response.url
+      });
       
       if (response.ok) {
         const sessionResponse: GuestSessionResponse = await response.json();
+        console.log('📄 Session response:', {
+          success: sessionResponse.success,
+          active: sessionResponse.data?.active,
+          expiresAt: sessionResponse.data?.expiresAt
+        });
+        
         if (sessionResponse.success && sessionResponse.data.active) {
           const now = new Date();
           const expiresAt = new Date(sessionResponse.data.expiresAt);
           
+          console.log('⏱️ Time check:', {
+            now: now.toISOString(),
+            expiresAt: expiresAt.toISOString(),
+            isValid: now < expiresAt
+          });
+          
           if (now < expiresAt) {
             // Session is valid, generate masked ID and set state
-            const maskedId = generateMaskedId(storedSessionId);
-            storeMaskedIdMapping(maskedId, storedSessionId);
+            // Get or create masked ID (reuses existing if available)
+            const maskedId = getOrCreateMaskedId(storedSessionId);
+            
+            // Update last activity time
+            localStorage.setItem('neural_playground_session_last_activity', Date.now().toString());
+            
             setUserSessionId(maskedId);
             setHasActiveSession(true);
+            console.log('✅ Session is valid! Setting hasActiveSession to true');
+            console.log('🔗 Using masked ID:', maskedId);
+            console.log('⏰ Updated last activity time');
           } else {
             // Session expired on backend
-            console.log('Session expired on backend');
-            localStorage.removeItem('neural_playground_session_id');
-            localStorage.removeItem('neural_playground_session_created');
+            console.log('⏰ Session expired on backend');
+            await handleSessionCleanup(SessionCleanupReason.EXPIRED_BACKEND, storedSessionId);
           }
         } else {
           // Session inactive
-          console.log('Session inactive on backend');
-          localStorage.removeItem('neural_playground_session_id');
-          localStorage.removeItem('neural_playground_session_created');
+          console.log('❌ Session inactive on backend');
+          await handleSessionCleanup(SessionCleanupReason.INACTIVE_BACKEND, storedSessionId);
         }
       } else {
         // Session not found on server
-        console.log('Session not found on server');
-        localStorage.removeItem('neural_playground_session_id');
-        localStorage.removeItem('neural_playground_session_created');
+        console.log('❌ Session not found on server, status:', response.status);
+        
+        // Get error details
+        try {
+          const errorText = await response.text();
+          console.log('Error details:', errorText);
+        } catch (e) {
+          console.log('Could not read error response');
+        }
+        
+        await handleSessionCleanup(SessionCleanupReason.NOT_FOUND_BACKEND, storedSessionId);
       }
     } catch (error) {
-      console.error('Error checking existing session:', error);
+      console.error('❌ Network error checking existing session:', error);
       // Don't remove session on network errors, just don't show as active
+      // This allows users to still access their session if there are temporary network issues
     }
     
+    // Final state will be logged after state updates
     setIsCheckingSession(false);
   };
+
+  // Add useEffect to log final state changes
+  useEffect(() => {
+    if (!isCheckingSession) {
+      console.log('🏁 Session check complete. Final state:', { 
+        hasActiveSession, 
+        userSessionId: userSessionId ? userSessionId.substring(0, 8) + '...' : null,
+        buttonText: hasActiveSession ? 'Go to Projects →' : 'Get Started →'
+      });
+    }
+  }, [isCheckingSession, hasActiveSession, userSessionId]);
 
   const getProjectsUrl = () => {
     if (hasActiveSession && userSessionId) {
@@ -110,6 +187,8 @@ export default function Home() {
   };
 
   const getButtonText = () => {
+    console.log('🔘 Button text check:', { isCheckingSession, hasActiveSession, userSessionId });
+    
     if (isCheckingSession) {
       return 'Loading...';
     }

@@ -13,11 +13,18 @@ export function generateMaskedId(sessionId: string): string {
 
 /**
  * Store the mapping between masked ID and real session ID
+ * Only stores if mapping doesn't already exist to prevent duplicates
  */
 export function storeMaskedIdMapping(maskedId: string, sessionId: string): void {
   try {
-    localStorage.setItem(`neural_masked_${maskedId}`, sessionId);
-    localStorage.setItem('neural_current_masked_id', maskedId);
+    const existingMapping = localStorage.getItem(`neural_masked_${maskedId}`);
+    if (!existingMapping || existingMapping !== sessionId) {
+      localStorage.setItem(`neural_masked_${maskedId}`, sessionId);
+      localStorage.setItem('neural_current_masked_id', maskedId);
+      console.log('🔗 Stored new masked ID mapping:', maskedId);
+    } else {
+      console.log('🔗 Masked ID mapping already exists:', maskedId);
+    }
   } catch (error) {
     console.error('Error storing masked ID mapping:', error);
   }
@@ -45,6 +52,46 @@ export function getCurrentMaskedId(): string | null {
     console.error('Error getting current masked ID:', error);
     return null;
   }
+}
+
+/**
+ * Find existing masked ID for a session ID
+ * Returns existing masked ID if found, null otherwise
+ */
+export function findExistingMaskedId(sessionId: string): string | null {
+  try {
+    const keys = Object.keys(localStorage);
+    for (const key of keys) {
+      if (key.startsWith('neural_masked_') && localStorage.getItem(key) === sessionId) {
+        const maskedId = key.replace('neural_masked_', '');
+        console.log('🔍 Found existing masked ID for session:', maskedId);
+        return maskedId;
+      }
+    }
+    return null;
+  } catch (error) {
+    console.error('Error finding existing masked ID:', error);
+    return null;
+  }
+}
+
+/**
+ * Get or create masked ID for a session
+ * Reuses existing mapping if available, creates new one if not
+ */
+export function getOrCreateMaskedId(sessionId: string): string {
+  // First check if we already have a masked ID for this session
+  const existingMaskedId = findExistingMaskedId(sessionId);
+  if (existingMaskedId) {
+    // Update current masked ID to this one
+    localStorage.setItem('neural_current_masked_id', existingMaskedId);
+    return existingMaskedId;
+  }
+
+  // Generate new masked ID if none exists
+  const newMaskedId = generateMaskedId(sessionId);
+  storeMaskedIdMapping(newMaskedId, sessionId);
+  return newMaskedId;
 }
 
 /**
