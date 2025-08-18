@@ -8,7 +8,12 @@ export const config = {
     guests: {
       session: '/api/guests/session',
       sessionById: (sessionId: string) => `/api/guests/session/${sessionId}`,
+      deleteSession: (sessionId: string) => `/api/guests/session/${sessionId}`,
+      projectById: (sessionId: string, projectId: string) => `/api/guests/session/${sessionId}/projects/${projectId}`,
       examples: (sessionId: string, projectId: string) => `/api/guests/session/${sessionId}/projects/${projectId}/examples`,
+      trainModel: (sessionId: string, projectId: string) => `/api/guests/session/${sessionId}/projects/${projectId}/train`,
+      trainingStatus: (sessionId: string, projectId: string) => `/api/guests/session/${sessionId}/projects/${projectId}/train`,
+      predict: (sessionId: string, projectId: string) => `/api/guests/session/${sessionId}/projects/${projectId}/predict`,
     },
   },
 } as const;
