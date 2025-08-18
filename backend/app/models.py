@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional, Union, Dict, Any
 from datetime import datetime, timezone, timedelta
 from enum import Enum
@@ -193,10 +193,10 @@ class ProjectUpdate(BaseModel):
 
 
 class TrainingConfig(BaseModel):
-    epochs: Optional[int] = Field(None, ge=1, le=10000)
-    batchSize: Optional[int] = Field(None, ge=1, le=10000)
-    learningRate: Optional[float] = Field(None, gt=0, le=1)
-    validationSplit: Optional[float] = Field(None, gt=0, lt=1)
+    epochs: Optional[int] = Field(100, ge=1, le=10000)
+    batchSize: Optional[int] = Field(32, ge=1, le=10000)
+    learningRate: Optional[float] = Field(0.001, gt=0, le=1)
+    validationSplit: Optional[float] = Field(0.2, gt=0, lt=1)
 
 
 class ExampleAdd(BaseModel):
@@ -288,6 +288,8 @@ class ErrorResponse(BaseModel):
 
 # New Demo Project Models
 class DemoProject(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
+    
     demo_project_id: str = Field(..., description="Unique demo project identifier")
     name: str = Field(..., description="Demo project name")
     description: str = Field(..., description="Project description")
@@ -295,7 +297,7 @@ class DemoProject(BaseModel):
     classroom_id: str = Field(..., description="Classroom this demo belongs to")
     project_type: str = Field(..., description="Type of project (e.g., 'text_classification', 'image_classification')")
     dataset_info: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Dataset information")
-    model_info: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Trained model information")
+    trained_model_info: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Trained model information")
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     active: bool = Field(True, description="Whether demo project is active")
 
@@ -304,7 +306,7 @@ class DemoProjectCreate(BaseModel):
     description: str = Field(..., min_length=1, max_length=500, description="Project description")
     project_type: str = Field(..., description="Type of project")
     dataset_info: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Dataset information")
-    model_info: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Trained model information")
+    trained_model_info: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Trained model information")
 
 class DemoProjectResponse(BaseModel):
     success: bool = True
@@ -313,3 +315,94 @@ class DemoProjectResponse(BaseModel):
 class DemoProjectListResponse(BaseModel):
     success: bool = True
     data: List[DemoProject]
+
+# New Guest Models
+class Guest(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
+    
+    session_id: str = Field(..., description="Unique session ID")
+    createdAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Session creation timestamp")
+    expiresAt: datetime = Field(..., description="Session expiration timestamp")
+    active: bool = Field(True, description="Whether session is active")
+    
+    # Optional metadata fields for tracking
+    ip_address: Optional[str] = Field(None, description="IP address of the guest")
+    user_agent: Optional[str] = Field(None, description="User agent string")
+    last_active: Optional[datetime] = Field(None, description="Last activity timestamp")
+    
+    # Project data stored directly in guest collection
+    project_id: str = Field(..., description="Unique project identifier")
+    name: str = Field(..., description="Project name")
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Project creation timestamp")
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Last update timestamp")
+    status: str = Field("draft", description="Project status: draft, training, trained, failed")
+    
+    # Dataset information
+    dataset_type: str = Field("text", description="Type of dataset (text, image, etc.)")
+    dataset: List[Dict[str, str]] = Field(default_factory=list, description="Training examples with input and label")
+    dataset_size: int = Field(0, description="Number of training examples")
+    
+    # Model information
+    model_type: str = Field("logistic_regression", description="Type of model used")
+    model_version: int = Field(1, description="Model version number")
+    ml_config: Dict[str, Any] = Field(default_factory=dict, description="Model configuration parameters")
+    
+    # Training information
+    training_status: str = Field("pending", description="Training status: pending, training, completed, failed")
+    training_logs: List[str] = Field(default_factory=list, description="Training progress logs")
+    trained_at: Optional[datetime] = Field(None, description="When training completed")
+    metrics: Dict[str, float] = Field(default_factory=dict, description="Training metrics (accuracy, loss, f1)")
+    
+    # Test results
+    test_results: List[Dict[str, str]] = Field(default_factory=list, description="Test predictions with input, expected, and predicted")
+    test_accuracy: Optional[float] = Field(None, description="Test accuracy score")
+    last_tested_at: Optional[datetime] = Field(None, description="Last test timestamp")
+    
+    # Scratch integration
+    scratch_api_key: Optional[str] = Field(None, description="Scratch API key for integration")
+    scratch_enabled: bool = Field(False, description="Whether Scratch integration is enabled")
+    usage_count: int = Field(0, description="Number of times project was used")
+    
+    # Access tracking
+    last_accessed_by: Optional[str] = Field(None, description="Last user who accessed the project")
+    last_accessed_at: Optional[datetime] = Field(None, description="Last access timestamp")
+
+class GuestCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100, description="Project name")
+    dataset_type: str = Field("text", description="Type of dataset")
+    session_duration_hours: int = Field(48, ge=1, le=168, description="Session duration in hours (1-168 hours = 1 week max)")
+
+class GuestUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    dataset: Optional[List[Dict[str, str]]] = None
+    ml_config: Optional[Dict[str, Any]] = None
+    training_status: Optional[str] = None
+    metrics: Optional[Dict[str, float]] = None
+    test_results: Optional[List[Dict[str, str]]] = None
+    scratch_enabled: Optional[bool] = None
+
+class GuestResponse(BaseModel):
+    success: bool = True
+    data: Guest
+
+class GuestListResponse(BaseModel):
+    success: bool = True
+    data: List[Guest]
+
+# Simple Guest Session (without project data)
+class GuestSession(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
+    
+    session_id: str = Field(..., description="Unique session ID")
+    createdAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Session creation timestamp")
+    expiresAt: datetime = Field(..., description="Session expiration timestamp")
+    active: bool = Field(True, description="Whether session is active")
+    
+    # Optional metadata fields for tracking
+    ip_address: Optional[str] = Field(None, description="IP address of the guest")
+    user_agent: Optional[str] = Field(None, description="User agent string")
+    last_active: Optional[datetime] = Field(None, description="Last activity timestamp")
+
+class GuestSessionResponse(BaseModel):
+    success: bool = True
+    data: GuestSession

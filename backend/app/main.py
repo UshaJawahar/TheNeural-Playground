@@ -9,6 +9,7 @@ import threading
 
 from .config import settings
 from .api import projects, health, teachers, students, classrooms, demo_projects
+from .api.guests import router as guests_router
 from .training_worker import training_worker
 
 # Configure logging
@@ -67,6 +68,7 @@ app.include_router(teachers.router)
 app.include_router(students.router)
 app.include_router(classrooms.router)
 app.include_router(demo_projects.router)
+app.include_router(guests_router)
 
 def start_training_worker():
     """Start training worker in background thread"""

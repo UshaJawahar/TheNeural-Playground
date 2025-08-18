@@ -3,68 +3,142 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Header from '../../components/Header';
+import config from '../../lib/config';
+import { generateMaskedId, storeMaskedIdMapping, getCurrentMaskedId, getSessionIdFromMaskedId } from '../../lib/session-utils';
 
-interface UserSession {
-  userId: string;
-  createdAt: number;
-  expiresAt: number;
+interface GuestSession {
+  session_id: string;
+  createdAt: string;
+  expiresAt: string;
+  active: boolean;
+  ip_address?: string;
+  user_agent?: string;
+  last_active?: string;
+}
+
+interface GuestSessionResponse {
+  success: boolean;
+  data: GuestSession;
 }
 
 export default function ProjectsPage() {
-  const [userSession, setUserSession] = useState<UserSession | null>(null);
+  const [guestSession, setGuestSession] = useState<GuestSession | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isCreatingSession, setIsCreatingSession] = useState(false);
 
   useEffect(() => {
     // Check for existing session on component mount
     checkExistingSession();
   }, []);
 
-  const checkExistingSession = () => {
+  const checkExistingSession = async () => {
     try {
-      const sessionData = localStorage.getItem('neural_playground_session');
-      if (sessionData) {
-        const session: UserSession = JSON.parse(sessionData);
-        const now = Date.now();
-        
-        // Check if session is still valid (within 96 hours)
-        if (now < session.expiresAt) {
-          setUserSession(session);
+      const sessionId = localStorage.getItem('neural_playground_session_id');
+      if (sessionId) {
+        // Validate session with backend API
+        const response = await fetch(`${config.apiBaseUrl}${config.api.guests.sessionById(sessionId)}`);
+        if (response.ok) {
+          const sessionResponse: GuestSessionResponse = await response.json();
+          if (sessionResponse.success && sessionResponse.data.active) {
+            // Check if session is still valid
+            const now = new Date();
+            const expiresAt = new Date(sessionResponse.data.expiresAt);
+            
+            if (now < expiresAt) {
+              setGuestSession(sessionResponse.data);
+            } else {
+              // Session expired, remove it
+              localStorage.removeItem('neural_playground_session_id');
+            }
+          } else {
+            // Session invalid, remove it
+            localStorage.removeItem('neural_playground_session_id');
+          }
         } else {
-          // Session expired, remove it
-          localStorage.removeItem('neural_playground_session');
+          // Session not found on server, remove local storage
+          localStorage.removeItem('neural_playground_session_id');
         }
       }
     } catch (error) {
       console.error('Error checking session:', error);
-      localStorage.removeItem('neural_playground_session');
+      localStorage.removeItem('neural_playground_session_id');
     }
     setIsLoading(false);
   };
 
-  const createUserSession = () => {
-    const now = Date.now();
-    const userId = `user_${now}_${Math.random().toString(36).substr(2, 9)}`;
-    const session: UserSession = {
-      userId,
-      createdAt: now,
-      expiresAt: now + (96 * 60 * 60 * 1000) // 96 hours in milliseconds
-    };
+  const createGuestSession = async (): Promise<string | null> => {
+    try {
+      setIsCreatingSession(true);
+      
+      const response = await fetch(`${config.apiBaseUrl}${config.api.guests.session}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
 
-    localStorage.setItem('neural_playground_session', JSON.stringify(session));
-    setUserSession(session);
-    return userId;
+      if (response.ok) {
+        const sessionResponse: GuestSessionResponse = await response.json();
+        if (sessionResponse.success) {
+          // Generate masked ID for URL
+          const maskedId = generateMaskedId(sessionResponse.data.session_id);
+          
+          // Store session ID and masked ID mapping
+          localStorage.setItem('neural_playground_session_id', sessionResponse.data.session_id);
+          storeMaskedIdMapping(maskedId, sessionResponse.data.session_id);
+          
+          setGuestSession(sessionResponse.data);
+          return maskedId; // Return masked ID instead of session ID
+        }
+      }
+      
+      throw new Error('Failed to create guest session');
+    } catch (error) {
+      console.error('Error creating guest session:', error);
+      return null;
+    } finally {
+      setIsCreatingSession(false);
+    }
   };
 
 
 
-  const handleTryNow = () => {
-    if (userSession) {
-      // User has existing session, go to their projects
-      window.location.href = `/projects/${userSession.userId}`;
+  const handleTryNow = async () => {
+    if (guestSession) {
+      // User has existing session, get or generate masked ID
+      const currentMaskedId = getCurrentMaskedId();
+      if (currentMaskedId) {
+        window.location.href = `/projects/${currentMaskedId}`;
+      } else {
+        // Generate new masked ID for existing session
+        const maskedId = generateMaskedId(guestSession.session_id);
+        storeMaskedIdMapping(maskedId, guestSession.session_id);
+        window.location.href = `/projects/${maskedId}`;
+      }
     } else {
+      // Check localStorage for existing session first
+      const existingSessionId = localStorage.getItem('neural_playground_session_id');
+      if (existingSessionId) {
+        // Check if we have a masked ID for this session
+        const currentMaskedId = getCurrentMaskedId();
+        if (currentMaskedId) {
+          window.location.href = `/projects/${currentMaskedId}`;
+        } else {
+          // Generate masked ID for existing session
+          const maskedId = generateMaskedId(existingSessionId);
+          storeMaskedIdMapping(maskedId, existingSessionId);
+          window.location.href = `/projects/${maskedId}`;
+        }
+        return;
+      }
+      
       // Create new session and redirect
-      const userId = createUserSession();
-      window.location.href = `/projects/${userId}`;
+      const maskedId = await createGuestSession();
+      if (maskedId) {
+        window.location.href = `/projects/${maskedId}`;
+      } else {
+        alert('Failed to create session. Please try again.');
+      }
     }
   };
 
@@ -103,17 +177,17 @@ export default function ProjectsPage() {
           {/* Try It Now / Go to Projects Button */}
           <button 
             onClick={handleTryNow}
-            disabled={isLoading}
+            disabled={isLoading || isCreatingSession}
             className="bg-[#dcfc84] text-[#1c1c1c] px-10 py-4 rounded-lg text-xl font-medium hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isLoading ? 'Loading...' : userSession ? 'Go to your projects' : 'Try it now'}
+            {isLoading ? 'Loading...' : isCreatingSession ? 'Creating session...' : guestSession ? 'Go to your projects' : 'Try it now'}
           </button>
           
-          {userSession && (
+          {guestSession && (
             <p className="text-sm text-white mt-4">
               Welcome back! Session expires on{' '}
-              {new Date(userSession.expiresAt).toLocaleDateString()} at{' '}
-              {new Date(userSession.expiresAt).toLocaleTimeString()}
+              {new Date(guestSession.expiresAt).toLocaleDateString()} at{' '}
+              {new Date(guestSession.expiresAt).toLocaleTimeString()}
             </p>
           )}
           

@@ -4,6 +4,19 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import Header from '../../../components/Header';
+import config from '../../../lib/config';
+import { 
+  getSessionIdFromMaskedId, 
+  isMaskedId, 
+  isSessionId, 
+  generateMaskedId, 
+  storeMaskedIdMapping,
+  generateMaskedProjectId,
+  storeMaskedProjectIdMapping,
+  getProjectIdFromMaskedId,
+  isMaskedProjectId,
+  isProjectId
+} from '../../../lib/session-utils';
 
 /**
  * Projects Page with Hash-Based Navigation
@@ -27,10 +40,19 @@ import Header from '../../../components/Header';
  * Note: Training functionality is now integrated into the main page using hash navigation
  */
 
-interface UserSession {
-  userId: string;
-  createdAt: number;
-  expiresAt: number;
+interface GuestSession {
+  session_id: string;
+  createdAt: string;
+  expiresAt: string;
+  active: boolean;
+  ip_address?: string;
+  user_agent?: string;
+  last_active?: string;
+}
+
+interface GuestSessionResponse {
+  success: boolean;
+  data: GuestSession;
 }
 
 interface Project {
@@ -38,6 +60,9 @@ interface Project {
   name: string;
   type: string;
   createdAt: string;
+  description?: string;
+  status?: string;
+  maskedId?: string;
 }
 
 
@@ -48,80 +73,204 @@ function CreateProjectPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [currentSection, setCurrentSection] = useState<'projects-list' | 'new-project' | 'project-details'>('projects-list');
   const [selectedProject] = useState<Project | null>(null);
-  const [userSession, setUserSession] = useState<UserSession | null>(null);
+  const [guestSession, setGuestSession] = useState<GuestSession | null>(null);
   const [isValidSession, setIsValidSession] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isCreatingProject, setIsCreatingProject] = useState(false);
   
 
 
   const params = useParams();
-  const urlUserId = params?.userid as string;
+  const urlParam = params?.userid as string;
+  const [actualSessionId, setActualSessionId] = useState<string>('');
 
   useEffect(() => {
-    validateUserSession();
-  }, [urlUserId]); // eslint-disable-line react-hooks/exhaustive-deps
+    validateGuestSession();
+  }, [urlParam]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
 
-  const validateUserSession = () => {
-    if (!urlUserId) {
+  const validateGuestSession = async () => {
+    if (!urlParam) {
       setIsLoading(false);
       return;
     }
 
     try {
-      const sessionData = localStorage.getItem('neural_playground_session');
-      if (sessionData) {
-        const session: UserSession = JSON.parse(sessionData);
-        const now = Date.now();
-        
-        // Check if session is still valid and matches URL
-        if (now < session.expiresAt && session.userId === urlUserId) {
-          setUserSession(session);
-          setIsValidSession(true);
-          loadUserProjects(session.userId);
-        } else if (session.userId !== urlUserId) {
-          // Wrong user ID in URL, redirect to correct one
-          window.location.href = `/projects/${session.userId}`;
+      let sessionId: string;
+
+      // Check if URL param is a masked ID or full session ID
+      if (isMaskedId(urlParam)) {
+        // URL has masked ID, get the real session ID
+        const realSessionId = getSessionIdFromMaskedId(urlParam);
+        if (!realSessionId) {
+          // Masked ID not found, redirect to main projects page
+          window.location.href = '/projects';
           return;
+        }
+        sessionId = realSessionId;
+      } else if (isSessionId(urlParam)) {
+        // URL has full session ID, redirect to masked version
+        const maskedId = generateMaskedId(urlParam);
+        storeMaskedIdMapping(maskedId, urlParam);
+        window.location.href = `/projects/${maskedId}`;
+        return;
+      } else {
+        // Invalid URL format
+        window.location.href = '/projects';
+        return;
+      }
+
+      // Check if session exists in localStorage
+      const storedSessionId = localStorage.getItem('neural_playground_session_id');
+      
+      if (!storedSessionId) {
+        // No session stored, redirect to main projects page
+        window.location.href = '/projects';
+        return;
+      }
+
+      if (storedSessionId !== sessionId) {
+        // Session ID doesn't match stored session, redirect to correct one
+        const correctMaskedId = generateMaskedId(storedSessionId);
+        storeMaskedIdMapping(correctMaskedId, storedSessionId);
+        window.location.href = `/projects/${correctMaskedId}`;
+        return;
+      }
+
+      // Validate session with backend API
+      const response = await fetch(`${config.apiBaseUrl}${config.api.guests.sessionById(sessionId)}`);
+      
+      if (response.ok) {
+        const sessionResponse: GuestSessionResponse = await response.json();
+        if (sessionResponse.success && sessionResponse.data.active) {
+          // Check if session is still valid
+          const now = new Date();
+          const expiresAt = new Date(sessionResponse.data.expiresAt);
+          
+          if (now < expiresAt) {
+            setActualSessionId(sessionId);
+            setGuestSession(sessionResponse.data);
+            setIsValidSession(true);
+            loadGuestProjects(sessionResponse.data.session_id);
+          } else {
+            // Session expired
+            localStorage.removeItem('neural_playground_session_id');
+            window.location.href = '/projects';
+            return;
+          }
         } else {
-          // Session expired
-          localStorage.removeItem('neural_playground_session');
+          // Session inactive
+          localStorage.removeItem('neural_playground_session_id');
           window.location.href = '/projects';
           return;
         }
       } else {
-        // No session, redirect to main projects page
+        // Session not found on server
+        localStorage.removeItem('neural_playground_session_id');
         window.location.href = '/projects';
         return;
       }
     } catch (error) {
       console.error('Error validating session:', error);
-      localStorage.removeItem('neural_playground_session');
+      localStorage.removeItem('neural_playground_session_id');
       window.location.href = '/projects';
       return;
     }
     setIsLoading(false);
   };
 
-  const loadUserProjects = (userId: string) => {
+  const loadGuestProjects = async (sessionId: string) => {
     try {
-      const projectsKey = `neural_playground_projects_${userId}`;
-      const savedProjects = localStorage.getItem(projectsKey);
-      if (savedProjects) {
-        setProjects(JSON.parse(savedProjects));
+      const response = await fetch(`${config.apiBaseUrl}/api/guests/session/${sessionId}/projects`);
+      
+      if (response.ok) {
+        const projectsResponse = await response.json();
+        if (projectsResponse.success && projectsResponse.data) {
+          // Generate and store masked IDs for each project
+          const projectsWithMaskedIds = projectsResponse.data.map((project: any) => {
+            let maskedProjectId = generateMaskedProjectId(project.id);
+            
+            // Check if mapping already exists
+            const existingId = getProjectIdFromMaskedId(maskedProjectId);
+            if (!existingId) {
+              storeMaskedProjectIdMapping(maskedProjectId, project.id);
+            }
+            
+            return {
+              ...project,
+              maskedId: maskedProjectId
+            };
+          });
+          
+          setProjects(projectsWithMaskedIds);
+        }
       }
     } catch (error) {
       console.error('Error loading projects:', error);
     }
   };
 
-  const saveUserProjects = (userId: string, projectsData: Project[]) => {
+  const createGuestProject = async (projectData: { name: string; type: string; description?: string }) => {
     try {
-      const projectsKey = `neural_playground_projects_${userId}`;
-      localStorage.setItem(projectsKey, JSON.stringify(projectsData));
+      // Get session ID from localStorage
+      const sessionId = localStorage.getItem('neural_playground_session_id');
+      if (!sessionId) {
+        throw new Error('No session found');
+      }
+
+      const payload = {
+        name: projectData.name,
+        description: projectData.description || "",
+        type: projectData.type,
+        createdBy: "",
+        teacher_id: "",
+        classroom_id: "",
+        student_id: "",
+        tags: [],
+        notes: "",
+        config: {
+          epochs: 100,
+          batchSize: 32,
+          learningRate: 0.001,
+          validationSplit: 0.2
+        }
+      };
+
+      const response = await fetch(`${config.apiBaseUrl}/api/guests/session/${sessionId}/projects`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        const projectResponse = await response.json();
+        if (projectResponse.success) {
+          // Generate masked project ID and store mapping
+          const maskedProjectId = generateMaskedProjectId(projectResponse.data.id);
+          storeMaskedProjectIdMapping(maskedProjectId, projectResponse.data.id);
+          
+          // Return project data with masked ID for UI
+          return {
+            ...projectResponse.data,
+            maskedId: maskedProjectId
+          };
+        }
+      }
+      
+      // Handle different error status codes
+      if (response.status === 404) {
+        throw new Error('Session not found');
+      } else if (response.status === 403) {
+        throw new Error('Session expired or invalid');
+      } else {
+        throw new Error('Failed to create project');
+      }
     } catch (error) {
-      console.error('Error saving projects:', error);
+      console.error('Error creating project:', error);
+      throw error;
     }
   };
 
@@ -133,52 +282,90 @@ function CreateProjectPage() {
     window.location.hash = '#new-project';
   };
 
-  const handleFormSubmit = (e: React.FormEvent) => {
+  const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (projectName.trim() && projectType && userSession) {
-      const newProject: Project = {
-        id: `project-${Date.now()}`,
-        name: projectName.trim(),
-        type: projectType,
-        createdAt: new Date().toLocaleDateString()
-      };
+    if (projectName.trim() && projectType) {
+      setIsCreatingProject(true);
       
-      const updatedProjects = [...projects, newProject];
-      setProjects(updatedProjects);
-      saveUserProjects(userSession.userId, updatedProjects);
-      console.log('Creating project:', newProject);
-      
-      // Reset form
-      setProjectName('');
-      setProjectType('');
-      
-      // Navigate to the new project page
-      window.location.href = `/projects/${userSession.userId}/${newProject.id}`;
+      try {
+        const newProject = await createGuestProject({
+          name: projectName.trim(),
+          type: projectType,
+          description: ''
+        });
+        
+        console.log('Created project:', newProject);
+        
+        // Reset form
+        setProjectName('');
+        setProjectType('');
+        
+        // Reload projects to get updated list
+        if (actualSessionId) {
+          await loadGuestProjects(actualSessionId);
+        }
+        
+        // Navigate to the new project page using masked project ID
+        window.location.href = `/projects/${urlParam}/${newProject.maskedId}`;
+      } catch (error: any) {
+        const errorMessage = error.message || 'Failed to create project. Please try again.';
+        alert(errorMessage);
+        
+        // If session-related error, redirect to main page
+        if (errorMessage.includes('Session') || errorMessage.includes('session')) {
+          window.location.href = '/projects';
+        }
+      } finally {
+        setIsCreatingProject(false);
+      }
     }
   };
 
-  const handleDeleteProject = (projectId: string) => {
-    if (userSession) {
-      const updatedProjects = projects.filter(p => p.id !== projectId);
-      setProjects(updatedProjects);
-      saveUserProjects(userSession.userId, updatedProjects);
+  const handleDeleteProject = async (projectId: string) => {
+    if (actualSessionId && confirm('Are you sure you want to delete this project?')) {
+      try {
+        // If it's a masked ID, get the real project ID
+        let realProjectId = projectId;
+        if (isMaskedProjectId(projectId)) {
+          const actualId = getProjectIdFromMaskedId(projectId);
+          if (actualId) {
+            realProjectId = actualId;
+          }
+        }
+
+        const response = await fetch(`${config.apiBaseUrl}/api/guests/session/${actualSessionId}/projects/${realProjectId}`, {
+          method: 'DELETE',
+        });
+
+        if (response.ok) {
+          // Reload projects to get updated list
+          await loadGuestProjects(actualSessionId);
+        } else {
+          alert('Failed to delete project. Please try again.');
+        }
+      } catch (error) {
+        console.error('Error deleting project:', error);
+        alert('Failed to delete project. Please try again.');
+      }
     }
   };
 
   const handleExportProject = (projectId: string) => {
     const project = projects.find(p => p.id === projectId);
     console.log('Exporting project:', project);
-    // Handle export logic here
+    // Handle export logic here - could be implemented later with API endpoint
+    alert('Export functionality will be available soon!');
   };
 
   const handleProjectClick = (project: Project) => {
-    // Navigate to the project-specific page
-    window.location.href = `/projects/${urlUserId}/${project.id}`;
+    // Navigate to the project-specific page using masked project ID
+    const projectId = project.maskedId || project.id;
+    window.location.href = `/projects/${urlParam}/${projectId}`;
   };
 
   const handleBackToProjects = () => {
-    // Navigate back to projects list
-    window.location.href = `/projects/${urlUserId}`;
+    // Navigate back to projects list using masked ID
+    window.location.href = `/projects/${urlParam}`;
   };
 
   const handleCancel = () => {
@@ -273,7 +460,8 @@ function CreateProjectPage() {
                   </p>
                                      <button 
                      onClick={() => {
-                       window.location.href = `/projects/${userSession?.userId}/${selectedProject.id}/train`;
+                       const projectId = selectedProject.maskedId || selectedProject.id;
+                       window.location.href = `/projects/${urlParam}/${projectId}/train`;
                      }}
                      className="w-full bg-[#dcfc84] hover:bg-[#dcfc84]/90 text-[#1c1c1c] py-3 px-6 rounded-lg font-medium transition-all duration-300"
                    >
@@ -412,7 +600,7 @@ function CreateProjectPage() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleExportProject(project.id);
+                            handleExportProject(project.maskedId || project.id);
                           }}
                           className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-all duration-300"
                           title="Export project"
@@ -435,7 +623,7 @@ function CreateProjectPage() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleDeleteProject(project.id);
+                            handleDeleteProject(project.maskedId || project.id);
                           }}
                           className="p-2 text-white/70 hover:text-red-400 hover:bg-white/10 rounded-lg transition-all duration-300"
                           title="Delete project"
@@ -460,12 +648,12 @@ function CreateProjectPage() {
                     <div className="text-white mb-4">
                       <span className="text-sm">Recognising </span>
                       <span className="text-[#dcfc84] font-medium">
-                        {project.type.replace('Text Recognition', 'text')}
+                        {project.type === 'text-recognition' ? 'text' : project.type}
                       </span>
                     </div>
                     
                     <div className="text-xs text-white/50">
-                      Created: {project.createdAt}
+                      Created: {new Date(project.createdAt).toLocaleDateString()}
                     </div>
                   </div>
                 ))}
@@ -515,7 +703,7 @@ function CreateProjectPage() {
                     <option value="" disabled className="bg-[#1c1c1c] text-gray-400">
                       Select Type
                     </option>
-                    <option value="Text Recognition" className="bg-[#1c1c1c] text-white">
+                    <option value="text-recognition" className="bg-[#1c1c1c] text-white">
                       Text Recognition
                     </option>
                   </select>
@@ -532,9 +720,10 @@ function CreateProjectPage() {
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 bg-[#dcfc84] text-[#1c1c1c] px-6 py-3 rounded-lg font-medium hover:scale-105 transition-all duration-300"
+                    disabled={isCreatingProject}
+                    className="flex-1 bg-[#dcfc84] text-[#1c1c1c] px-6 py-3 rounded-lg font-medium hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Create Project
+                    {isCreatingProject ? 'Creating...' : 'Create Project'}
                   </button>
                 </div>
               </form>

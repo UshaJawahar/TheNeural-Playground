@@ -30,6 +30,9 @@ class ProjectService:
                 description=project_data.description,
                 type=project_data.type,
                 createdBy=project_data.createdBy,
+                teacher_id=project_data.teacher_id,
+                classroom_id=project_data.classroom_id,
+                student_id=project_data.student_id,
                 tags=project_data.tags,
                 notes=project_data.notes,
                 config=project_data.config or ProjectConfig(),
@@ -65,30 +68,63 @@ class ProjectService:
         offset: int = 0,
         status: Optional[str] = None,
         type: Optional[str] = None,
-        created_by: Optional[str] = None
+        created_by: Optional[str] = None,
+        guest_session_id: Optional[str] = None
     ) -> List[Project]:
         """Get all projects with optional filtering"""
         try:
-            # Start with base query
-            query = self.collection.order_by('createdAt', direction=firestore.Query.DESCENDING)
-            
-            # Apply filters
-            if status:
-                query = query.where('status', '==', status)
-            if type:
-                query = query.where('type', '==', type)
-            if created_by:
-                query = query.where('createdBy', '==', created_by)
-            
-            # Execute query and get documents
-            docs = query.limit(limit).offset(offset).get()
-            projects = []
-            
-            for doc in docs:
-                data = doc.to_dict()
-                projects.append(Project(**data))
-            
-            return projects
+            # For guest session filtering, use a simpler approach to avoid index requirements
+            if guest_session_id:
+                # Query only by student_id for guest sessions
+                query = self.collection.where('student_id', '==', guest_session_id)
+                docs = query.get()
+                
+                # Convert to projects and apply in-memory filtering and sorting
+                all_projects = []
+                for doc in docs:
+                    data = doc.to_dict()
+                    project = Project(**data)
+                    
+                    # Apply additional filters in memory
+                    if status and project.status != status:
+                        continue
+                    if type and project.type != type:
+                        continue
+                    if created_by and project.createdBy != created_by:
+                        continue
+                    
+                    all_projects.append(project)
+                
+                # Sort by creation date (descending)
+                all_projects.sort(key=lambda p: p.createdAt, reverse=True)
+                
+                # Apply pagination
+                start_idx = offset
+                end_idx = offset + limit
+                projects = all_projects[start_idx:end_idx]
+                
+                return projects
+            else:
+                # For non-guest queries, use the original approach
+                query = self.collection.order_by('createdAt', direction=firestore.Query.DESCENDING)
+                
+                # Apply filters
+                if status:
+                    query = query.where('status', '==', status)
+                if type:
+                    query = query.where('type', '==', type)
+                if created_by:
+                    query = query.where('createdBy', '==', created_by)
+                
+                # Execute query and get documents
+                docs = query.limit(limit).offset(offset).get()
+                projects = []
+                
+                for doc in docs:
+                    data = doc.to_dict()
+                    projects.append(Project(**data))
+                
+                return projects
         except Exception as e:
             raise Exception(f"Failed to get projects: {str(e)}")
     
@@ -119,7 +155,7 @@ class ProjectService:
         try:
             project = await self.get_project(project_id)
             if not project:
-                raise Exception("Project not found")
+                return False  # Project doesn't exist, return False instead of raising exception
             
             # Delete from Firestore
             self.collection.document(project_id).delete()
@@ -151,8 +187,18 @@ class ProjectService:
     async def search_projects(self, search_query: str, filters: Dict[str, Any]) -> List[Project]:
         """Search projects by query and filters"""
         try:
+            # Extract guest session filter if present
+            guest_session_id = filters.pop('guest_session_id', None)
+            
             # Get all projects first (in production, you'd use a search service)
-            all_projects = await self.get_projects(limit=1000)
+            # For guest sessions, we get all projects for that session to search through
+            all_projects = await self.get_projects(
+                limit=1000, 
+                guest_session_id=guest_session_id,
+                status=None,  # Don't filter in get_projects, we'll filter in memory
+                type=None,
+                created_by=None
+            )
             
             # Apply search filter
             search_lower = search_query.lower()
