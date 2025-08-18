@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     pubsub_topic_name: str = Field(default="train_jobs", env="PUBSUB_TOPIC_NAME")
     
     # CORS Configuration
-    cors_origin: str = Field(default="http://localhost:3000", env="CORS_ORIGIN")
+    cors_origin: str = Field(default="https://theneural-frontend.vercel.app", env="CORS_ORIGIN")
     
     # Security
     jwt_secret: str = Field(default="your-super-secret-jwt-key-here", env="JWT_SECRET")
