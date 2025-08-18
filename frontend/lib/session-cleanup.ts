@@ -205,6 +205,12 @@ export const cleanupAllNeuraStorage = (): number => {
 };
 
 // Make cleanup function available globally for manual use
+declare global {
+  interface Window {
+    cleanupNeuraStorage?: () => number;
+  }
+}
+
 if (typeof window !== 'undefined') {
-  (window as any).cleanupNeuraStorage = cleanupAllNeuraStorage;
+  window.cleanupNeuraStorage = cleanupAllNeuraStorage;
 }

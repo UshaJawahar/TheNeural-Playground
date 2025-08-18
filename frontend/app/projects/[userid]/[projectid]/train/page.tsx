@@ -14,6 +14,7 @@ import {
   isProjectId
 } from '../../../../../lib/session-utils';
 import { cleanupSessionWithReason, SessionCleanupReason } from '../../../../../lib/session-cleanup';
+import Link from 'next/link'
 
 interface GuestSession {
   session_id: string;
@@ -190,16 +191,16 @@ export default function TrainPage() {
       const response = await fetch(`${config.apiBaseUrl}${config.api.guests.examples(actualSessionId, actualProjectId)}`);
       
       if (response.ok) {
-        const result = await response.json();
+        const result: { success: boolean; examples?: Array<{ id?: string; text: string; label: string; createdAt?: string }>; labels?: string[] } = await response.json();
         console.log('✅ Examples refreshed from API:', result);
         
         if (result.success) {
           // Group examples by label
-          const examplesByLabel: { [key: string]: any[] } = {};
+          const examplesByLabel: { [key: string]: Example[] } = {};
           
           // Process examples if they exist
           if (result.examples && result.examples.length > 0) {
-            result.examples.forEach((example: any) => {
+            result.examples.forEach((example) => {
               if (!examplesByLabel[example.label]) {
                 examplesByLabel[example.label] = [];
               }
@@ -215,7 +216,7 @@ export default function TrainPage() {
           const newLabels: Label[] = [];
           
           // Get all unique labels - from examples AND from the labels list in the response
-          const labelsFromExamples = result.examples ? [...new Set(result.examples.map((ex: any) => ex.label))] as string[] : [];
+          const labelsFromExamples = result.examples ? [...new Set(result.examples.map((ex) => ex.label))] as string[] : [];
           const labelsFromAPI = result.labels || []; // Get labels from API response if available
           
           // Combine both sources of labels and remove duplicates
@@ -714,12 +715,12 @@ export default function TrainPage() {
             <p className="text-lg text-white mb-8">
               Please return to your projects and try again.
             </p>
-            <a 
+            <Link 
               href={`/projects/${urlUserId}`}
               className="bg-[#dcfc84] text-[#1c1c1c] px-8 py-4 rounded-lg text-lg font-medium hover:scale-105 transition-all duration-300 inline-block"
             >
               Back to Projects
-            </a>
+            </Link>
           </div>
         </main>
       </div>
@@ -735,7 +736,7 @@ export default function TrainPage() {
           
 
                      <div className="flex items-center mb-8">
-             <a
+             <Link
                href={`/projects/${urlUserId}/${urlProjectId}`}
                className="p-2 text-white/70 hover:text-white hover:bg-[#bc6cd3]/10 rounded-lg transition-all duration-300 flex items-center gap-2 text-sm"
              >
@@ -743,7 +744,7 @@ export default function TrainPage() {
                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                </svg>
                Back to project
-             </a>
+             </Link>
            </div>
 
            
@@ -972,7 +973,7 @@ export default function TrainPage() {
             
             <div className="p-6">
                              <label className="block text-sm font-medium text-[#dcfc84] mb-2">
-                 Enter a Label / Class for what you want the AI to classify like "Happy" or "Sad" 
+                 Enter a Label / Class for what you want the AI to classify like &quot;Happy&quot; or &quot;Sad&quot; 
                </label>
               <input
                 type="text"
@@ -1024,7 +1025,7 @@ export default function TrainPage() {
             
             <div className="p-6">
               <label className="block text-sm font-medium text-[#dcfc84] mb-2">
-                Enter examples of what you want the AI to recognise as '{labels.find(l => l.id === selectedLabelId)?.name}'
+                Enter examples of what you want the AI to recognise as &lsquo;{labels.find(l => l.id === selectedLabelId)?.name}&rsquo;
               </label>
               <textarea
                 value={newExampleText}

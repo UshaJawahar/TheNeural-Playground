@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
+import Link from 'next/link';
 import Header from '../../../../../components/Header';
 import config from '../../../../../lib/config';
 import { 
@@ -766,12 +767,12 @@ export default function LearnPage() {
             <p className="text-lg text-white mb-8">
               Your session has expired. Please start a new session.
             </p>
-            <a 
+            <Link 
               href="/projects"
               className="bg-[#dcfc84] text-[#1c1c1c] px-8 py-4 rounded-lg text-lg font-medium hover:scale-105 transition-all duration-300 inline-block"
             >
               Start New Session
-            </a>
+            </Link>
           </div>
         </main>
       </div>
@@ -787,7 +788,7 @@ export default function LearnPage() {
         <div className="max-w-7xl mx-auto">
           {/* Back to Project Link */}
           <div className="mb-6">
-            <a
+            <Link
               href={`/projects/${urlUserId}/${urlProjectId}`}
               className="px-4 py-4 text-white/70 hover:text-white hover:bg-[#bc6cd3]/10 rounded-lg transition-all duration-300 flex items-center gap-2 text-sm"
             >
@@ -795,7 +796,7 @@ export default function LearnPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
               Back to project
-            </a>
+            </Link>
           </div>
 
           {/* Main Title */}

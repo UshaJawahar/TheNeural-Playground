@@ -14,6 +14,7 @@ import {
   isProjectId
 } from '../../../../lib/session-utils';
 import { cleanupSessionWithReason, SessionCleanupReason } from '../../../../lib/session-cleanup';
+import Link from 'next/link'
 
 interface GuestSession {
   session_id: string;
@@ -229,12 +230,12 @@ export default function ProjectDetailsPage() {
             <p className="text-lg text-white mb-8">
               Your session has expired. Please start a new session.
             </p>
-            <a 
+            <Link 
               href="/projects"
               className="bg-[#dcfc84] text-[#1c1c1c] px-8 py-4 rounded-lg text-lg font-medium hover:scale-105 transition-all duration-300 inline-block"
             >
               Start New Session
-            </a>
+            </Link>
           </div>
         </main>
       </div>
@@ -251,14 +252,14 @@ export default function ProjectDetailsPage() {
               Project Not Found
             </h1>
             <p className="text-lg text-white mb-8">
-              The project you're looking for doesn't exist or you don't have access to it.
+              The project you&apos;re looking for doesn&apos;t exist or you don&apos;t have access to it.
             </p>
-            <a 
+            <Link 
               href={`/projects/${urlUserId}`}
               className="bg-[#dcfc84] text-[#1c1c1c] px-8 py-4 rounded-lg text-lg font-medium hover:scale-105 transition-all duration-300 inline-block"
             >
               Back to Projects
-            </a>
+            </Link>
           </div>
         </main>
       </div>
@@ -274,9 +275,9 @@ export default function ProjectDetailsPage() {
           {/* Navigation Breadcrumb */}
           <div className="mb-6 text-lg font-semibold text-white">
             <span>
-              <a href={`/projects/${urlUserId}`} className="hover:text-[#dcfc84] transition-colors">
+              <Link href={`/projects/${urlUserId}`} className="hover:text-[#dcfc84] transition-colors">
                 Projects List
-              </a>
+              </Link>
             </span>
             <span className="mx-2">→</span>
             <span className="text-white">&ldquo;{selectedProject.name}&rdquo;</span>
@@ -284,7 +285,7 @@ export default function ProjectDetailsPage() {
 
           {/* Project Header with Back Button */}
           <div className="flex items-center mb-12">
-            <a
+            <Link
               href={`/projects/${urlUserId}`}
               className="p-2 text-white/70 hover:text-white hover:bg-[#bc6cd3]/10 rounded-lg transition-all duration-300 mr-4"
             >
@@ -301,7 +302,7 @@ export default function ProjectDetailsPage() {
                   d="M15 19l-7-7 7-7" 
                 />
               </svg>
-            </a>
+            </Link>
             <h1 className="text-3xl md:text-4xl font-semibold text-white text-center flex-1">
               &ldquo;{selectedProject.name}&rdquo;
             </h1>

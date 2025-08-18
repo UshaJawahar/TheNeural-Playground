@@ -193,8 +193,8 @@ function CreateProjectPage() {
         const projectsResponse = await response.json();
         if (projectsResponse.success && projectsResponse.data) {
           // Generate and store masked IDs for each project
-          const projectsWithMaskedIds = projectsResponse.data.map((project: any) => {
-            let maskedProjectId = generateMaskedProjectId(project.id);
+          const projectsWithMaskedIds = (projectsResponse.data as Project[]).map((project: Project) => {
+            const maskedProjectId = generateMaskedProjectId(project.id);
             
             // Check if mapping already exists
             const existingId = getProjectIdFromMaskedId(maskedProjectId);
@@ -323,8 +323,8 @@ function CreateProjectPage() {
         
         // Navigate to the new project details page using masked project ID
         window.location.href = `/projects/${urlParam}/${newProject.maskedId}`;
-      } catch (error: any) {
-        const errorMessage = error.message || 'Failed to create project. Please try again.';
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to create project. Please try again.';
         alert(errorMessage);
         
         // If session-related error, redirect to main page
@@ -579,15 +579,15 @@ function CreateProjectPage() {
             <div>
               {/* Header with Back Button and Add Project Button */}
               <div className="flex justify-between items-center mb-8">
-                <button
-                  onClick={() => window.location.href = '/projects'}
+                <Link
+                  href="/projects"
                   className="p-2 text-white/70 hover:text-white hover:bg-[#bc6cd3]/10 rounded-lg transition-all duration-300 flex items-center gap-2"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                   </svg>
                   Back to Main Menu
-                </button>
+                </Link>
                 <button
                   onClick={handleCreateProject}
                   className="bg-[#1c1c1c] border border-[#bc6cd3]/20 text-white px-6 py-3 rounded-lg hover:bg-[#bc6cd3]/10 transition-all duration-300 inline-flex items-center gap-2"
