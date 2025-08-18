@@ -211,7 +211,7 @@ export default function TrainPage() {
           const newLabels: Label[] = [];
           
           // Get unique label names from API response
-          const uniqueLabels = [...new Set(result.examples.map((ex: any) => ex.label))];
+          const uniqueLabels = [...new Set(result.examples.map((ex: any) => ex.label))] as string[];
           
           uniqueLabels.forEach(labelName => {
             newLabels.push({

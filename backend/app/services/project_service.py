@@ -18,6 +18,52 @@ class ProjectService:
         self.topic_path = gcp_clients.get_topic_path()
         self.pubsub_client = gcp_clients.get_pubsub_client()
     
+    def _deserialize_project_data(self, data: dict) -> dict:
+        """Helper method to properly deserialize nested objects from Firestore"""
+        # Handle nested object deserialization
+        if 'dataset' in data and isinstance(data['dataset'], dict):
+            # Convert examples from dicts to TextExample objects
+            if 'examples' in data['dataset'] and isinstance(data['dataset']['examples'], list):
+                examples = []
+                for example_data in data['dataset']['examples']:
+                    if isinstance(example_data, dict):
+                        examples.append(TextExample(**example_data))
+                    else:
+                        examples.append(example_data)
+                data['dataset']['examples'] = examples
+            
+            # Convert dataset dict to Dataset object
+            data['dataset'] = Dataset(**data['dataset'])
+        
+        # Handle model deserialization
+        if 'model' in data and isinstance(data['model'], dict):
+            data['model'] = TrainedModel(**data['model'])
+        
+        # Handle config deserialization
+        if 'config' in data and isinstance(data['config'], dict):
+            data['config'] = ProjectConfig(**data['config'])
+        
+        # Handle datasets list deserialization
+        if 'datasets' in data and isinstance(data['datasets'], list):
+            datasets = []
+            for dataset_data in data['datasets']:
+                if isinstance(dataset_data, dict):
+                    # Handle examples in each dataset
+                    if 'examples' in dataset_data and isinstance(dataset_data['examples'], list):
+                        examples = []
+                        for example_data in dataset_data['examples']:
+                            if isinstance(example_data, dict):
+                                examples.append(TextExample(**example_data))
+                            else:
+                                examples.append(example_data)
+                        dataset_data['examples'] = examples
+                    datasets.append(Dataset(**dataset_data))
+                else:
+                    datasets.append(dataset_data)
+            data['datasets'] = datasets
+        
+        return data
+    
     async def create_project(self, project_data: ProjectCreate) -> Project:
         """Create a new project"""
         try:
@@ -57,6 +103,7 @@ class ProjectService:
             doc = self.collection.document(project_id).get()
             if doc.exists:
                 data = doc.to_dict()
+                data = self._deserialize_project_data(data)
                 return Project(**data)
             return None
         except Exception as e:
@@ -83,6 +130,7 @@ class ProjectService:
                 all_projects = []
                 for doc in docs:
                     data = doc.to_dict()
+                    data = self._deserialize_project_data(data)
                     project = Project(**data)
                     
                     # Apply additional filters in memory
@@ -122,6 +170,7 @@ class ProjectService:
                 
                 for doc in docs:
                     data = doc.to_dict()
+                    data = self._deserialize_project_data(data)
                     projects.append(Project(**data))
                 
                 return projects
@@ -314,3 +363,13 @@ class ProjectService:
             return project.dataset.examples
         except Exception as e:
             raise Exception(f"Failed to get examples: {str(e)}")
+    
+    async def save_project(self, project: Project) -> Project:
+        """Save complete project to Firestore"""
+        try:
+            project.updatedAt = datetime.now(timezone.utc)
+            project_dict = project.model_dump()
+            self.collection.document(project.id).set(project_dict)
+            return project
+        except Exception as e:
+            raise Exception(f"Failed to save project: {str(e)}")
