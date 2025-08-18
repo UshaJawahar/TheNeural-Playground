@@ -14,6 +14,7 @@ export const config = {
       trainModel: (sessionId: string, projectId: string) => `/api/guests/session/${sessionId}/projects/${projectId}/train`,
       trainingStatus: (sessionId: string, projectId: string) => `/api/guests/session/${sessionId}/projects/${projectId}/train`,
       predict: (sessionId: string, projectId: string) => `/api/guests/session/${sessionId}/projects/${projectId}/predict`,
+      deleteModel: (projectId: string, sessionId: string) => `/api/guests/projects/${projectId}/model?session_id=${sessionId}`,
     },
   },
 } as const;

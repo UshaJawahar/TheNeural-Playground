@@ -167,6 +167,7 @@ export default function LearnPage() {
     }>;
   } | null>(null);
   const [isTestingModel, setIsTestingModel] = useState(false);
+  const [isDeletingModel, setIsDeletingModel] = useState(false);
 
   const params = useParams();
   const urlUserId = params?.userid as string;
@@ -549,12 +550,74 @@ export default function LearnPage() {
     window.location.href = `/projects/${urlUserId}/${urlProjectId}/train`;
   };
 
-  const handleDeleteModel = () => {
-    if (actualSessionId && actualProjectId) {
-      const modelKey = `neural_playground_model_${actualSessionId}_${actualProjectId}`;
-      localStorage.removeItem(modelKey);
-      setTrainedModel(null);
-      setTestResult(null);
+  const handleDeleteModel = async () => {
+    if (!actualSessionId || !actualProjectId) return;
+    
+    // Show confirmation dialog
+    if (!confirm('Are you sure you want to delete this trained model? This action cannot be undone and will permanently remove the model from Google Cloud Storage.')) {
+      return;
+    }
+    
+    setIsDeletingModel(true);
+    
+    try {
+      console.log('🗑️ Deleting model via API');
+      console.log('Session ID:', actualSessionId);
+      console.log('Project ID:', actualProjectId);
+      
+      const response = await fetch(`${config.apiBaseUrl}${config.api.guests.deleteModel(actualProjectId, actualSessionId)}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      console.log('🗑️ Delete API Response Status:', response.status);
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log('✅ Model deleted successfully:', result);
+        
+        // Clear local storage
+        const modelKey = `neural_playground_model_${actualSessionId}_${actualProjectId}`;
+        localStorage.removeItem(modelKey);
+        
+        // Update UI state
+        setTrainedModel(null);
+        setTestResult(null);
+        setCurrentTrainingJob(null);
+        
+        // Show success message
+        alert('Model deleted successfully! The model has been removed from Google Cloud Storage and the project status has been reset to draft.');
+      } else {
+        console.error('❌ Delete API failed:', response.status);
+        
+        let errorDetails;
+        try {
+          errorDetails = await response.json();
+          console.error('📋 Error Details:', errorDetails);
+        } catch (jsonError) {
+          const errorText = await response.text();
+          console.error('📝 Error Text:', errorText);
+          errorDetails = { detail: errorText };
+        }
+        
+        // Show user-friendly error
+        if (response.status === 404) {
+          alert('Model not found. It may have already been deleted.');
+        } else if (response.status === 403) {
+          alert('Access denied. You do not have permission to delete this model.');
+        } else if (response.status === 500) {
+          alert('Server error occurred while deleting the model. Please try again later.');
+        } else {
+          alert(`Failed to delete model (${response.status}): ${errorDetails.detail || 'Unknown error'}`);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Network error during model deletion:', error);
+      alert('Network error: Failed to connect to the server. Please check your connection and try again.');
+    } finally {
+      setIsDeletingModel(false);
     }
   };
 
@@ -1026,9 +1089,17 @@ export default function LearnPage() {
                   <div className="flex gap-4">
                     <button
                       onClick={handleDeleteModel}
-                      className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg font-medium transition-colors duration-300"
+                      disabled={isDeletingModel}
+                      className="bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white px-6 py-3 rounded-lg font-medium transition-colors duration-300 flex items-center gap-2"
                     >
-                      Delete this model
+                      {isDeletingModel ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+                          Deleting...
+                        </>
+                      ) : (
+                        'Delete this model'
+                      )}
                     </button>
                     <button
                       onClick={handleTrainNewModel}

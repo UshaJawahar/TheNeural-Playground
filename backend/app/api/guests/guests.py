@@ -10,7 +10,7 @@ from ...models import (
     ProjectResponse, ProjectStatusResponseWrapper, TrainingConfig,
     FileUploadResponse, TrainingResponse, ErrorResponse,
     ExampleAdd, ExamplesBulkAdd, PredictionRequest, PredictionResponse,
-    GuestSessionResponse
+    GuestSessionResponse, TrainedModel
 )
 from ...services.guest_service import GuestService
 from ...services.project_service import ProjectService
@@ -806,6 +806,267 @@ async def get_guest_scratch_status(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# MODEL AND EXAMPLE DELETION
+# ============================================================================
+
+@router.delete("/projects/{project_id}/model")
+async def delete_trained_model(
+    project_id: str,
+    session_id: str = Query(..., description="Guest session ID"),
+    guest_service: GuestService = Depends(get_guest_service),
+    project_service: ProjectService = Depends(get_project_service)
+):
+    """Delete trained model from GCS for a guest project"""
+    try:
+        # Validate session
+        session = await validate_session_dependency(session_id, guest_service)
+        logger.info(f"Session validated for project {project_id}, session {session_id}")
+        
+        # Get project to verify ownership and get model path
+        project = await project_service.get_project(project_id)
+        if not project:
+            logger.error(f"Project {project_id} not found")
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        # Verify project belongs to this guest session
+        if project.student_id != session_id:
+            logger.error(f"Project {project_id} does not belong to session {session_id}")
+            raise HTTPException(status_code=403, detail="Project does not belong to this session")
+        
+        # Check if project has a trained model
+        if not project.model or not project.model.gcsPath:
+            logger.warning(f"Project {project_id} has no trained model to delete")
+            raise HTTPException(status_code=404, detail="No trained model found for this project")
+        
+        # Delete model from GCS
+        try:
+            from google.cloud import storage
+            from ...config import gcp_clients
+            
+            # Use the configured bucket from config instead of parsing from path
+            storage_client = storage.Client()
+            bucket = gcp_clients.get_bucket()
+            
+            logger.info(f"Using GCS bucket: {bucket.name}")
+            logger.info(f"Model GCS path: {project.model.gcsPath}")
+            logger.info(f"Full GCS object path: gs://{bucket.name}/{project.model.gcsPath}")
+            
+            # The gcsPath is just the object path within the bucket
+            blob = bucket.blob(project.model.gcsPath)
+            
+            if blob.exists():
+                blob.delete()
+                logger.info(f"Successfully deleted model file from GCS: {project.model.gcsPath}")
+            else:
+                logger.warning(f"Model file not found in GCS: {project.model.gcsPath}")
+        except Exception as e:
+            logger.error(f"Error deleting model from GCS: {str(e)}")
+            logger.error(f"Bucket name: {gcp_clients.get_bucket().name}")
+            logger.error(f"Project model GCS path: {project.model.gcsPath}")
+            raise HTTPException(status_code=500, detail=f"Failed to delete model from GCS: {str(e)}")
+        
+        # Update project to remove model information
+        try:
+            project.model = TrainedModel()  # Reset to empty model
+            project.status = "draft"  # Reset status
+            project.updatedAt = datetime.now(timezone.utc)
+            
+            # Update in database
+            await project_service.update_project(project_id, ProjectUpdate(
+                status="draft",
+                updatedAt=datetime.now(timezone.utc)
+            ))
+            
+            logger.info(f"Successfully updated project {project_id} after model deletion")
+            
+        except Exception as e:
+            logger.error(f"Error updating project after model deletion: {str(e)}")
+            # Don't fail the request if database update fails, model was already deleted from GCS
+        
+        return {
+            "success": True,
+            "message": "Trained model deleted successfully",
+            "project_id": project_id,
+            "deleted_gcs_path": project.model.gcsPath
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error deleting trained model: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete trained model: {str(e)}")
+
+
+@router.delete("/projects/{project_id}/examples/{label}")
+async def delete_examples_by_label(
+    project_id: str,
+    label: str,
+    session_id: str = Query(..., description="Guest session ID"),
+    guest_service: GuestService = Depends(get_guest_service),
+    project_service: ProjectService = Depends(get_project_service)
+):
+    """Delete all examples under a specific label for a guest project"""
+    try:
+        # Validate session
+        session = await validate_session_dependency(session_id, guest_service)
+        logger.info(f"Session validated for project {project_id}, session {session_id}, label: {label}")
+        
+        # Get project to verify ownership
+        project = await project_service.get_project(project_id)
+        if not project:
+            logger.error(f"Project {project_id} not found")
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        # Verify project belongs to this guest session
+        if project.student_id != session_id:
+            logger.error(f"Project {project_id} does not belong to session {session_id}")
+            raise HTTPException(status_code=403, detail="Project does not belong to this session")
+        
+        # Check if project has examples
+        if not project.dataset or not project.dataset.examples:
+            logger.warning(f"Project {project_id} has no examples to delete")
+            raise HTTPException(status_code=404, detail="No examples found for this project")
+        
+        # Count examples before deletion
+        examples_before = len(project.dataset.examples)
+        examples_with_label = [ex for ex in project.dataset.examples if ex.label == label]
+        examples_to_delete = len(examples_with_label)
+        
+        if examples_to_delete == 0:
+            logger.warning(f"No examples found with label '{label}' in project {project_id}")
+            raise HTTPException(status_code=404, detail=f"No examples found with label '{label}'")
+        
+        # Remove examples with the specified label
+        project.dataset.examples = [ex for ex in project.dataset.examples if ex.label != label]
+        
+        # Update labels list if it exists
+        if hasattr(project.dataset, 'labels') and project.dataset.labels:
+            if label in project.dataset.labels:
+                project.dataset.labels.remove(label)
+        
+        # Update dataset size
+        project.dataset.records = len(project.dataset.examples)
+        
+        # Update project timestamp
+        project.updatedAt = datetime.now(timezone.utc)
+        
+        # Update in database
+        try:
+            await project_service.update_project(project_id, ProjectUpdate(
+                updatedAt=datetime.now(timezone.utc)
+            ))
+            
+            logger.info(f"Successfully deleted {examples_to_delete} examples with label '{label}' from project {project_id}")
+            
+        except Exception as e:
+            logger.error(f"Error updating project after example deletion: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Failed to update project: {str(e)}")
+        
+        return {
+            "success": True,
+            "message": f"Successfully deleted {examples_to_delete} examples with label '{label}'",
+            "project_id": project_id,
+            "label": label,
+            "examples_deleted": examples_to_delete,
+            "examples_before": examples_before,
+            "examples_after": len(project.dataset.examples)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error deleting examples by label: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete examples: {str(e)}")
+
+
+@router.delete("/projects/{project_id}/examples/{label}/{example_index}")
+async def delete_specific_example(
+    project_id: str,
+    label: str,
+    example_index: int,
+    session_id: str = Query(..., description="Guest session ID"),
+    guest_service: GuestService = Depends(get_guest_service),
+    project_service: ProjectService = Depends(get_project_service)
+):
+    """Delete a specific example by index under a label for a guest project"""
+    try:
+        # Validate session
+        session = await validate_session_dependency(session_id, guest_service)
+        logger.info(f"Session validated for project {project_id}, session {session_id}, label: {label}, index: {example_index}")
+        
+        # Get project to verify ownership
+        project = await project_service.get_project(project_id)
+        if not project:
+            logger.error(f"Project {project_id} not found")
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        # Verify project belongs to this guest session
+        if project.student_id != session_id:
+            logger.error(f"Project {project_id} does not belong to session {session_id}")
+            raise HTTPException(status_code=403, detail="Project does not belong to this session")
+        
+        # Check if project has examples
+        if not project.dataset or not project.dataset.examples:
+            logger.warning(f"Project {project_id} has no examples to delete")
+            raise HTTPException(status_code=404, detail="No examples found for this project")
+        
+        # Find examples with the specified label
+        examples_with_label = [ex for ex in project.dataset.examples if ex.label == label]
+        
+        if not examples_with_label:
+            logger.warning(f"No examples found with label '{label}' in project {project_id}")
+            raise HTTPException(status_code=404, detail=f"No examples found with label '{label}'")
+        
+        # Validate example index
+        if example_index < 0 or example_index >= len(examples_with_label):
+            logger.error(f"Invalid example index {example_index} for label '{label}' (valid range: 0-{len(examples_with_label)-1})")
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Invalid example index. Valid range: 0-{len(examples_with_label)-1}"
+            )
+        
+        # Get the example to delete
+        example_to_delete = examples_with_label[example_index]
+        
+        # Remove the specific example from the dataset
+        project.dataset.examples.remove(example_to_delete)
+        
+        # Update dataset size
+        project.dataset.records = len(project.dataset.examples)
+        
+        # Update project timestamp
+        project.updatedAt = datetime.now(timezone.utc)
+        
+        # Update in database
+        try:
+            await project_service.update_project(project_id, ProjectUpdate(
+                updatedAt=datetime.now(timezone.utc)
+            ))
+            
+            logger.info(f"Successfully deleted example '{example_to_delete.text[:50]}...' with label '{label}' from project {project_id}")
+            
+        except Exception as e:
+            logger.error(f"Error updating project after specific example deletion: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Failed to update project: {str(e)}")
+        
+        return {
+            "success": True,
+            "message": f"Successfully deleted example with label '{label}'",
+            "project_id": project_id,
+            "label": label,
+            "example_index": example_index,
+            "deleted_example": example_to_delete.text[:100],  # First 100 chars for reference
+            "examples_remaining": len(project.dataset.examples)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error deleting specific example: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete example: {str(e)}")
 
 
 # ============================================================================

@@ -68,6 +68,8 @@ export default function TrainPage() {
   const [actualProjectId, setActualProjectId] = useState<string>('');
 
   const [isSubmittingToAPI, setIsSubmittingToAPI] = useState(false);
+  const [isDeletingExample, setIsDeletingExample] = useState(false);
+  const [deletingExampleId, setDeletingExampleId] = useState<string | null>(null);
 
   const params = useParams();
   const urlUserId = params?.userid as string;
@@ -179,6 +181,61 @@ export default function TrainPage() {
     setIsLoading(false);
   };
 
+  const refreshExamplesFromAPI = async () => {
+    if (!actualSessionId || !actualProjectId) return;
+    
+    try {
+      console.log('🔄 Refreshing examples from API');
+      
+      const response = await fetch(`${config.apiBaseUrl}${config.api.guests.examples(actualSessionId, actualProjectId)}`);
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log('✅ Examples refreshed from API:', result);
+        
+        if (result.success && result.examples) {
+          // Group examples by label
+          const examplesByLabel: { [key: string]: any[] } = {};
+          result.examples.forEach((example: any) => {
+            if (!examplesByLabel[example.label]) {
+              examplesByLabel[example.label] = [];
+            }
+            examplesByLabel[example.label].push({
+              id: example.id || `example-${Date.now()}-${Math.random()}`,
+              text: example.text,
+              createdAt: example.createdAt || new Date().toLocaleDateString()
+            });
+          });
+          
+          // Create completely new labels array based on API data
+          const newLabels: Label[] = [];
+          
+          // Get unique label names from API response
+          const uniqueLabels = [...new Set(result.examples.map((ex: any) => ex.label))];
+          
+          uniqueLabels.forEach(labelName => {
+            newLabels.push({
+              id: `label-${Date.now()}-${Math.random()}`,
+              name: labelName,
+              examples: examplesByLabel[labelName] || [],
+              createdAt: new Date().toLocaleDateString()
+            });
+          });
+          
+          console.log('🔄 Updating labels with fresh API data:', newLabels);
+          setLabels(newLabels);
+          
+          // Don't save to localStorage - let API be the source of truth
+          // saveLabels(actualSessionId, actualProjectId, newLabels);
+        }
+      } else {
+        console.error('❌ Failed to refresh examples from API:', response.status);
+      }
+    } catch (error) {
+      console.error('❌ Error refreshing examples from API:', error);
+    }
+  };
+
   const loadProjectAndLabels = async (sessionId: string, projectId: string) => {
     try {
       console.log('Loading project and labels for session:', sessionId, 'project:', projectId);
@@ -200,12 +257,8 @@ export default function TrainPage() {
             console.log('Found project:', project);
             setSelectedProject(project);
             
-            // Load labels for this project (for now, use localStorage until API is available)
-            const labelsKey = `neural_playground_labels_${sessionId}_${projectId}`;
-            const savedLabels = localStorage.getItem(labelsKey);
-            if (savedLabels) {
-              setLabels(JSON.parse(savedLabels));
-            }
+            // Load labels for this project from API instead of localStorage
+            await refreshExamplesFromAPI();
           } else {
             // Project not found in the session's projects
             console.error('Project not found in session projects. Looking for:', projectId);
@@ -369,7 +422,6 @@ export default function TrainPage() {
       
       const updatedLabels = [...labels, newLabel];
       setLabels(updatedLabels);
-      saveLabels(actualSessionId, actualProjectId, updatedLabels);
       
       // Label created successfully - examples will be submitted when added
       // Don't submit empty labels to API as they might cause validation errors
@@ -393,26 +445,9 @@ export default function TrainPage() {
       const success = await submitExampleImmediately(label.name, newExampleText.trim());
       
       if (success) {
-        // Only add to local state if API submission was successful
-        const newExample: Example = {
-          id: `example-${Date.now()}`,
-          text: newExampleText.trim(),
-          createdAt: new Date().toLocaleDateString()
-        };
+        // Refresh from API to ensure sync - this will update the UI with the correct state
+        await refreshExamplesFromAPI();
         
-        const updatedLabels = labels.map(labelItem => {
-          if (labelItem.id === selectedLabelId) {
-            return {
-              ...labelItem,
-              examples: [...labelItem.examples, newExample]
-            };
-          }
-          return labelItem;
-        });
-        
-        setLabels(updatedLabels);
-        saveLabels(actualSessionId, actualProjectId, updatedLabels);
-
         // Reset form and close modal
         setNewExampleText('');
         setSelectedLabelId('');
@@ -453,19 +488,8 @@ export default function TrainPage() {
         const success = await submitExamplesToAPI(label.name, newExamples);
         
         if (success) {
-          // Only add to local state if API submission was successful
-          const updatedLabels = labels.map(labelItem => {
-            if (labelItem.id === labelId) {
-              return {
-                ...labelItem,
-                examples: [...labelItem.examples, ...newExamples]
-              };
-            }
-            return labelItem;
-          });
-          
-          setLabels(updatedLabels);
-          saveLabels(actualSessionId, actualProjectId, updatedLabels);
+          // Refresh from API to ensure sync - this will update the UI with the correct state
+          await refreshExamplesFromAPI();
           
           console.log(`✅ Successfully uploaded ${newExamples.length} examples from file`);
         } else {
@@ -483,24 +507,168 @@ export default function TrainPage() {
     if (actualSessionId && actualProjectId) {
       const updatedLabels = labels.filter(label => label.id !== labelId);
       setLabels(updatedLabels);
-      saveLabels(actualSessionId, actualProjectId, updatedLabels);
+      // Note: This is just UI state change, actual deletion would need API endpoint
     }
   };
 
-  const handleDeleteExample = (labelId: string, exampleId: string) => {
-    if (actualSessionId && actualProjectId) {
-      const updatedLabels = labels.map(label => {
-        if (label.id === labelId) {
-          return {
-            ...label,
-            examples: label.examples.filter(example => example.id !== exampleId)
-          };
-        }
-        return label;
+  const handleDeleteExample = async (labelId: string, exampleId: string) => {
+    if (!actualSessionId || !actualProjectId) return;
+    
+    // Find the label and example to get the label name and example index
+    const label = labels.find(l => l.id === labelId);
+    if (!label) {
+      alert('Label not found');
+      return;
+    }
+    
+    const exampleIndex = label.examples.findIndex(ex => ex.id === exampleId);
+    if (exampleIndex === -1) {
+      alert('Example not found');
+      return;
+    }
+    
+    // Show confirmation dialog
+    if (!confirm(`Are you sure you want to delete the example "${label.examples[exampleIndex].text.substring(0, 50)}..." from the "${label.name}" label?`)) {
+      return;
+    }
+    
+    setIsDeletingExample(true);
+    setDeletingExampleId(exampleId);
+    
+    try {
+      console.log('🗑️ Deleting example via API');
+      console.log('Session ID:', actualSessionId);
+      console.log('Project ID:', actualProjectId);
+      console.log('Label:', label.name);
+      console.log('Example Index:', exampleIndex);
+      
+      const response = await fetch(`${config.apiBaseUrl}${config.api.guests.deleteSpecificExample(actualProjectId, label.name, exampleIndex, actualSessionId)}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
       });
       
-      setLabels(updatedLabels);
-      saveLabels(actualSessionId, actualProjectId, updatedLabels);
+      console.log('🗑️ Delete Example API Response Status:', response.status);
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log('✅ Example deleted successfully:', result);
+        
+        // Refresh from API to ensure sync - this will update the UI with the correct state
+        await refreshExamplesFromAPI();
+        
+        // Show success message
+        alert('Example deleted successfully!');
+      } else {
+        console.error('❌ Delete Example API failed:', response.status);
+        
+        let errorDetails;
+        try {
+          errorDetails = await response.json();
+          console.error('📋 Error Details:', errorDetails);
+        } catch (jsonError) {
+          const errorText = await response.text();
+          console.error('📝 Error Text:', errorText);
+          errorDetails = { detail: errorText };
+        }
+        
+        // Show user-friendly error
+        if (response.status === 404) {
+          alert('Example not found. It may have already been deleted.');
+        } else if (response.status === 403) {
+          alert('Access denied. You do not have permission to delete this example.');
+        } else if (response.status === 500) {
+          alert('Server error occurred while deleting the example. Please try again later.');
+        } else {
+          alert(`Failed to delete example (${response.status}): ${errorDetails.detail || 'Unknown error'}`);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Network error during example deletion:', error);
+      alert('Network error: Failed to connect to the server. Please check your connection and try again.');
+    } finally {
+      setIsDeletingExample(false);
+      setDeletingExampleId(null);
+    }
+  };
+
+  const handleDeleteAllExamplesByLabel = async (labelId: string) => {
+    if (!actualSessionId || !actualProjectId) return;
+    
+    // Find the label to get the label name
+    const label = labels.find(l => l.id === labelId);
+    if (!label) {
+      alert('Label not found');
+      return;
+    }
+    
+    if (label.examples.length === 0) {
+      alert('No examples to delete');
+      return;
+    }
+    
+    // Show confirmation dialog
+    if (!confirm(`Are you sure you want to delete ALL ${label.examples.length} examples from the "${label.name}" label? This action cannot be undone.`)) {
+      return;
+    }
+    
+    setIsDeletingExample(true);
+    
+    try {
+      console.log('🗑️ Deleting all examples by label via API');
+      console.log('Session ID:', actualSessionId);
+      console.log('Project ID:', actualProjectId);
+      console.log('Label:', label.name);
+      console.log('Examples count:', label.examples.length);
+      
+      const response = await fetch(`${config.apiBaseUrl}${config.api.guests.deleteExamplesByLabel(actualProjectId, label.name, actualSessionId)}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      console.log('🗑️ Delete Examples by Label API Response Status:', response.status);
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log('✅ All examples deleted successfully:', result);
+        
+        // Refresh from API to ensure sync - this will update the UI with the correct state
+        await refreshExamplesFromAPI();
+        
+        // Show success message
+        alert(`Successfully deleted all ${label.examples.length} examples from the "${label.name}" label!`);
+      } else {
+        console.error('❌ Delete Examples by Label API failed:', response.status);
+        
+        let errorDetails;
+        try {
+          errorDetails = await response.json();
+          console.error('📋 Error Details:', errorDetails);
+        } catch (jsonError) {
+          const errorText = await response.text();
+          console.error('📝 Error Text:', errorText);
+          errorDetails = { detail: errorText };
+        }
+        
+        // Show user-friendly error
+        if (response.status === 404) {
+          alert('No examples found with this label.');
+        } else if (response.status === 403) {
+          alert('Access denied. You do not have permission to delete these examples.');
+        } else if (response.status === 500) {
+          alert('Server error occurred while deleting the examples. Please try again later.');
+        } else {
+          alert(`Failed to delete examples (${response.status}): ${errorDetails.detail || 'Unknown error'}`);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Network error during examples deletion:', error);
+      alert('Network error: Failed to connect to the server. Please check your connection and try again.');
+    } finally {
+      setIsDeletingExample(false);
     }
   };
 
@@ -646,6 +814,17 @@ export default function TrainPage() {
                    </div>
                  )}
 
+                 <button
+                   onClick={refreshExamplesFromAPI}
+                   disabled={isSubmittingToAPI || isDeletingExample}
+                   className="bg-[#1c1c1c] border border-[#bc6cd3]/20 hover:bg-[#bc6cd3]/10 text-white px-4 py-4 rounded-lg transition-all duration-300 inline-flex items-center gap-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                   title="Refresh examples from server"
+                 >
+                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                   </svg>
+                   Refresh
+                 </button>
 
                  <button
                   onClick={() => setShowAddLabelModal(true)}
@@ -674,15 +853,27 @@ export default function TrainPage() {
                            }`}>
                    <div className="bg-[#bc6cd3]/20 px-3 py-2 flex justify-between items-center">
                      <h3 className="text-white font-semibold text-base">{label.name}</h3>
-                     <button
-                       onClick={() => handleDeleteLabel(label.id)}
-                       className="text-red-500 hover:text-red-700 transition-all duration-300"
-                       title="Delete label"
-                     >
-                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                       </svg>
-                     </button>
+                     <div className="flex items-center gap-2">
+                       {label.examples.length > 0 && (
+                         <button
+                           onClick={() => handleDeleteAllExamplesByLabel(label.id)}
+                           disabled={isDeletingExample}
+                           className="text-orange-400 hover:text-orange-300 transition-all duration-300 text-xs px-2 py-1 rounded border border-orange-400/30 hover:border-orange-400/50"
+                           title="Delete all examples under this label"
+                         >
+                           {isDeletingExample ? 'Deleting...' : 'Clear All'}
+                         </button>
+                       )}
+                       <button
+                         onClick={() => handleDeleteLabel(label.id)}
+                         className="text-red-500 hover:text-red-700 transition-all duration-300"
+                         title="Delete label"
+                       >
+                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                         </svg>
+                       </button>
+                     </div>
                    </div>
 
                                                            <div className="p-3 bg-[#1c1c1c] text-white flex flex-col h-full">
@@ -748,12 +939,17 @@ export default function TrainPage() {
                                 </span>
                                 <button
                                   onClick={() => handleDeleteExample(label.id, example.id)}
-                                  className="text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-full p-0.5 opacity-70 group-hover:opacity-100 transition-all duration-300 flex-shrink-0"
+                                  disabled={isDeletingExample && deletingExampleId === example.id}
+                                  className="text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-full p-0.5 opacity-70 group-hover:opacity-100 transition-all duration-300 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                                   title="Delete example"
                                 >
-                                  <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-                                  </svg>
+                                  {isDeletingExample && deletingExampleId === example.id ? (
+                                    <div className="w-2.5 h-2.5 border border-red-400/20 border-t-red-400 rounded-full animate-spin"></div>
+                                  ) : (
+                                    <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                  )}
                                 </button>
                               </div>
                             ))}
