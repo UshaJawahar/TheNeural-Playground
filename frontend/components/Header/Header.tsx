@@ -14,6 +14,7 @@ interface HeaderProps {
   fixed?: boolean;
   transparent?: boolean;
   theme?: 'dark' | 'light';
+  showAboutLink?: boolean;
 }
 
 export default function Header({
@@ -23,7 +24,8 @@ export default function Header({
   showMobileMenu = true,
   fixed = true,
   transparent = false,
-  theme = 'dark'
+  theme = 'dark',
+  showAboutLink = false
 }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -47,7 +49,7 @@ export default function Header({
           
           {/* Center: Desktop Navigation */}
           <div className="hidden md:block flex-1 flex justify-center">
-            <Navigation links={navigationLinks} theme={theme} />
+            <Navigation links={showAboutLink ? ['About'] : []} theme={theme} />
           </div>
           
           {/* Right: Yaaralabs.ai */}
@@ -79,7 +81,7 @@ export default function Header({
         {showMobileMenu && (
           <MobileMenu
             isOpen={mobileMenuOpen}
-            links={navigationLinks}
+            links={showAboutLink ? ['About'] : []}
           />
         )}
       </nav>

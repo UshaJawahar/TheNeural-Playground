@@ -201,7 +201,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-[#1c1c1c] text-white">
       {/* Header Component */}
-      <Header />
+      <Header showAboutLink={true} />
 
       {/* Hero Section */}
       <section className="pt-24 pb-20 px-4 sm:px-6 lg:px-8">

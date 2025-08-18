@@ -804,16 +804,14 @@ export default function TrainPage() {
               </svg>
               <div>
                 <h3 className="text-[#dcfc84] font-medium mb-2">Note: Before you can proceed to next step</h3>
-                <ul className="text-white text-sm space-y-1">
-                  <li className="flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 bg-[#dcfc84] rounded-full"></span>
+                <div className="text-white text-sm space-y-1">
+                  <div className="flex items-center gap-2">
                     <strong>1.</strong> You need to create at least <strong>2 classes/labels</strong> (e.g., &ldquo;happy&rdquo;, &ldquo;sad&rdquo;)
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 bg-[#dcfc84] rounded-full"></span>
+                  </div>
+                  <div className="flex items-center gap-2">
                     <strong>2.</strong> For each label fill in at least <strong>5 examples at minimum</strong>
-                  </li>
-                </ul>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
