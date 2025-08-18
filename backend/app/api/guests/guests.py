@@ -390,10 +390,17 @@ async def get_guest_examples(
             raise HTTPException(status_code=404, detail="Project not found")
         
         examples = await project_service.get_examples(project_id)
+        
+        # Also get the labels list from the project
+        labels = []
+        if hasattr(project.dataset, 'labels') and project.dataset.labels:
+            labels = project.dataset.labels
+        
         return {
             "success": True,
             "examples": examples,
-            "totalExamples": len(examples)
+            "totalExamples": len(examples),
+            "labels": labels
         }
     except HTTPException:
         raise
@@ -959,10 +966,8 @@ async def delete_examples_by_label(
         # Remove examples with the specified label
         project.dataset.examples = [ex for ex in project.dataset.examples if ex.label != label]
         
-        # Update labels list if it exists
-        if hasattr(project.dataset, 'labels') and project.dataset.labels:
-            if label in project.dataset.labels:
-                project.dataset.labels.remove(label)
+        # Keep the label in the labels list even if no examples remain
+        # This allows users to add examples to the label again without recreating it
         
         # Update dataset size
         project.dataset.records = len(project.dataset.examples)
@@ -972,11 +977,18 @@ async def delete_examples_by_label(
         
         # Save the complete project with updated dataset to database
         try:
-            # Ensure all dataset fields are properly set
+            # Ensure all dataset fields are properly set and preserve the deleted label
             if not hasattr(project.dataset, 'labels') or project.dataset.labels is None:
-                # Regenerate labels from remaining examples
-                all_labels = set(example.label for example in project.dataset.examples)
-                project.dataset.labels = list(all_labels)
+                project.dataset.labels = []
+            
+            # Keep existing labels and add any new ones from examples
+            existing_labels = set(project.dataset.labels)
+            example_labels = set(example.label for example in project.dataset.examples)
+            
+            # Preserve all existing labels (including the one we just cleared examples from)
+            # and add any new labels from examples
+            all_labels = existing_labels.union(example_labels)
+            project.dataset.labels = list(all_labels)
             
             # Use the save_project method to avoid any ProjectUpdate serialization issues
             await project_service.save_project(project)

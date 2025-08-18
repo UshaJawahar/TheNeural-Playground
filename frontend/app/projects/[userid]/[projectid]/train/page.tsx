@@ -193,31 +193,39 @@ export default function TrainPage() {
         const result = await response.json();
         console.log('✅ Examples refreshed from API:', result);
         
-        if (result.success && result.examples) {
+        if (result.success) {
           // Group examples by label
           const examplesByLabel: { [key: string]: any[] } = {};
-          result.examples.forEach((example: any) => {
-            if (!examplesByLabel[example.label]) {
-              examplesByLabel[example.label] = [];
-            }
-            examplesByLabel[example.label].push({
-              id: example.id || `example-${Date.now()}-${Math.random()}`,
-              text: example.text,
-              createdAt: example.createdAt || new Date().toLocaleDateString()
+          
+          // Process examples if they exist
+          if (result.examples && result.examples.length > 0) {
+            result.examples.forEach((example: any) => {
+              if (!examplesByLabel[example.label]) {
+                examplesByLabel[example.label] = [];
+              }
+              examplesByLabel[example.label].push({
+                id: example.id || `example-${Date.now()}-${Math.random()}`,
+                text: example.text,
+                createdAt: example.createdAt || new Date().toLocaleDateString()
+              });
             });
-          });
+          }
           
           // Create completely new labels array based on API data
           const newLabels: Label[] = [];
           
-          // Get unique label names from API response
-          const uniqueLabels = [...new Set(result.examples.map((ex: any) => ex.label))] as string[];
+          // Get all unique labels - from examples AND from the labels list in the response
+          const labelsFromExamples = result.examples ? [...new Set(result.examples.map((ex: any) => ex.label))] as string[] : [];
+          const labelsFromAPI = result.labels || []; // Get labels from API response if available
           
-          uniqueLabels.forEach(labelName => {
+          // Combine both sources of labels and remove duplicates
+          const allUniqueLabels = [...new Set([...labelsFromExamples, ...labelsFromAPI])] as string[];
+          
+          allUniqueLabels.forEach(labelName => {
             newLabels.push({
               id: `label-${Date.now()}-${Math.random()}`,
               name: labelName,
-              examples: examplesByLabel[labelName] || [],
+              examples: examplesByLabel[labelName] || [], // Will be empty array for labels without examples
               createdAt: new Date().toLocaleDateString()
             });
           });

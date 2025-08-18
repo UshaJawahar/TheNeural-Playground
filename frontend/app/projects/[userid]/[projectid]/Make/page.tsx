@@ -3,11 +3,31 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Header from '../../../../../components/Header';
+import config from '../../../../../lib/config';
+import { 
+  getSessionIdFromMaskedId, 
+  isMaskedId, 
+  isSessionId, 
+  getOrCreateMaskedId,
+  getProjectIdFromMaskedId,
+  isMaskedProjectId,
+  isProjectId
+} from '../../../../../lib/session-utils';
+import { cleanupSessionWithReason, SessionCleanupReason } from '../../../../../lib/session-cleanup';
 
-interface UserSession {
-  userId: string;
-  createdAt: number;
-  expiresAt: number;
+interface GuestSession {
+  session_id: string;
+  createdAt: string;
+  expiresAt: string;
+  active: boolean;
+  ip_address?: string;
+  user_agent?: string;
+  last_active?: string;
+}
+
+interface GuestSessionResponse {
+  success: boolean;
+  data: GuestSession;
 }
 
 interface Project {
@@ -15,75 +35,172 @@ interface Project {
   name: string;
   type: string;
   createdAt: string;
+  description?: string;
+  status?: string;
+  maskedId?: string;
 }
 
 export default function MakePage() {
-  const [, setUserSession] = useState<UserSession | null>(null);
+  const [guestSession, setGuestSession] = useState<GuestSession | null>(null);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isValidSession, setIsValidSession] = useState(false);
+  const [actualSessionId, setActualSessionId] = useState<string>('');
+  const [actualProjectId, setActualProjectId] = useState<string>('');
 
   const params = useParams();
   const urlUserId = params?.userid as string;
   const urlProjectId = params?.projectid as string;
 
   useEffect(() => {
-    validateUserSession();
+    validateGuestSession();
   }, [urlUserId, urlProjectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const validateUserSession = () => {
+  const validateGuestSession = async () => {
     if (!urlUserId || !urlProjectId) {
       setIsLoading(false);
       return;
     }
 
     try {
-      const sessionData = localStorage.getItem('neural_playground_session');
-      if (sessionData) {
-        const session: UserSession = JSON.parse(sessionData);
-        const now = Date.now();
-        
-        if (now < session.expiresAt && session.userId === urlUserId) {
-          setUserSession(session);
-          setIsValidSession(true);
-          loadProject(session.userId, urlProjectId);
-        } else if (session.userId !== urlUserId) {
-          window.location.href = `/projects/${session.userId}`;
+      let sessionId: string;
+      let projectId: string;
+
+      // Check if URL param is a masked ID or full session ID
+      if (isMaskedId(urlUserId)) {
+        const realSessionId = getSessionIdFromMaskedId(urlUserId);
+        if (!realSessionId) {
+          window.location.href = '/projects';
           return;
+        }
+        sessionId = realSessionId;
+      } else if (isSessionId(urlUserId)) {
+        const maskedId = getOrCreateMaskedId(urlUserId);
+        window.location.href = `/projects/${maskedId}/${urlProjectId}/make`;
+        return;
+      } else {
+        window.location.href = '/projects';
+        return;
+      }
+
+      // Check if project ID is masked
+      if (isMaskedProjectId(urlProjectId)) {
+        const realProjectId = getProjectIdFromMaskedId(urlProjectId);
+        if (!realProjectId) {
+          window.location.href = `/projects/${urlUserId}`;
+          return;
+        }
+        projectId = realProjectId;
+      } else if (isProjectId(urlProjectId)) {
+        projectId = urlProjectId;
+      } else {
+        window.location.href = `/projects/${urlUserId}`;
+        return;
+      }
+
+      // Check if session exists in localStorage
+      const storedSessionId = localStorage.getItem('neural_playground_session_id');
+      
+      if (!storedSessionId) {
+        window.location.href = '/projects';
+        return;
+      }
+
+      if (storedSessionId !== sessionId) {
+        const correctMaskedId = getOrCreateMaskedId(storedSessionId);
+        window.location.href = `/projects/${correctMaskedId}`;
+        return;
+      }
+
+      // Validate session with backend API
+      const response = await fetch(`${config.apiBaseUrl}${config.api.guests.sessionById(sessionId)}`);
+      
+      if (response.ok) {
+        const sessionResponse: GuestSessionResponse = await response.json();
+        if (sessionResponse.success && sessionResponse.data.active) {
+          const now = new Date();
+          const expiresAt = new Date(sessionResponse.data.expiresAt);
+          
+          if (now < expiresAt) {
+            setActualSessionId(sessionId);
+            setActualProjectId(projectId);
+            setGuestSession(sessionResponse.data);
+            setIsValidSession(true);
+            
+            // Load project after setting session as valid
+            await loadProject(sessionId, projectId);
+          } else {
+            console.error('Session expired');
+            await cleanupSessionWithReason(SessionCleanupReason.EXPIRED_BACKEND);
+            window.location.href = '/projects';
+            return;
+          }
         } else {
-          localStorage.removeItem('neural_playground_session');
+          console.error('Session inactive');
+          localStorage.removeItem('neural_playground_session_id');
+          localStorage.removeItem('neural_playground_session_created');
           window.location.href = '/projects';
           return;
         }
       } else {
+        console.error('Session validation failed:', response.status);
+        await cleanupSessionWithReason(SessionCleanupReason.ERROR_FALLBACK);
         window.location.href = '/projects';
         return;
       }
     } catch (error) {
       console.error('Error validating session:', error);
-      localStorage.removeItem('neural_playground_session');
+      localStorage.removeItem('neural_playground_session_id');
+      localStorage.removeItem('neural_playground_session_created');
       window.location.href = '/projects';
       return;
     }
     setIsLoading(false);
   };
 
-  const loadProject = (userId: string, projectId: string) => {
+  const loadProject = async (sessionId: string, projectId: string) => {
     try {
-      const projectsKey = `neural_playground_projects_${userId}`;
-      const savedProjects = localStorage.getItem(projectsKey);
-      if (savedProjects) {
-        const projects: Project[] = JSON.parse(savedProjects);
-        const project = projects.find(p => p.id === projectId);
-        if (project) {
-          setSelectedProject(project);
+      console.log('Loading project:', projectId, 'for session:', sessionId);
+      
+      // Load all projects for the session and find the specific project
+      const response = await fetch(`${config.apiBaseUrl}/api/guests/session/${sessionId}/projects`);
+      
+      if (response.ok) {
+        const projectsResponse = await response.json();
+        console.log('Projects response:', projectsResponse);
+        
+        if (projectsResponse.success && projectsResponse.data) {
+          console.log('Available projects:', projectsResponse.data.map((p: Project) => ({ id: p.id, name: p.name })));
+          
+          // Find the specific project by ID
+          const project = projectsResponse.data.find((p: Project) => p.id === projectId);
+          
+          if (project) {
+            console.log('Found project:', project);
+            setSelectedProject(project);
+          } else {
+            // Project not found in the session's projects
+            console.error('Project not found in session projects. Looking for:', projectId);
+            console.error('Available project IDs:', projectsResponse.data.map((p: Project) => p.id));
+            window.location.href = `/projects/${urlUserId}`;
+            return;
+          }
         } else {
-          window.location.href = `/projects/${userId}`;
+          // No projects found or empty response
+          console.error('No projects found for session or invalid response structure');
+          window.location.href = `/projects/${urlUserId}`;
           return;
         }
+      } else {
+        // Failed to load projects
+        console.error('Failed to load session projects:', response.status);
+        window.location.href = `/projects/${urlUserId}`;
+        return;
       }
     } catch (error) {
-      console.error('Error loading project:', error);
+      console.error('Error loading session projects:', error);
+      window.location.href = `/projects/${urlUserId}`;
+      return;
     }
   };
 
@@ -142,7 +259,7 @@ export default function MakePage() {
           {/* Back to Project Navigation */}
           <div className="flex items-center mb-8">
             <a
-              href={`/projects/${urlUserId}/${selectedProject.id}`}
+              href={`/projects/${urlUserId}/${urlProjectId}`}
               className="p-2 text-white/70 hover:text-white hover:bg-[#bc6cd3]/10 rounded-lg transition-all duration-300 flex items-center gap-2 text-sm"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
