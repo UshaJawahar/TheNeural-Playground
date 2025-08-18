@@ -779,7 +779,7 @@ export default function TrainPage() {
               {labels.length === 0 && (
                 <div className="bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-lg p-4 max-w-md">
                   <p className="text-white text-sm text-center">
-                    Click on the &lsquo;plus&rsquo; button on the right to add your first bucket.→
+                    Click on the &lsquo;plus&rsquo; button on the right to add your first label.→
                   </p>
                 </div>
               )}
