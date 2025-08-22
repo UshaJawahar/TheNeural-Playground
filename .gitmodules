@@ -4,3 +4,6 @@
 [submodule "scratch-gui"]
 	path = scratch-gui
 	url = https://github.com/LLK/scratch-gui.git
+[submodule "scratch-editor"]
+	path = scratch-editor
+	url = ./scratch-editor
