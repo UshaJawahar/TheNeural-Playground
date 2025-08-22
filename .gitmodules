@@ -6,4 +6,4 @@
 	url = https://github.com/LLK/scratch-gui.git
 [submodule "scratch-editor"]
 	path = scratch-editor
-	url = ./scratch-editor
+	url = https://github.com/UshaJawahar/scratch-editor.git
