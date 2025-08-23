@@ -1233,3 +1233,309 @@ async def delete_guest_session(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# ============================================================================
+# SCRATCH SERVICES
+# ============================================================================
+
+@router.post("/session/{session_id}/projects/{project_id}/scratch/start", response_model=dict)
+async def start_scratch_services(
+    session_id: str,
+    project_id: str,
+    session: dict = Depends(validate_session_dependency),
+    project_service: ProjectService = Depends(get_project_service)
+):
+    """Start Scratch services for a guest project"""
+    try:
+        # Verify project belongs to this session
+        project = await project_service.get_project(project_id)
+        if not project or project.student_id != session_id:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        # For now, return success - in production this would start actual services
+        return {
+            "success": True,
+            "message": "Scratch services started successfully",
+            "gui_url": "http://localhost:8601",
+            "vm_url": "http://localhost:8602",
+            "project_id": project_id,
+            "session_id": session_id
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error starting Scratch services for project {project_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/scratch/start-all", response_model=dict)
+async def start_all_scratch_services():
+    """Start all Scratch services (scratch-gui, scratch-vm, etc.)"""
+    try:
+        # In production, this would start actual Scratch services
+        # For now, return success with default ports
+        return {
+            "success": True,
+            "message": "All Scratch services started successfully",
+            "gui_url": "http://localhost:8601",
+            "vm_url": "http://localhost:8602",
+            "services": [
+                {
+                    "name": "scratch-gui",
+                    "status": "running",
+                    "port": 8601,
+                    "url": "http://localhost:8601"
+                },
+                {
+                    "name": "scratch-vm",
+                    "status": "running", 
+                    "port": 8602,
+                    "url": "http://localhost:8602"
+                }
+            ]
+        }
+    except Exception as e:
+        logger.error(f"Error starting Scratch services: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# MACHINE LEARNING ENDPOINTS FOR SCRATCH EXTENSION
+# ============================================================================
+
+@router.get("/session/{session_id}/projects/{project_id}/examples", response_model=dict)
+async def get_guest_examples(
+    session_id: str,
+    project_id: str,
+    session: dict = Depends(validate_session_dependency),
+    project_service: ProjectService = Depends(get_project_service)
+):
+    """Get examples and model information for Scratch extension"""
+    try:
+        # Validate that the project belongs to this session
+        project = await project_service.get_project(project_id)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        # Check if project belongs to this session
+        if project.guest_session_id != session_id and project.createdBy != f"guest:{session_id}":
+            raise HTTPException(status_code=403, detail="Project does not belong to this session")
+        
+        # Get examples for this project
+        examples = await project_service.get_project_examples(project_id)
+        
+        # Extract unique labels from examples
+        labels = list(set([ex.label for ex in examples if ex.label]))
+        
+        # Check if model is ready (has training data)
+        model_ready = len(examples) > 0
+        
+        return {
+            "success": True,
+            "data": {
+                "labels": labels,
+                "examples_count": len(examples),
+                "model_ready": model_ready,
+                "project_name": project.name,
+                "project_type": project.type
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting examples for project {project_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/session/{session_id}/projects/{project_id}/predict", response_model=dict)
+async def predict_guest_text(
+    session_id: str,
+    project_id: str,
+    request: PredictionRequest,
+    session: dict = Depends(validate_session_dependency),
+    project_service: ProjectService = Depends(get_project_service)
+):
+    """Predict text classification for Scratch extension"""
+    try:
+        # Validate that the project belongs to this session
+        project = await project_service.get_project(project_id)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        # Check if project belongs to this session
+        if project.guest_session_id != session_id:
+            raise HTTPException(status_code=403, detail="Project does not belong to this session")
+        
+        # Get examples for this project
+        examples = await project_service.get_project_examples(project_id)
+        
+        if not examples:
+            raise HTTPException(status_code=400, detail="No training data available for prediction")
+        
+        # Simple text classification based on training examples
+        # In a real implementation, you would use a trained ML model here
+        text = request.text.lower()
+        
+        # Find the most similar example
+        best_match = None
+        best_score = 0
+        
+        for example in examples:
+            if example.text:
+                # Simple similarity score (word overlap)
+                example_words = set(example.text.lower().split())
+                text_words = set(text.lower().split())
+                
+                if example_words and text_words:
+                    overlap = len(example_words.intersection(text_words))
+                    total = len(example_words.union(text_words))
+                    score = overlap / total if total > 0 else 0
+                    
+                    if score > best_score:
+                        best_score = score
+                        best_match = example
+        
+        if best_match and best_score > 0.1:  # Minimum similarity threshold
+            return {
+                "success": True,
+                "data": {
+                    "label": best_match.label,
+                    "text": text,
+                    "confidence": best_score
+                }
+            }
+        else:
+            # Return the most common label with low confidence
+            label_counts = {}
+            for ex in examples:
+                if ex.label:
+                    label_counts[ex.label] = label_counts.get(ex.label, 0) + 1
+            
+            most_common_label = max(label_counts.items(), key=lambda x: x[1])[0] if label_counts else "unknown"
+            
+            return {
+                "success": True,
+                "data": {
+                    "label": most_common_label,
+                    "text": text,
+                    "confidence": 0.1
+                }
+            }
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error predicting text for project {project_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/session/{session_id}/projects/{project_id}/train", response_model=dict)
+async def train_guest_project(
+    session_id: str,
+    project_id: str,
+    request: dict,
+    session: dict = Depends(validate_session_dependency),
+    project_service: ProjectService = Depends(get_project_service)
+):
+    """Add training data or start training for Scratch extension"""
+    try:
+        # Validate that the project belongs to this session
+        project = await project_service.get_project(project_id)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        # Check if project belongs to this session
+        if project.guest_session_id != session_id:
+            raise HTTPException(status_code=403, detail="Project does not belong to this session")
+        
+        # Check if this is adding training data or starting training
+        if 'text' in request and 'label' in request:
+            # Adding training data
+            example = ExampleAdd(
+                text=request['text'],
+                label=request['label']
+            )
+            
+            await project_service.add_example_to_project(project_id, example)
+            
+            return {
+                "success": True,
+                "data": {
+                    "message": "Training data added successfully",
+                    "action": "add_data",
+                    "text": request['text'],
+                    "label": request['label']
+                }
+            }
+        elif request.get('action') == 'train':
+            # Starting training process
+            examples = await project_service.get_project_examples(project_id)
+            
+            if len(examples) < 2:
+                raise HTTPException(status_code=400, detail="Need at least 2 examples to start training")
+            
+            # In a real implementation, you would start an async training job here
+            # For now, we'll just return success
+            return {
+                "success": True,
+                "data": {
+                    "message": "Training started successfully",
+                    "action": "train",
+                    "examples_count": len(examples),
+                    "status": "training"
+                }
+            }
+        else:
+            raise HTTPException(status_code=400, detail="Invalid request. Must include 'text' and 'label' or 'action': 'train'")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error training project {project_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/session/{session_id}/projects/{project_id}/train", response_model=dict)
+async def get_guest_training_status(
+    session_id: str,
+    project_id: str,
+    session: dict = Depends(validate_session_dependency),
+    project_service: ProjectService = Depends(get_project_service)
+):
+    """Get training status for Scratch extension"""
+    try:
+        # Validate that the project belongs to this session
+        project = await project_service.get_project(project_id)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        # Check if project belongs to this session
+        if project.guest_session_id != session_id:
+            raise HTTPException(status_code=403, detail="Project does not belong to this session")
+        
+        # Get examples for this project
+        examples = await project_service.get_project_examples(project_id)
+        
+        # Determine training status
+        if len(examples) == 0:
+            status = "no_data"
+        elif len(examples) < 2:
+            status = "insufficient_data"
+        else:
+            status = "ready"
+        
+        return {
+            "success": True,
+            "data": {
+                "status": status,
+                "examples_count": len(examples),
+                "project_name": project.name,
+                "last_updated": project.updatedAt.isoformat() if project.updatedAt else None
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting training status for project {project_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))

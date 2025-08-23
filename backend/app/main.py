@@ -8,7 +8,7 @@ import asyncio
 import threading
 
 from .config import settings
-from .api import projects, health, teachers, students, classrooms, demo_projects
+from .api import projects, health, teachers, students, classrooms, demo_projects, scratch_services
 from .api.guests import router as guests_router
 from .training_worker import training_worker
 
@@ -25,13 +25,23 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# Add middleware
+# Define allowed origins for CORS
+origins = [
+    "http://localhost:3000",   # Next.js dev server
+    "http://localhost:8601",   # Another frontend port if used
+    "http://127.0.0.1:3000",   # Loopback for Next.js
+    "http://127.0.0.1:8601",   # Loopback for other frontend
+    settings.cors_origin,      # Additional origin from settings
+    # "*"                      # Uncomment to allow all origins during development (less secure)
+]
+
+# Add CORS middleware - UPDATED CONFIGURATION
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.cors_origin],
+    allow_origins=origins,        # Allow listed origins
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["*"],          # Allow all HTTP methods (GET, POST, PUT, DELETE, OPTIONS)
+    allow_headers=["*"],          # Allow all headers
 )
 
 app.add_middleware(
@@ -69,6 +79,7 @@ app.include_router(students.router)
 app.include_router(classrooms.router)
 app.include_router(demo_projects.router)
 app.include_router(guests_router)
+app.include_router(scratch_services.router)
 
 def start_training_worker():
     """Start training worker in background thread"""
