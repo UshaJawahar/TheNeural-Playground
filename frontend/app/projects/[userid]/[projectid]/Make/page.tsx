@@ -14,6 +14,7 @@ import {
   isProjectId
 } from '../../../../../lib/session-utils';
 import { cleanupSessionWithReason, SessionCleanupReason } from '../../../../../lib/session-cleanup';
+import { SCRATCH_EDITOR_URL } from '@/config/scratch-editor';
 
 interface GuestSession {
   session_id: string;
@@ -388,7 +389,7 @@ export default function MakePage() {
     }
     
     // Open the Scratch GUI running on port 8601 with session and project parameters
-    const scratchGuiUrl = `http://localhost:8601/?sessionId=${actualSessionId}&projectId=${actualProjectId}`;
+    const scratchGuiUrl = `${SCRATCH_EDITOR_URL}/?sessionId=${actualSessionId}&projectId=${actualProjectId}`;
     window.open(scratchGuiUrl, '_blank');
     
     console.log('Scratch opened with fresh project data:', {

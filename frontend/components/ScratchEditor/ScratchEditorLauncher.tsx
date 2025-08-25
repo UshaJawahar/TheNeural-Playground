@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Header from '../Header/Header';
 import config from '../../lib/config';
+import { SCRATCH_EDITOR_CONFIG } from '@/config/scratch-editor';
 
 interface ScratchEditorLauncherProps {
   projectId?: string;
@@ -85,7 +86,7 @@ export default function ScratchEditorLauncher({
     const iframe = document.createElement('iframe');
     
     // Point to the running scratch-gui service with session and project IDs
-    const guiUrl = scratchPort ? `http://localhost:${scratchPort}` : 'http://localhost:8601';
+    const guiUrl = scratchPort ? `http://localhost:${scratchPort}` : SCRATCH_EDITOR_CONFIG.PRODUCTION_URL;
     
     // Add session and project IDs as URL parameters for the ML extension
     const urlParams = new URLSearchParams();
