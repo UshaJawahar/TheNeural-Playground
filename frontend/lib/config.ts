@@ -1,7 +1,7 @@
 // Configuration for the Neural Playground frontend
 export const config = {
   // Backend API base URL
-  apiBaseUrl: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080',
+  apiBaseUrl: process.env.NEXT_PUBLIC_API_URL || 'NEXT_PUBLIC_API_URL=https://theneural-backend-ed2fe2fxhq-uc.a.run.app',
   
   // API endpoints
   api: {
