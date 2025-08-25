@@ -17,18 +17,23 @@ Write-Host "Service: $SERVICE_NAME" -ForegroundColor Cyan
 Write-Host "Region: $REGION" -ForegroundColor Cyan
 Write-Host "=================================" -ForegroundColor Yellow
 
-# Step 1: Build the Docker image
-Write-Host "Building Docker image..." -ForegroundColor Blue
+# Step 1: Authenticate Docker with Google Cloud
+Write-Host "Step 1: Authenticating Docker with Google Cloud..." -ForegroundColor Blue
+gcloud auth configure-docker
+if ($LASTEXITCODE -ne 0) { throw "Docker authentication failed" }
+
+# Step 2: Build the Docker image
+Write-Host "Step 2: Building Docker image..." -ForegroundColor Blue
 docker build -t "${IMAGE_NAME}:latest" .
 if ($LASTEXITCODE -ne 0) { throw "Docker build failed" }
 
-# Step 2: Push to Google Container Registry
-Write-Host "Pushing image to Container Registry..." -ForegroundColor Blue
+# Step 3: Push to Google Container Registry
+Write-Host "Step 3: Pushing image to Container Registry..." -ForegroundColor Blue
 docker push "${IMAGE_NAME}:latest"
 if ($LASTEXITCODE -ne 0) { throw "Docker push failed" }
 
-# Step 3: Deploy to Cloud Run
-Write-Host "Deploying to Cloud Run..." -ForegroundColor Blue
+# Step 4: Deploy to Cloud Run
+Write-Host "Step 4: Deploying to Cloud Run..." -ForegroundColor Blue
 gcloud run deploy $SERVICE_NAME `
   --image "${IMAGE_NAME}:latest" `
   --region $REGION `
@@ -45,15 +50,15 @@ gcloud run deploy $SERVICE_NAME `
 
 if ($LASTEXITCODE -ne 0) { throw "Cloud Run deployment failed" }
 
-# Step 4: Get the service URL
-Write-Host "Deployment completed!" -ForegroundColor Green
+# Step 5: Get the service URL
+Write-Host "Step 5: Getting service URL..." -ForegroundColor Blue
 $SERVICE_URL = gcloud run services describe $SERVICE_NAME --region $REGION --format "value(status.url)"
 Write-Host "Service URL: $SERVICE_URL" -ForegroundColor Green
 Write-Host "API Docs: $SERVICE_URL/docs" -ForegroundColor Green
 Write-Host "Health Check: $SERVICE_URL/health" -ForegroundColor Green
 
-# Step 5: Test the deployment
-Write-Host "Testing deployment..." -ForegroundColor Blue
+# Step 6: Test the deployment
+Write-Host "Step 6: Testing deployment..." -ForegroundColor Blue
 try {
     $response = Invoke-RestMethod -Uri "$SERVICE_URL/health" -Method Get
     Write-Host "Health check response: $($response | ConvertTo-Json)" -ForegroundColor Green
