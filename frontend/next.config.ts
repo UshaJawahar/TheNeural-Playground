@@ -1,8 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Enable static exports for Cloud Run
-  output: 'standalone',
+  // Remove standalone output to allow proper static generation
+  // output: 'standalone',
   
   // Ensure dynamic routes are generated
   trailingSlash: false,
