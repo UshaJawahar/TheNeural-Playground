@@ -24,7 +24,7 @@ COPY . .
 ENV NODE_ENV=${NODE_ENV}
 ENV NEXT_TELEMETRY_DISABLED=${NEXT_TELEMETRY_DISABLED}
 
-# Build the application
+# Build the application with all routes
 RUN npm run build
 
 # Production image, copy all the files and run next

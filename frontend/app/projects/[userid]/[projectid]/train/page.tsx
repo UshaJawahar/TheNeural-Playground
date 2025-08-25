@@ -551,7 +551,7 @@ export default function TrainPage() {
       console.log('Label:', label.name);
       console.log('Example Index:', exampleIndex);
       
-      const response = await fetch(`${config.apiBaseUrl}${config.api.guests.deleteSpecificExample(actualProjectId, label.name, exampleIndex, actualSessionId)}`, {
+      const response = await fetch(`${config.apiBaseUrl}${config.api.guests.deleteSpecificExample(actualSessionId, actualProjectId, label.name, exampleIndex)}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -631,7 +631,7 @@ export default function TrainPage() {
       console.log('Label:', label.name);
       console.log('Examples count:', label.examples.length);
       
-      const response = await fetch(`${config.apiBaseUrl}${config.api.guests.deleteExamplesByLabel(actualProjectId, label.name, actualSessionId)}`, {
+      const response = await fetch(`${config.apiBaseUrl}${config.api.guests.deleteExamplesByLabel(actualSessionId, actualProjectId, label.name)}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
