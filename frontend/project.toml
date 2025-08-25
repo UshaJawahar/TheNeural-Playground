@@ -1,10 +1,9 @@
 [build]
-  env = [
-    "NODE_ENV=production",
-    "NEXT_TELEMETRY_DISABLED=1",
-    "NPM_CONFIG_PRODUCTION=false",
-    "NPM_CONFIG_INCLUDE=dev"
-  ]
+  [build.env]
+    NODE_ENV = "production"
+    NEXT_TELEMETRY_DISABLED = "1"
+    NPM_CONFIG_PRODUCTION = "false"
+    NPM_CONFIG_INCLUDE = "dev"
 
 [metadata]
   version = "1.0.0"
