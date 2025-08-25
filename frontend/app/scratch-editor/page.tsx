@@ -1,18 +1,10 @@
-'use client';
-
-import React from 'react';
-import { useSearchParams } from 'next/navigation';
-import ScratchEditorLauncher from '../../components/ScratchEditor/ScratchEditorLauncher';
+import React, { Suspense } from 'react';
+import ScratchEditorContent from './ScratchEditorContent';
 
 export default function ScratchEditorPage() {
-  const searchParams = useSearchParams();
-  const projectId = searchParams.get('projectId');
-  const sessionId = searchParams.get('sessionId');
-
   return (
-    <ScratchEditorLauncher
-      projectId={projectId || undefined}
-      sessionId={sessionId || undefined}
-    />
+    <Suspense fallback={<div>Loading...</div>}>
+      <ScratchEditorContent />
+    </Suspense>
   );
 }

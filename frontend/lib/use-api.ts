@@ -1,5 +1,14 @@
 import { useState, useCallback } from 'react';
-import { apiService, ApiResponse } from './api-service';
+import { 
+  apiService, 
+  ApiResponse, 
+  Project, 
+  TrainingConfig, 
+  PredictionInput, 
+  TrainingExampleInput,
+  TrainingStatus,
+  PredictionResult
+} from './api-service';
 
 interface UseApiState<T> {
   data: T | null;
@@ -8,12 +17,12 @@ interface UseApiState<T> {
 }
 
 interface UseApiReturn<T> extends UseApiState<T> {
-  execute: (...args: any[]) => Promise<void>;
+  execute: (...args: unknown[]) => Promise<void>;
   reset: () => void;
 }
 
-export function useApi<T = any>(
-  apiMethod: (...args: any[]) => Promise<ApiResponse<T>>,
+export function useApi<T = unknown>(
+  apiMethod: (...args: unknown[]) => Promise<ApiResponse<T>>,
   initialData: T | null = null
 ): UseApiReturn<T> {
   const [state, setState] = useState<UseApiState<T>>({
@@ -23,7 +32,7 @@ export function useApi<T = any>(
   });
 
   const execute = useCallback(
-    async (...args: any[]) => {
+    async (...args: unknown[]) => {
       setState(prev => ({ ...prev, loading: true, error: null }));
       
       try {
@@ -71,84 +80,84 @@ export function useApi<T = any>(
 // Specific hooks for common operations
 export function useProjects(userId?: string) {
   return useApi(
-    (id?: string) => apiService.getProjects(id || userId),
+    ((id?: string) => apiService.getProjects(id || userId)) as (...args: unknown[]) => Promise<ApiResponse<Project[]>>,
     []
   );
 }
 
 export function useProject(projectId: string) {
   return useApi(
-    () => apiService.getProject(projectId),
+    (() => apiService.getProject(projectId)) as (...args: unknown[]) => Promise<ApiResponse<Project>>,
     null
   );
 }
 
 export function useCreateProject() {
   return useApi(
-    (projectData: any) => apiService.createProject(projectData),
+    ((projectData: Partial<Project>) => apiService.createProject(projectData)) as (...args: unknown[]) => Promise<ApiResponse<Project>>,
     null
   );
 }
 
 export function useUpdateProject() {
   return useApi(
-    (projectId: string, projectData: any) => apiService.updateProject(projectId, projectData),
+    ((projectId: string, projectData: Partial<Project>) => apiService.updateProject(projectId, projectData)) as (...args: unknown[]) => Promise<ApiResponse<Project>>,
     null
   );
 }
 
 export function useDeleteProject() {
   return useApi(
-    (projectId: string) => apiService.deleteProject(projectId),
+    ((projectId: string) => apiService.deleteProject(projectId)) as (...args: unknown[]) => Promise<ApiResponse<unknown>>,
     null
   );
 }
 
 export function useTeachers() {
   return useApi(
-    () => apiService.getTeachers(),
+    (() => apiService.getTeachers()) as (...args: unknown[]) => Promise<ApiResponse<unknown[]>>,
     []
   );
 }
 
 export function useStudents(teacherId?: string, classroomId?: string) {
   return useApi(
-    (tId?: string, cId?: string) => apiService.getStudents(tId || teacherId, cId || classroomId),
+    ((tId?: string, cId?: string) => apiService.getStudents(tId || teacherId, cId || classroomId)) as (...args: unknown[]) => Promise<ApiResponse<unknown[]>>,
     []
   );
 }
 
 export function useClassrooms(teacherId?: string) {
   return useApi(
-    (id?: string) => apiService.getClassrooms(id || teacherId),
+    ((id?: string) => apiService.getClassrooms(id || teacherId)) as (...args: unknown[]) => Promise<ApiResponse<unknown[]>>,
     []
   );
 }
 
 export function useDemoProjects(category?: string, difficulty?: string) {
   return useApi(
-    (cat?: string, diff?: string) => apiService.getDemoProjects(cat || category, diff || difficulty),
+    ((cat?: string, diff?: string) => apiService.getDemoProjects(cat || category, diff || difficulty)) as (...args: unknown[]) => Promise<ApiResponse<unknown[]>>,
     []
   );
 }
 
 export function useTraining() {
   return useApi(
-    (projectId: string, config: any) => apiService.startTraining(projectId, config),
+    ((projectId: string, config: TrainingConfig) => apiService.startTraining(projectId, config)) as (...args: unknown[]) => Promise<ApiResponse<unknown>>,
     null
   );
 }
 
 export function useTrainingStatus(projectId: string) {
   return useApi(
-    () => apiService.getTrainingStatus(projectId),
+    (() => apiService.getTrainingStatus(projectId)) as (...args: unknown[]) => Promise<ApiResponse<TrainingStatus>>,
     null
   );
 }
 
 export function useFileUpload() {
   return useApi(
-    (projectId: string, file: File) => apiService.uploadTrainingData(projectId, file),
+    ((projectId: string, file: File) => apiService.uploadTrainingData(projectId, file)) as (...args: unknown[]) => Promise<ApiResponse<unknown>>,
     null
   );
 }
@@ -156,64 +165,64 @@ export function useFileUpload() {
 // Guest Project Hooks
 export function useGuestProjects(sessionId: string, limit?: number, offset?: number, status?: string, type?: string, search?: string) {
   return useApi(
-    (sId?: string, l?: number, o?: number, s?: string, t?: string, srch?: string) => 
-      apiService.getGuestProjects(sId || sessionId, l || limit, o || offset, s || status, t || type, srch || search),
+    ((sId?: string, l?: number, o?: number, s?: string, t?: string, srch?: string) => 
+      apiService.getGuestProjects(sId || sessionId, l || limit, o || offset, s || status, t || type, srch || search)) as (...args: unknown[]) => Promise<ApiResponse<Project[]>>,
     []
   );
 }
 
 export function useGuestProject(sessionId: string, projectId: string) {
   return useApi(
-    () => apiService.getGuestProject(sessionId, projectId),
+    (() => apiService.getGuestProject(sessionId, projectId)) as (...args: unknown[]) => Promise<ApiResponse<Project>>,
     null
   );
 }
 
 export function useCreateGuestProject() {
   return useApi(
-    (sessionId: string, projectData: any) => apiService.createGuestProject(sessionId, projectData),
+    ((sessionId: string, projectData: Partial<Project>) => apiService.createGuestProject(sessionId, projectData)) as (...args: unknown[]) => Promise<ApiResponse<Project>>,
     null
   );
 }
 
 export function useUpdateGuestProject() {
   return useApi(
-    (sessionId: string, projectId: string, projectData: any) => apiService.updateGuestProject(sessionId, projectId, projectData),
+    ((sessionId: string, projectId: string, projectData: Partial<Project>) => apiService.updateGuestProject(sessionId, projectId, projectData)) as (...args: unknown[]) => Promise<ApiResponse<Project>>,
     null
   );
 }
 
 export function useDeleteGuestProject() {
   return useApi(
-    (sessionId: string, projectId: string) => apiService.deleteGuestProject(sessionId, projectId),
+    ((sessionId: string, projectId: string) => apiService.deleteGuestProject(sessionId, projectId)) as (...args: unknown[]) => Promise<ApiResponse<unknown>>,
     null
   );
 }
 
 export function useGuestTraining() {
   return useApi(
-    (sessionId: string, projectId: string, config: any) => apiService.startGuestTraining(sessionId, projectId, config),
+    ((sessionId: string, projectId: string, config: TrainingConfig) => apiService.startGuestTraining(sessionId, projectId, config)) as (...args: unknown[]) => Promise<ApiResponse<unknown>>,
     null
   );
 }
 
 export function useGuestTrainingStatus(sessionId: string, projectId: string) {
   return useApi(
-    () => apiService.getGuestTrainingStatus(sessionId, projectId),
+    (() => apiService.getGuestTrainingStatus(sessionId, projectId)) as (...args: unknown[]) => Promise<ApiResponse<TrainingStatus>>,
     null
   );
 }
 
 export function useGuestPrediction() {
   return useApi(
-    (sessionId: string, projectId: string, input: any) => apiService.getGuestPrediction(sessionId, projectId, input),
+    ((sessionId: string, projectId: string, input: PredictionInput) => apiService.getGuestPrediction(sessionId, projectId, input)) as (...args: unknown[]) => Promise<ApiResponse<PredictionResult>>,
     null
   );
 }
 
 export function useUploadGuestExamples() {
   return useApi(
-    (sessionId: string, projectId: string, examples: any[]) => apiService.uploadGuestExamples(sessionId, projectId, examples),
+    ((sessionId: string, projectId: string, examples: TrainingExampleInput[]) => apiService.uploadGuestExamples(sessionId, projectId, examples)) as (...args: unknown[]) => Promise<ApiResponse<unknown>>,
     null
   );
 }

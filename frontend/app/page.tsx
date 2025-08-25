@@ -5,8 +5,6 @@ import Link from 'next/link';
 import Header from '../components/Header';
 import config from '../lib/config';
 import { 
-  getSessionIdFromMaskedId, 
-  isMaskedId, 
   getOrCreateMaskedId
 } from '../lib/session-utils';
 import { cleanupSessionWithReason, SessionCleanupReason } from '../lib/session-cleanup';
@@ -39,10 +37,6 @@ export default function Home() {
     setHasActiveSession(false);
     setUserSessionId('');
   };
-
-  useEffect(() => {
-    checkExistingSession();
-  }, []);
 
   const checkExistingSession = async () => {
     console.log('🔍 Checking for existing session...');
@@ -152,7 +146,7 @@ export default function Home() {
         try {
           const errorText = await response.text();
           console.log('Error details:', errorText);
-        } catch (e) {
+        } catch {
           console.log('Could not read error response');
         }
         
@@ -167,6 +161,10 @@ export default function Home() {
     // Final state will be logged after state updates
     setIsCheckingSession(false);
   };
+
+  useEffect(() => {
+    checkExistingSession();
+  }, []);
 
   // Add useEffect to log final state changes
   useEffect(() => {

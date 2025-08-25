@@ -33,21 +33,25 @@ interface GuestSessionResponse {
 interface Project {
   id: string;
   name: string;
-  type: string;
+  model_type: string;
   createdAt: string;
   description?: string;
   status?: string;
   maskedId?: string;
 }
 
+
+
 export default function MakePage() {
-  const [guestSession, setGuestSession] = useState<GuestSession | null>(null);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isValidSession, setIsValidSession] = useState(false);
   const [actualSessionId, setActualSessionId] = useState<string>('');
   const [actualProjectId, setActualProjectId] = useState<string>('');
   const [showScratchInfo, setShowScratchInfo] = useState(false);
+  const [isLoadingProjectData, setIsLoadingProjectData] = useState(false);
+  const [projectDataLoaded, setProjectDataLoaded] = useState(false);
+  const [projectLabels, setProjectLabels] = useState<string[]>([]);
 
   const params = useParams();
   const urlUserId = params?.userid as string;
@@ -75,7 +79,8 @@ export default function MakePage() {
         const keysToClear = [
           'ml_extension_project_id',
           'ml_extension_session_id', 
-          'ml_extension_project_name'
+          'ml_extension_project_name',
+          'ml_extension_project_labels'
         ];
         keysToClear.forEach(key => localStorage.removeItem(key));
         
@@ -108,7 +113,8 @@ export default function MakePage() {
         const keysToClear = [
           'ml_extension_project_id',
           'ml_extension_session_id', 
-          'ml_extension_project_name'
+          'ml_extension_project_name',
+          'ml_extension_project_labels'
         ];
         keysToClear.forEach(key => localStorage.removeItem(key));
       }
@@ -183,7 +189,6 @@ export default function MakePage() {
           if (now < expiresAt) {
             setActualSessionId(sessionId);
             setActualProjectId(projectId);
-            setGuestSession(sessionResponse.data);
             setIsValidSession(true);
             
             // Load project after setting session as valid
@@ -241,8 +246,6 @@ export default function MakePage() {
             // Update localStorage with the current project information
             localStorage.setItem('ml_extension_project_id', projectId);
             localStorage.setItem('ml_extension_session_id', sessionId);
-            
-            // Also store the project name for the extension
             localStorage.setItem('ml_extension_project_name', project.name);
             
             console.log('Project loaded and stored in localStorage:', {
@@ -276,8 +279,68 @@ export default function MakePage() {
     }
   };
 
-  const handleScratchClick = () => {
-    // Show the Scratch info page first
+  // New function to load detailed project data including labels
+  const loadProjectDetails = async () => {
+    if (!actualSessionId || !actualProjectId) {
+      console.error('Cannot load project details: missing session or project ID');
+      return;
+    }
+
+    setIsLoadingProjectData(true);
+    try {
+      console.log('Loading detailed project data...');
+      
+      const response = await fetch(`${config.apiBaseUrl}/api/guests/session/${actualSessionId}/projects/${actualProjectId}`);
+      
+      if (response.ok) {
+        const projectResponse = await response.json();
+        console.log('Project details response:', projectResponse);
+        
+        if (projectResponse.success && projectResponse.data) {
+          const details = projectResponse.data;
+          
+          // Extract labels from the model
+          if (details.model && Array.isArray(details.model.labels)) {
+            const labels = details.model.labels;
+            setProjectLabels(labels);
+            
+            // Store labels in localStorage for the ML extension
+            localStorage.setItem('ml_extension_project_labels', JSON.stringify(labels));
+            
+            console.log('Project labels loaded:', labels);
+            console.log('Labels stored in localStorage for ML extension');
+          } else {
+            console.warn('No labels found in project model');
+            setProjectLabels([]);
+            localStorage.setItem('ml_extension_project_labels', '[]');
+          }
+          
+          // Mark project data as loaded
+          setProjectDataLoaded(true);
+          
+          console.log('Project details loaded successfully:', {
+            name: details.name,
+            labels: projectLabels,
+            dataLoaded: true
+          });
+        } else {
+          console.error('Failed to load project details:', projectResponse);
+        }
+      } else {
+        console.error('Failed to fetch project details:', response.status);
+      }
+    } catch (error) {
+      console.error('Error loading project details:', error);
+    } finally {
+      setIsLoadingProjectData(false);
+    }
+  };
+
+  const handleScratchClick = async () => {
+    // Load project details first
+    await loadProjectDetails();
+    
+    // Show the Scratch info page
     setShowScratchInfo(true);
   };
 
@@ -286,6 +349,11 @@ export default function MakePage() {
     localStorage.setItem('ml_extension_project_id', actualProjectId);
     localStorage.setItem('ml_extension_session_id', actualSessionId);
     localStorage.setItem('ml_extension_project_name', selectedProject?.name || 'Unknown Project');
+    
+    // Ensure labels are stored
+    if (projectLabels.length > 0) {
+      localStorage.setItem('ml_extension_project_labels', JSON.stringify(projectLabels));
+    }
     
     // Update the URL to reflect the current project (in case it was different)
     const currentUrl = window.location.href;
@@ -303,7 +371,8 @@ export default function MakePage() {
     const keysToClear = [
       'ml_extension_project_id',
       'ml_extension_session_id', 
-      'ml_extension_project_name'
+      'ml_extension_project_name',
+      'ml_extension_project_labels'
     ];
     
     // Clear old data first
@@ -314,6 +383,10 @@ export default function MakePage() {
     localStorage.setItem('ml_extension_session_id', actualSessionId);
     localStorage.setItem('ml_extension_project_name', selectedProject?.name || 'Unknown Project');
     
+    if (projectLabels.length > 0) {
+      localStorage.setItem('ml_extension_project_labels', JSON.stringify(projectLabels));
+    }
+    
     // Open the Scratch GUI running on port 8601 with session and project parameters
     const scratchGuiUrl = `http://localhost:8601/?sessionId=${actualSessionId}&projectId=${actualProjectId}`;
     window.open(scratchGuiUrl, '_blank');
@@ -322,11 +395,13 @@ export default function MakePage() {
       sessionId: actualSessionId,
       projectId: actualProjectId,
       projectName: selectedProject?.name,
+      labels: projectLabels,
       storedInLocalStorage: true,
       localStorageKeys: {
         projectId: 'ml_extension_project_id',
         sessionId: 'ml_extension_session_id',
-        projectName: 'ml_extension_project_name'
+        projectName: 'ml_extension_project_name',
+        labels: 'ml_extension_project_labels'
       },
       oldDataCleared: true
     });
@@ -439,15 +514,60 @@ export default function MakePage() {
                 </button>
               </div>
 
-              {/* Open in Scratch Button at Top */}
+              {/* Loading State */}
+              {isLoadingProjectData && (
+                <div className="text-center mb-8">
+                  <div className="bg-[#2a2a2a] border border-[#bc6cd3]/20 rounded-lg p-6">
+                    <div className="flex items-center justify-center gap-3">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#dcfc84]"></div>
+                      <span className="text-white">Loading project data...</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Open in Scratch Button - Only enabled when data is loaded */}
               <div className="text-center mb-12">
                 <button
                   onClick={handleOpenInScratch}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-lg font-medium text-xl transition-all duration-300"
+                  disabled={!projectDataLoaded || isLoadingProjectData}
+                  className={`px-8 py-4 rounded-lg font-medium text-xl transition-all duration-300 ${
+                    projectDataLoaded && !isLoadingProjectData
+                      ? 'bg-blue-600 hover:bg-blue-700 text-white cursor-pointer'
+                      : 'bg-gray-500 text-gray-300 cursor-not-allowed'
+                  }`}
                 >
-                  Open in Scratch 3
+                  {isLoadingProjectData ? 'Loading...' : 'Open in Scratch 3.0'}
                 </button>
+                
+                {!projectDataLoaded && !isLoadingProjectData && (
+                  <p className="text-sm text-gray-400 mt-2">
+                    Click &ldquo;Open Scratch Editor&rdquo; first to load project data
+                  </p>
+                )}
               </div>
+
+              {/* Project Data Summary */}
+              {projectDataLoaded && (
+                <div className="bg-[#2a2a2a] border border-[#bc6cd3]/20 rounded-lg p-6 mb-8">
+                  <h3 className="text-xl font-semibold text-white mb-4">Project Data Loaded</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-gray-300 mb-2">Project Name:</p>
+                      <p className="text-white font-mono">{selectedProject?.name}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-300 mb-2">Labels Found:</p>
+                      <p className="text-white font-mono">
+                        {projectLabels.length > 0 ? projectLabels.join(', ') : 'No labels found'}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="text-sm text-green-400 mt-3">
+                    ✅ Project data is ready for Scratch. You can now open Scratch 3.0!
+                  </p>
+                </div>
+              )}
 
               {/* Content Grid */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -466,16 +586,28 @@ export default function MakePage() {
                       <p className="text-blue-100 text-xs mt-1">Returns a number from 0-100, indicating how confident the machine learning model is in recognizing the type of text.</p>
                     </div>
                     
-                    <div className="bg-blue-800 text-white p-3 rounded-lg">
-                      <p className="font-mono text-sm">ML label</p>
-                      <p className="text-blue-100 text-xs mt-1">Represents the labels created in your project, which can be used by your scripts.</p>
-                    </div>
+                    {/* Dynamic Labels */}
+                    {projectLabels.length > 0 ? (
+                      projectLabels.map((label, index) => (
+                        <div key={index} className="bg-blue-800 text-white p-3 rounded-lg">
+                          <p className="font-mono text-sm">ML {label}</p>
+                          <p className="text-blue-100 text-xs mt-1">Represents the &ldquo;{label}&rdquo; label from your project.</p>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="bg-blue-800 text-white p-3 rounded-lg">
+                        <p className="font-mono text-sm">ML label</p>
+                        <p className="text-blue-100 text-xs mt-1">Represents the labels created in your project, which can be used by your scripts.</p>
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 {/* Right Section - Scratch Editor Preview */}
                 <div className="bg-[#2a2a2a] border border-[#bc6cd3]/20 rounded-lg p-6">
-                  <h3 className="text-xl font-semibold text-white mb-4">It will look something like this - except with the name of your project</h3>
+                  <h3 className="text-xl font-semibold text-white mb-4">
+                    It will look something like this - with your project name: {selectedProject?.name}
+                  </h3>
                   
                   <div className="bg-white border rounded-lg p-4">
                     {/* Scratch Editor Header */}
@@ -501,7 +633,7 @@ export default function MakePage() {
                       <div className="w-48 space-y-2">
                         <div className="flex items-center gap-2">
                           <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                          <span className="text-sm font-medium">my project</span>
+                          <span className="text-sm font-medium">{selectedProject?.name || "my project"}</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
@@ -519,9 +651,17 @@ export default function MakePage() {
                       <div className="flex-1 space-y-2">
                         <div className="bg-blue-800 text-white p-2 rounded text-sm font-mono">ML recognise text text (label)</div>
                         <div className="bg-blue-800 text-white p-2 rounded text-sm font-mono">ML recognise text text (confidence)</div>
-                        <div className="bg-blue-800 text-white p-2 rounded text-sm font-mono">ML happy</div>
-                        <div className="bg-blue-800 text-white p-2 rounded text-sm font-mono">ML sad</div>
-                        <div className="bg-blue-800 text-white p-2 rounded text-sm font-mono">ML add training data text happy</div>
+                        
+                        {/* Dynamic Labels */}
+                        {projectLabels.length > 0 ? (
+                          projectLabels.map((label, index) => (
+                            <div key={index} className="bg-blue-800 text-white p-2 rounded text-sm font-mono">
+                              ML {label}
+                            </div>
+                          ))
+                        ) : (
+                          <div className="bg-blue-800 text-white p-2 rounded text-sm font-mono">ML label</div>
+                        )}
                       </div>
                     </div>
                   </div>

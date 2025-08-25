@@ -11,12 +11,12 @@ import {
     useUploadGuestExamples,
     useGuestPrediction
 } from '../../lib/use-api';
-import { Project } from '../../lib/api-service';
+import { Project, TrainingStatus } from '../../lib/api-service';
 
 interface GuestProjectFormData {
     name: string;
     description: string;
-    type: string;
+    model_type: string;
 }
 
 interface GuestProjectManagerProps {
@@ -27,7 +27,7 @@ const GuestProjectManager: React.FC<GuestProjectManagerProps> = ({ sessionId }) 
     const [formData, setFormData] = useState<GuestProjectFormData>({
         name: '',
         description: '',
-        type: 'text'
+        model_type: 'text'
     });
     const [selectedProject, setSelectedProject] = useState<Project | null>(null);
     const [trainingConfig, setTrainingConfig] = useState({
@@ -67,7 +67,7 @@ const GuestProjectManager: React.FC<GuestProjectManagerProps> = ({ sessionId }) 
         }
         
         // Reset form and reload projects
-        setFormData({ name: '', description: '', type: 'text' });
+        setFormData({ name: '', description: '', model_type: 'text' });
         setSelectedProject(null);
         guestProjects.execute();
     };
@@ -78,7 +78,7 @@ const GuestProjectManager: React.FC<GuestProjectManagerProps> = ({ sessionId }) 
         setFormData({
             name: project.name,
             description: project.description || '',
-            type: project.type || 'text'
+            model_type: project.model_type || 'text'
         });
     };
 
@@ -168,8 +168,8 @@ const GuestProjectManager: React.FC<GuestProjectManagerProps> = ({ sessionId }) 
                     <div>
                         <label className="block text-sm font-medium text-gray-700">Project Type</label>
                         <select
-                            value={formData.type}
-                            onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                            value={formData.model_type}
+                            onChange={(e) => setFormData({ ...formData, model_type: e.target.value })}
                             className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                         >
                             <option value="text">Text Classification</option>
@@ -193,7 +193,7 @@ const GuestProjectManager: React.FC<GuestProjectManagerProps> = ({ sessionId }) 
                                 type="button"
                                 onClick={() => {
                                     setSelectedProject(null);
-                                    setFormData({ name: '', description: '', type: 'text' });
+                                    setFormData({ name: '', description: '', model_type: 'text' });
                                 }}
                                 className="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600"
                             >
@@ -230,7 +230,7 @@ const GuestProjectManager: React.FC<GuestProjectManagerProps> = ({ sessionId }) 
                                 </p>
                                 <div className="flex items-center justify-between mt-3">
                                     <span className="text-xs bg-gray-100 px-2 py-1 rounded">
-                                        {project.type || 'Unknown'}
+                                        {project.model_type || 'Unknown'}
                                     </span>
                                     <span className={`text-xs px-2 py-1 rounded ${
                                         project.status === 'trained' ? 'bg-green-100 text-green-800' :

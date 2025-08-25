@@ -58,7 +58,7 @@ interface GuestSessionResponse {
 interface Project {
   id: string;
   name: string;
-  type: string;
+  model_type: string;
   createdAt: string;
   description?: string;
   status?: string;
@@ -226,7 +226,7 @@ function CreateProjectPage() {
     }
   };
 
-  const createGuestProject = async (projectData: { name: string; type: string; description?: string }) => {
+  const createGuestProject = async (projectData: { name: string; model_type: string; description?: string }) => {
     try {
       // Get session ID from localStorage
       const sessionId = localStorage.getItem('neural_playground_session_id');
@@ -237,7 +237,7 @@ function CreateProjectPage() {
       const payload = {
         name: projectData.name,
         description: projectData.description || "",
-        type: projectData.type,
+        model_type: projectData.model_type,
         createdBy: "",
         teacher_id: "",
         classroom_id: "",
@@ -305,7 +305,7 @@ function CreateProjectPage() {
       try {
         const newProject = await createGuestProject({
           name: projectName.trim(),
-          type: projectType,
+          model_type: projectType,
           description: ''
         });
         
@@ -674,7 +674,7 @@ function CreateProjectPage() {
                     <div className="text-white mb-4">
                       <span className="text-sm">Recognising </span>
                       <span className="text-[#dcfc84] font-medium">
-                        {project.type === 'text-recognition' ? 'text' : project.type}
+                        {project.model_type === 'text-recognition' ? 'text' : project.model_type}
                       </span>
                     </div>
                     

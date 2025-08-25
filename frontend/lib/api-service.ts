@@ -4,7 +4,7 @@
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-interface ApiResponse<T = any> {
+interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
   error?: string;
@@ -20,7 +20,73 @@ interface Project {
   updated_at: string;
   status: string;
   model_type?: string;
-  training_data?: any;
+  training_data?: TrainingData;
+}
+
+interface TrainingData {
+  examples?: TrainingExample[];
+  labels?: string[];
+  model?: ModelInfo;
+}
+
+interface TrainingExample {
+  text: string;
+  label: string;
+  created_at?: string;
+}
+
+interface ModelInfo {
+  labels: string[];
+  accuracy?: number;
+  status?: string;
+}
+
+interface ScratchService {
+  id: string;
+  name: string;
+  description?: string;
+  endpoint: string;
+  created_at: string;
+}
+
+interface GuestSession {
+  session_id: string;
+  created_at: string;
+  expires_at: string;
+  active: boolean;
+  ip_address?: string;
+  user_agent?: string;
+}
+
+interface TrainingConfig {
+  epochs: number;
+  batch_size: number;
+  learning_rate: number;
+  validation_split?: number;
+}
+
+interface TrainingStatus {
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  progress?: number;
+  accuracy?: number;
+  loss?: number;
+  current_epoch?: number;
+  total_epochs?: number;
+}
+
+interface PredictionInput {
+  text: string;
+}
+
+interface PredictionResult {
+  label: string;
+  confidence: number;
+  alternatives?: Array<{ label: string; confidence: number }>;
+}
+
+interface TrainingExampleInput {
+  text: string;
+  label: string;
 }
 
 interface Teacher {
@@ -240,20 +306,20 @@ class ApiService {
   }
 
   // Scratch Services API
-  async getScratchServices(): Promise<ApiResponse<any[]>> {
-    return this.request<any[]>('/scratch-services');
+  async getScratchServices(): Promise<ApiResponse<ScratchService[]>> {
+    return this.request<ScratchService[]>('/scratch-services');
   }
 
-  async createScratchService(serviceData: any): Promise<ApiResponse<any>> {
-    return this.request<any>('/scratch-services', {
+  async createScratchService(serviceData: Partial<ScratchService>): Promise<ApiResponse<ScratchService>> {
+    return this.request<ScratchService>('/scratch-services', {
       method: 'POST',
       body: JSON.stringify(serviceData),
     });
   }
 
   // Guest API
-  async createGuestSession(guestData: any): Promise<ApiResponse<any>> {
-    return this.request<any>('/guests', {
+  async createGuestSession(guestData: Partial<GuestSession>): Promise<ApiResponse<GuestSession>> {
+    return this.request<GuestSession>('/guests', {
       method: 'POST',
       body: JSON.stringify(guestData),
     });
@@ -298,41 +364,41 @@ class ApiService {
   }
 
   // Guest Project Training
-  async startGuestTraining(sessionId: string, projectId: string, trainingConfig: any): Promise<ApiResponse<any>> {
-    return this.request<any>(`/api/guests/session/${sessionId}/projects/${projectId}/train`, {
+  async startGuestTraining(sessionId: string, projectId: string, trainingConfig: TrainingConfig): Promise<ApiResponse<TrainingStatus>> {
+    return this.request<TrainingStatus>(`/api/guests/session/${sessionId}/projects/${projectId}/train`, {
       method: 'POST',
       body: JSON.stringify(trainingConfig),
     });
   }
 
-  async getGuestTrainingStatus(sessionId: string, projectId: string): Promise<ApiResponse<any>> {
-    return this.request<any>(`/api/guests/session/${sessionId}/projects/${projectId}/train`);
+  async getGuestTrainingStatus(sessionId: string, projectId: string): Promise<ApiResponse<TrainingStatus>> {
+    return this.request<TrainingStatus>(`/api/guests/session/${sessionId}/projects/${projectId}/train`);
   }
 
-  async getGuestPrediction(sessionId: string, projectId: string, input: any): Promise<ApiResponse<any>> {
-    return this.request<any>(`/api/guests/session/${sessionId}/projects/${projectId}/predict`, {
+  async getGuestPrediction(sessionId: string, projectId: string, input: PredictionInput): Promise<ApiResponse<PredictionResult>> {
+    return this.request<PredictionResult>(`/api/guests/session/${sessionId}/projects/${projectId}/predict`, {
       method: 'POST',
       body: JSON.stringify(input),
     });
   }
 
-  async uploadGuestExamples(sessionId: string, projectId: string, examples: any[]): Promise<ApiResponse<any>> {
-    return this.request<any>(`/api/guests/session/${sessionId}/projects/${projectId}/examples`, {
+  async uploadGuestExamples(sessionId: string, projectId: string, examples: TrainingExampleInput[]): Promise<ApiResponse<{ success: boolean; count: number }>> {
+    return this.request<{ success: boolean; count: number }>(`/api/guests/session/${sessionId}/projects/${projectId}/examples`, {
       method: 'POST',
       body: JSON.stringify(examples),
     });
   }
 
   // Training API
-  async startTraining(projectId: string, trainingConfig: any): Promise<ApiResponse<any>> {
-    return this.request<any>(`/projects/${projectId}/train`, {
+  async startTraining(projectId: string, trainingConfig: TrainingConfig): Promise<ApiResponse<TrainingStatus>> {
+    return this.request<TrainingStatus>(`/projects/${projectId}/train`, {
       method: 'POST',
       body: JSON.stringify(trainingConfig),
     });
   }
 
-  async getTrainingStatus(projectId: string): Promise<ApiResponse<any>> {
-    return this.request<any>(`/projects/${projectId}/training-status`);
+  async getTrainingStatus(projectId: string): Promise<ApiResponse<TrainingStatus>> {
+    return this.request<TrainingStatus>(`/projects/${projectId}/training-status`);
   }
 
   async stopTraining(projectId: string): Promise<ApiResponse> {
@@ -342,7 +408,7 @@ class ApiService {
   }
 
   // File Upload API
-  async uploadTrainingData(projectId: string, file: File): Promise<ApiResponse<any>> {
+  async uploadTrainingData(projectId: string, file: File): Promise<ApiResponse<{ filename: string; size: number; records: number }>> {
     const formData = new FormData();
     formData.append('file', file);
     
@@ -381,4 +447,14 @@ export type {
   Student,
   Classroom,
   DemoProject,
+  TrainingData,
+  TrainingExample,
+  ModelInfo,
+  ScratchService,
+  GuestSession,
+  TrainingConfig,
+  TrainingStatus,
+  PredictionInput,
+  PredictionResult,
+  TrainingExampleInput,
 };
