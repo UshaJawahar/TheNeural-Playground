@@ -14,9 +14,9 @@ export const config = {
       trainModel: (sessionId: string, projectId: string) => `/api/guests/session/${sessionId}/projects/${projectId}/train`,
       trainingStatus: (sessionId: string, projectId: string) => `/api/guests/session/${sessionId}/projects/${projectId}/train`,
       predict: (sessionId: string, projectId: string) => `/api/guests/session/${sessionId}/projects/${projectId}/predict`,
-      deleteModel: (projectId: string, sessionId: string) => `/api/guests/projects/${projectId}/model?session_id=${sessionId}`,
-      deleteExamplesByLabel: (projectId: string, label: string, sessionId: string) => `/api/guests/projects/${projectId}/examples/${label}?session_id=${sessionId}`,
-      deleteSpecificExample: (projectId: string, label: string, exampleIndex: number, sessionId: string) => `/api/guests/projects/${projectId}/examples/${label}/${exampleIndex}?session_id=${sessionId}`,
+      deleteModel: (sessionId: string, projectId: string) => `/api/guests/session/${sessionId}/projects/${projectId}/model`,
+      deleteExamplesByLabel: (sessionId: string, projectId: string, label: string) => `/api/guests/session/${sessionId}/projects/${projectId}/examples/${label}`,
+      deleteSpecificExample: (sessionId: string, projectId: string, label: string, exampleIndex: number) => `/api/guests/session/${sessionId}/projects/${projectId}/examples/${label}/${exampleIndex}`,
     },
   },
 } as const;
