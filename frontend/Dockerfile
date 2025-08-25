@@ -1,6 +1,10 @@
 # Production Dockerfile for Next.js Frontend
 FROM node:20-alpine AS base
 
+# Accept build arguments
+ARG NODE_ENV=production
+ARG NEXT_TELEMETRY_DISABLED=1
+
 # Install dependencies only when needed
 FROM base AS deps
 WORKDIR /app
@@ -16,9 +20,9 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Set production environment
-ENV NODE_ENV=production
-ENV NEXT_TELEMETRY_DISABLED=1
+# Set production environment from build args
+ENV NODE_ENV=${NODE_ENV}
+ENV NEXT_TELEMETRY_DISABLED=${NEXT_TELEMETRY_DISABLED}
 
 # Build the application
 RUN npm run build
