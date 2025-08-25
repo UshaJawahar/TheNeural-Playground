@@ -46,6 +46,16 @@ const nextConfig: NextConfig = {
     // This should help with dynamic route handling
     serverComponentsExternalPackages: [],
   },
+  
+  // Add specific configuration for dynamic routes
+  async rewrites() {
+    return [
+      {
+        source: '/projects/:userid/:projectid/:action',
+        destination: '/projects/[userid]/[projectid]/[action]',
+      },
+    ];
+  },
 };
 
 export default nextConfig;
