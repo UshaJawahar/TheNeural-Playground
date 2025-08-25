@@ -41,12 +41,6 @@ const nextConfig: NextConfig = {
     ];
   },
   
-  // Ensure proper App Router configuration
-  experimental: {
-    // This should help with dynamic route handling
-    serverComponentsExternalPackages: [],
-  },
-  
   // Add specific configuration for dynamic routes
   async rewrites() {
     return [
