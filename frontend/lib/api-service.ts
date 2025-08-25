@@ -2,7 +2,7 @@
 // API Service for TheNeural Backend
 // This service provides methods to interact with all backend APIs
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://theneural-backend-ed2fe2fxhq-uc.a.run.app';
 
 interface ApiResponse<T = unknown> {
   success: boolean;

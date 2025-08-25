@@ -40,7 +40,7 @@ gcloud run deploy $SERVICE_NAME `
   --platform managed `
   --allow-unauthenticated `
   --service-account "svc-backend@${PROJECT_ID}.iam.gserviceaccount.com" `
-  --set-env-vars "GOOGLE_CLOUD_PROJECT=$PROJECT_ID,ENVIRONMENT=production,FIRESTORE_DATABASE_ID=(default),GCS_BUCKET_NAME=theneural-data,PUBSUB_TOPIC_NAME=train_jobs,CORS_ORIGIN=https://the-neural-playground.vercel.app" `
+  --set-env-vars "GOOGLE_CLOUD_PROJECT=$PROJECT_ID,ENVIRONMENT=production,FIRESTORE_DATABASE_ID=(default),GCS_BUCKET_NAME=theneural-data,PUBSUB_TOPIC_NAME=train_jobs,CORS_ORIGIN=https://playground-neural-107731139870.us-central1.run.app" `
   --memory 1Gi `
   --cpu 1 `
   --min-instances 0 `

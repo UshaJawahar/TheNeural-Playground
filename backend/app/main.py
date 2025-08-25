@@ -27,12 +27,10 @@ app = FastAPI(
 
 # Define allowed origins for CORS
 origins = [
+    "https://playground-neural-107731139870.us-central1.run.app",   # Frontend
+    "https://scratch-editor-107731139870.us-central1.run.app",     # Scratch Editor
     "http://localhost:3000",   # Next.js dev server
     "http://localhost:8601",   # Another frontend port if used
-    "http://127.0.0.1:3000",   # Loopback for Next.js
-    "http://127.0.0.1:8601",   # Loopback for other frontend
-    settings.cors_origin,      # Additional origin from settings
-    # "*"                      # Uncomment to allow all origins during development (less secure)
 ]
 
 # Add CORS middleware - UPDATED CONFIGURATION
