@@ -29,6 +29,23 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  
+  // Add catch-all route configuration
+  async redirects() {
+    return [
+      {
+        source: '/projects/:userid/:projectid/:action',
+        destination: '/projects/[userid]/[projectid]/[action]',
+        permanent: false,
+      },
+    ];
+  },
+  
+  // Ensure proper App Router configuration
+  experimental: {
+    // This should help with dynamic route handling
+    serverComponentsExternalPackages: [],
+  },
 };
 
 export default nextConfig;
