@@ -6,18 +6,6 @@
     "NPM_CONFIG_INCLUDE=dev"
   ]
 
-[build.env.NODE_ENV]
-  value = "production"
-
-[build.env.NEXT_TELEMETRY_DISABLED]
-  value = "1"
-
-[build.env.NPM_CONFIG_PRODUCTION]
-  value = "false"
-
-[build.env.NPM_CONFIG_INCLUDE]
-  value = "dev"
-
 [metadata]
   version = "1.0.0"
   name = "theneural-frontend"
