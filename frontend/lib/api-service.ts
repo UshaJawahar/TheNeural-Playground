@@ -1,6 +1,6 @@
 
-// API Service for TheNeural Backend
-// This service provides methods to interact with all backend APIs
+// API Service for TheNeural Playground
+// Handles all API calls to the backend
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://theneural-backend-ed2fe2fxhq-uc.a.run.app';
 

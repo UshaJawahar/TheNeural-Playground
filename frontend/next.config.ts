@@ -1,10 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Remove standalone output to allow proper static generation
-  // output: 'standalone',
-  
-  // Ensure dynamic routes are generated
+  // Vercel handles dynamic routes automatically
   trailingSlash: false,
   
   // Ensure all routes are included in the build
@@ -14,42 +11,6 @@ const nextConfig: NextConfig = {
   
   // Configure page extensions
   pageExtensions: ['tsx', 'ts', 'jsx', 'js'],
-  
-  // Ensure proper handling of dynamic routes
-  async headers() {
-    return [
-      {
-        source: '/projects/:path*',
-        headers: [
-          {
-            key: 'Cache-Control',
-            value: 'public, max-age=0, must-revalidate',
-          },
-        ],
-      },
-    ];
-  },
-  
-  // Add catch-all route configuration
-  async redirects() {
-    return [
-      {
-        source: '/projects/:userid/:projectid/:action',
-        destination: '/projects/[userid]/[projectid]/[action]',
-        permanent: false,
-      },
-    ];
-  },
-  
-  // Add specific configuration for dynamic routes
-  async rewrites() {
-    return [
-      {
-        source: '/projects/:userid/:projectid/:action',
-        destination: '/projects/[userid]/[projectid]/[action]',
-      },
-    ];
-  },
 };
 
 export default nextConfig;

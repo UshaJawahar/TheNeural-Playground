@@ -27,6 +27,7 @@ app = FastAPI(
 
 # Define allowed origins for CORS
 origins = [
+    "https://the-neural-playground.vercel.app",   # Vercel Frontend
     "https://playground-neural-107731139870.us-central1.run.app",   # Frontend
     "https://scratch-editor-107731139870.us-central1.run.app",     # Scratch Editor
     "http://localhost:3000",   # Next.js dev server
