@@ -16,9 +16,12 @@ export const metadata: Metadata = {
   title: "TheNeural Playground",
   description: "Machine Learning for Kids - Learn AI through interactive projects",
   icons: {
-    icon: '/preview.svg',
-    shortcut: '/preview.svg',
-    apple: '/preview.svg',
+    icon: [
+      { url: '/Neural Logo-Light Green.png', sizes: '32x32', type: 'image/png' },
+      { url: '/Neural Logo-Light Green.png', sizes: '16x16', type: 'image/png' },
+    ],
+    shortcut: '/Neural Logo-Light Green.png',
+    apple: '/Neural Logo-Light Green.png',
   },
 };
 
@@ -30,9 +33,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <link rel="icon" href="/preview.svg" />
-        <link rel="shortcut icon" href="/preview.svg" />
-        <link rel="apple-touch-icon" href="/preview.svg" />
+        <link rel="icon" href="/Neural Logo-Light Green.png" sizes="32x32" />
+        <link rel="shortcut icon" href="/Neural Logo-Light Green.png" sizes="32x32" />
+        <link rel="apple-touch-icon" href="/Neural Logo-Light Green.png" sizes="180x180" />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}

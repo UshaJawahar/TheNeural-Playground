@@ -227,7 +227,7 @@ export default function TrainPage() {
             } else {
               // New session or first time loading, load project and labels
               console.log('🔄 New session or first time loading, loading project and labels...');
-              await loadProjectAndLabels(sessionId, projectId);
+            await loadProjectAndLabels(sessionId, projectId);
             }
           } else {
             console.error('Session expired');
@@ -816,11 +816,11 @@ export default function TrainPage() {
       console.log('Example Index:', exampleIndex);
       
              const response = await fetch(`${config.apiBaseUrl}${config.api.guests.deleteSpecificExample(actualSessionId, actualProjectId, label.name, exampleIndex)}?session_id=${actualSessionId}`, {
-         method: 'DELETE',
-         headers: {
-           'Content-Type': 'application/json',
-         },
-       });
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
       
       console.log('🗑️ Delete Example API Response Status:', response.status);
       
@@ -899,11 +899,11 @@ export default function TrainPage() {
       console.log('Examples count:', label.examples.length);
       
              const response = await fetch(`${config.apiBaseUrl}${config.api.guests.deleteExamplesByLabel(actualSessionId, actualProjectId, label.name)}?session_id=${actualSessionId}`, {
-         method: 'DELETE',
-         headers: {
-           'Content-Type': 'application/json',
-         },
-       });
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
       
       console.log('🗑️ Delete Examples by Label API Response Status:', response.status);
       
@@ -1144,20 +1144,20 @@ export default function TrainPage() {
                                                {/* Show different delete button based on whether label has examples */}
                         {label.examples.length > 0 ? (
                           // Label has examples - delete entire label with examples
-                          <button
-                            onClick={() => handleDeleteLabel(label.id)}
+                       <button
+                         onClick={() => handleDeleteLabel(label.id)}
                             disabled={isDeletingLabel || isDeletingExample}
                             className="text-red-500 hover:text-red-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                             title="Delete label and all examples"
-                          >
+                       >
                             {isDeletingLabel && deletingLabelId === label.id ? (
                               <div className="w-4 h-4 border border-red-500/20 border-t-red-500 rounded-full animate-spin"></div>
                             ) : (
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                              </svg>
+                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                         </svg>
                             )}
-                          </button>
+                       </button>
                         ) : (
                           // Label has no examples - delete empty label only
                           <button
