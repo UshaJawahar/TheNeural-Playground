@@ -71,6 +71,8 @@ export default function TrainPage() {
   const [isSubmittingToAPI, setIsSubmittingToAPI] = useState(false);
   const [isDeletingExample, setIsDeletingExample] = useState(false);
   const [deletingExampleId, setDeletingExampleId] = useState<string | null>(null);
+  const [isDeletingLabel, setIsDeletingLabel] = useState(false);
+  const [deletingLabelId, setDeletingLabelId] = useState<string | null>(null);
   const [hasInitialDataLoaded, setHasInitialDataLoaded] = useState(false);
   const [lastDataRefresh, setLastDataRefresh] = useState<number>(0);
 
@@ -621,11 +623,79 @@ export default function TrainPage() {
     event.target.value = '';
   };
 
-  const handleDeleteLabel = (labelId: string) => {
-    if (actualSessionId && actualProjectId) {
-      const updatedLabels = labels.filter(label => label.id !== labelId);
-      setLabels(updatedLabels);
-      // Note: This is just UI state change, actual deletion would need API endpoint
+  const handleDeleteLabel = async (labelId: string) => {
+    if (!actualSessionId || !actualProjectId) return;
+    
+    // Find the label to get the label name
+    const label = labels.find(l => l.id === labelId);
+    if (!label) {
+      alert('Label not found');
+      return;
+    }
+    
+    // Show confirmation dialog
+    if (!confirm(`Are you sure you want to delete the label "${label.name}" and all its examples? This action cannot be undone.`)) {
+      return;
+    }
+    
+    setIsDeletingLabel(true);
+    setDeletingLabelId(labelId);
+    
+    try {
+      console.log('🗑️ Deleting label via API:', label.name);
+      console.log('Session ID:', actualSessionId);
+      console.log('Project ID:', actualProjectId);
+      console.log('Label:', label.name);
+      
+      // Delete all examples under this label using the existing API
+      const response = await fetch(`${config.apiBaseUrl}${config.api.guests.deleteExamplesByLabel(actualSessionId, actualProjectId, label.name)}?session_id=${actualSessionId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      console.log('🗑️ Delete Label API Response Status:', response.status);
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log('✅ Label deleted successfully:', result);
+        
+        // Refresh from API to ensure sync - this will update the UI with the correct state
+        await refreshExamplesFromAPI();
+        
+        // Show success message
+        alert(`Successfully deleted the label "${label.name}" and all its examples!`);
+      } else {
+        console.error('❌ Delete Label API failed:', response.status);
+        
+        let errorDetails;
+        try {
+          errorDetails = await response.json();
+          console.error('📋 Error Details:', errorDetails);
+        } catch (jsonError) {
+          const errorText = await response.text();
+          console.error('📝 Error Text:', errorText);
+          errorDetails = { detail: errorText };
+        }
+        
+        // Show user-friendly error
+        if (response.status === 404) {
+          alert('Label not found. It may have already been deleted.');
+        } else if (response.status === 403) {
+          alert('Access denied. You do not have permission to delete this label.');
+        } else if (response.status === 500) {
+          alert('Server error occurred while deleting the label. Please try again later.');
+        } else {
+          alert(`Failed to delete label (${response.status}): ${errorDetails.detail || 'Unknown error'}`);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Network error during label deletion:', error);
+      alert('Network error: Failed to connect to the server. Please check your connection and try again.');
+    } finally {
+      setIsDeletingLabel(false);
+      setDeletingLabelId(null);
     }
   };
 
@@ -660,12 +730,12 @@ export default function TrainPage() {
       console.log('Label:', label.name);
       console.log('Example Index:', exampleIndex);
       
-      const response = await fetch(`${config.apiBaseUrl}${config.api.guests.deleteSpecificExample(actualSessionId, actualProjectId, label.name, exampleIndex)}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+             const response = await fetch(`${config.apiBaseUrl}${config.api.guests.deleteSpecificExample(actualSessionId, actualProjectId, label.name, exampleIndex)}?session_id=${actualSessionId}`, {
+         method: 'DELETE',
+         headers: {
+           'Content-Type': 'application/json',
+         },
+       });
       
       console.log('🗑️ Delete Example API Response Status:', response.status);
       
@@ -740,12 +810,12 @@ export default function TrainPage() {
       console.log('Label:', label.name);
       console.log('Examples count:', label.examples.length);
       
-      const response = await fetch(`${config.apiBaseUrl}${config.api.guests.deleteExamplesByLabel(actualSessionId, actualProjectId, label.name)}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+             const response = await fetch(`${config.apiBaseUrl}${config.api.guests.deleteExamplesByLabel(actualSessionId, actualProjectId, label.name)}?session_id=${actualSessionId}`, {
+         method: 'DELETE',
+         headers: {
+           'Content-Type': 'application/json',
+         },
+       });
       
       console.log('🗑️ Delete Examples by Label API Response Status:', response.status);
       
@@ -980,15 +1050,20 @@ export default function TrainPage() {
                            {isDeletingExample ? 'Deleting...' : 'Clear All'}
                          </button>
                        )}
-                       <button
-                         onClick={() => handleDeleteLabel(label.id)}
-                         className="text-red-500 hover:text-red-700 transition-all duration-300"
-                         title="Delete label"
-                       >
-                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                         </svg>
-                       </button>
+                                               <button
+                          onClick={() => handleDeleteLabel(label.id)}
+                          disabled={isDeletingLabel || isDeletingExample}
+                          className="text-red-500 hover:text-red-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="Delete label"
+                        >
+                          {isDeletingLabel && deletingLabelId === label.id ? (
+                            <div className="w-4 h-4 border border-red-500/20 border-t-red-500 rounded-full animate-spin"></div>
+                          ) : (
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          )}
+                        </button>
                      </div>
                    </div>
 
