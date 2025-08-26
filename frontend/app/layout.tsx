@@ -17,8 +17,9 @@ export const metadata: Metadata = {
   description: "Machine Learning for Kids - Learn AI through interactive projects",
   icons: {
     icon: [
-      { url: '/Neural Logo-Light Green.png', sizes: '32x32', type: 'image/png' },
-      { url: '/Neural Logo-Light Green.png', sizes: '16x16', type: 'image/png' },
+      { url: '/Neural Logo-Light Green.png', sizes: '128x32', type: 'image/png' },
+      { url: '/Neural Logo-Light Green.png', sizes: '256x64', type: 'image/png' },
+      { url: '/Neural Logo-Light Green.png', sizes: '96x32', type: 'image/png' },
     ],
     shortcut: '/Neural Logo-Light Green.png',
     apple: '/Neural Logo-Light Green.png',
@@ -33,9 +34,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <link rel="icon" href="/Neural Logo-Light Green.png" sizes="32x32" />
-        <link rel="shortcut icon" href="/Neural Logo-Light Green.png" sizes="32x32" />
-        <link rel="apple-touch-icon" href="/Neural Logo-Light Green.png" sizes="180x180" />
+        <link rel="icon" href="/Neural Logo-Light Green.png" sizes="128x32" />
+        <link rel="shortcut icon" href="/Neural Logo-Light Green.png" sizes="128x32" />
+        <link rel="apple-touch-icon" href="/Neural Logo-Light Green.png" sizes="720x180" />
+        <link rel="icon" href="/Neural Logo-Light Green.png" sizes="256x64" />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
