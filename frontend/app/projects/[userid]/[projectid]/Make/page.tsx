@@ -62,6 +62,26 @@ export default function MakePage() {
     validateGuestSession();
   }, [urlUserId, urlProjectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Clear localStorage when component loads to ensure clean slate
+  useEffect(() => {
+    // Clear any existing ML extension data when this component loads
+    const mlExtensionKeys = [
+      'ml_extension_project_id',
+      'ml_extension_session_id',
+      'ml_extension_project_name',
+      'ml_extension_project_labels'
+    ];
+    
+    mlExtensionKeys.forEach(key => {
+      if (localStorage.getItem(key)) {
+        localStorage.removeItem(key);
+        console.log(`Cleared localStorage key on component load: ${key}`);
+      }
+    });
+    
+    console.log('Component loaded - localStorage cleared for clean slate');
+  }, []); // Only run once when component mounts
+
   // Monitor URL changes and update localStorage if project changes
   useEffect(() => {
     if (actualProjectId && actualSessionId && selectedProject) {
@@ -85,6 +105,14 @@ export default function MakePage() {
         ];
         keysToClear.forEach(key => localStorage.removeItem(key));
         
+        // Also clear any other keys that start with ml_extension_
+        Object.keys(localStorage).forEach(key => {
+          if (key.startsWith('ml_extension_')) {
+            localStorage.removeItem(key);
+            console.log(`Cleared localStorage key on URL change: ${key}`);
+          }
+        });
+        
         // Update localStorage to reflect the actual project being viewed
         localStorage.setItem('ml_extension_project_id', actualProjectId);
         localStorage.setItem('ml_extension_session_id', actualSessionId);
@@ -94,7 +122,8 @@ export default function MakePage() {
           projectId: actualProjectId,
           sessionId: actualSessionId,
           projectName: selectedProject.name,
-          oldDataCleared: true
+          oldDataCleared: true,
+          aggressiveClearing: true
         });
         
         // Update the URL to match the actual project ID
@@ -108,19 +137,31 @@ export default function MakePage() {
   // Cleanup function to remove project-specific data when component unmounts
   useEffect(() => {
     return () => {
-      // Only clear if we're navigating away from this project
-      if (actualProjectId && actualSessionId) {
-        console.log('Component unmounting, clearing project-specific localStorage data');
-        const keysToClear = [
-          'ml_extension_project_id',
-          'ml_extension_session_id', 
-          'ml_extension_project_name',
-          'ml_extension_project_labels'
-        ];
-        keysToClear.forEach(key => localStorage.removeItem(key));
-      }
+      // Always clear ML extension data when component unmounts
+      console.log('Component unmounting, clearing all ML extension localStorage data');
+      const keysToClear = [
+        'ml_extension_project_id',
+        'ml_extension_session_id',
+        'ml_extension_project_name',
+        'ml_extension_project_labels'
+      ];
+      
+      keysToClear.forEach(key => {
+        if (localStorage.getItem(key)) {
+          localStorage.removeItem(key);
+          console.log(`Cleared localStorage key on unmount: ${key}`);
+        }
+      });
+      
+      // Also clear any other keys that start with ml_extension_
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('ml_extension_')) {
+          localStorage.removeItem(key);
+          console.log(`Cleared localStorage key on unmount: ${key}`);
+        }
+      });
     };
-  }, [actualProjectId, actualSessionId]);
+  }, []); // Always run cleanup regardless of dependencies
 
   const validateGuestSession = async () => {
     if (!urlUserId || !urlProjectId) {
@@ -192,6 +233,17 @@ export default function MakePage() {
             setActualProjectId(projectId);
             setIsValidSession(true);
             
+            // Clear any existing ML extension data when session becomes valid
+            const mlExtensionKeys = [
+              'ml_extension_project_id',
+              'ml_extension_session_id',
+              'ml_extension_project_name',
+              'ml_extension_project_labels'
+            ];
+            
+            mlExtensionKeys.forEach(key => localStorage.removeItem(key));
+            console.log('Session validated - cleared existing ML extension data');
+            
             // Load project after setting session as valid
             await loadProject(sessionId, projectId);
           } else {
@@ -227,6 +279,17 @@ export default function MakePage() {
     try {
       console.log('Loading project:', projectId, 'for session:', sessionId);
       
+      // Clear any existing ML extension data first
+      const mlExtensionKeys = [
+        'ml_extension_project_id',
+        'ml_extension_session_id',
+        'ml_extension_project_name',
+        'ml_extension_project_labels'
+      ];
+      
+      mlExtensionKeys.forEach(key => localStorage.removeItem(key));
+      console.log('Cleared existing ML extension data before loading new project');
+      
       // Load all projects for the session and find the specific project
       const response = await fetch(`${config.apiBaseUrl}/api/guests/session/${sessionId}/projects`);
       
@@ -244,6 +307,17 @@ export default function MakePage() {
             console.log('Found project:', project);
             setSelectedProject(project);
             
+            // Clear any existing ML extension data before setting new project data
+            const mlExtensionKeys = [
+              'ml_extension_project_id',
+              'ml_extension_session_id',
+              'ml_extension_project_name',
+              'ml_extension_project_labels'
+            ];
+            
+            mlExtensionKeys.forEach(key => localStorage.removeItem(key));
+            console.log('Cleared existing ML extension data before setting new project data');
+            
             // Update localStorage with the current project information
             localStorage.setItem('ml_extension_project_id', projectId);
             localStorage.setItem('ml_extension_session_id', sessionId);
@@ -252,7 +326,9 @@ export default function MakePage() {
             console.log('Project loaded and stored in localStorage:', {
               projectId: projectId,
               sessionId: sessionId,
-              projectName: project.name
+              projectName: project.name,
+              dataCleared: true,
+              freshData: true
             });
           } else {
             // Project not found in the session's projects
@@ -291,6 +367,17 @@ export default function MakePage() {
     try {
       console.log('Loading detailed project data...');
       
+      // Clear any existing ML extension data before loading new details
+      const mlExtensionKeys = [
+        'ml_extension_project_id',
+        'ml_extension_session_id',
+        'ml_extension_project_name',
+        'ml_extension_project_labels'
+      ];
+      
+      mlExtensionKeys.forEach(key => localStorage.removeItem(key));
+      console.log('Cleared existing ML extension data before loading project details');
+      
       const response = await fetch(`${config.apiBaseUrl}/api/guests/session/${actualSessionId}/projects/${actualProjectId}`);
       
       if (response.ok) {
@@ -299,6 +386,17 @@ export default function MakePage() {
         
         if (projectResponse.success && projectResponse.data) {
           const details = projectResponse.data;
+          
+          // Clear any existing ML extension data before setting new project details
+          const mlExtensionKeys = [
+            'ml_extension_project_id',
+            'ml_extension_session_id',
+            'ml_extension_project_name',
+            'ml_extension_project_labels'
+          ];
+          
+          mlExtensionKeys.forEach(key => localStorage.removeItem(key));
+          console.log('Cleared existing ML extension data before setting new project details');
           
           // Extract labels from the model
           if (details.model && Array.isArray(details.model.labels)) {
@@ -322,7 +420,9 @@ export default function MakePage() {
           console.log('Project details loaded successfully:', {
             name: details.name,
             labels: projectLabels,
-            dataLoaded: true
+            dataLoaded: true,
+            dataCleared: true,
+            freshData: true
           });
         } else {
           console.error('Failed to load project details:', projectResponse);
@@ -346,40 +446,28 @@ export default function MakePage() {
   };
 
   const handleOpenInScratch = () => {
-    // Ensure localStorage has the current project information
-    localStorage.setItem('ml_extension_project_id', actualProjectId);
-    localStorage.setItem('ml_extension_session_id', actualSessionId);
-    localStorage.setItem('ml_extension_project_name', selectedProject?.name || 'Unknown Project');
-    
-    // Ensure labels are stored
-    if (projectLabels.length > 0) {
-      localStorage.setItem('ml_extension_project_labels', JSON.stringify(projectLabels));
-    }
-    
-    // Update the URL to reflect the current project (in case it was different)
-    const currentUrl = window.location.href;
-    const urlParts = currentUrl.split('/');
-    const currentProjectIdInUrl = urlParts[urlParts.length - 2]; // Get project ID from URL
-    
-    // If the URL project ID is different from the actual project ID, update it
-    if (currentProjectIdInUrl !== actualProjectId) {
-      const newUrl = currentUrl.replace(`/${currentProjectIdInUrl}/`, `/${actualProjectId}/`);
-      window.history.replaceState({}, '', newUrl);
-      console.log('URL updated to reflect current project:', newUrl);
-    }
-    
-    // Clear any old project data from localStorage to ensure fresh start
+    // Aggressively clear ALL existing localStorage data to prevent project sharing issues
     const keysToClear = [
       'ml_extension_project_id',
-      'ml_extension_session_id', 
+      'ml_extension_session_id',
       'ml_extension_project_name',
-      'ml_extension_project_labels'
+      'ml_extension_project_labels',
+      // Also clear any other potential ML extension keys
+      'ml_extension_*'
     ];
     
-    // Clear old data first
-    keysToClear.forEach(key => localStorage.removeItem(key));
+    // Clear specific keys
+    keysToClear.slice(0, 4).forEach(key => localStorage.removeItem(key));
     
-    // Set fresh data
+    // Clear any keys that start with ml_extension_
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('ml_extension_')) {
+        localStorage.removeItem(key);
+        console.log(`Cleared localStorage key: ${key}`);
+      }
+    });
+    
+    // Ensure localStorage has the current project information
     localStorage.setItem('ml_extension_project_id', actualProjectId);
     localStorage.setItem('ml_extension_session_id', actualSessionId);
     localStorage.setItem('ml_extension_project_name', selectedProject?.name || 'Unknown Project');
@@ -404,7 +492,8 @@ export default function MakePage() {
         projectName: 'ml_extension_project_name',
         labels: 'ml_extension_project_labels'
       },
-      oldDataCleared: true
+      oldDataCleared: true,
+      aggressiveClearing: true
     });
   };
 
@@ -528,24 +617,47 @@ export default function MakePage() {
               )}
 
               {/* Open in Scratch Button - Only enabled when data is loaded */}
-              <div className="text-center mb-12">
+              <div className="bg-[#1c1c1c] rounded-lg p-6 mb-6">
+                <h2 className="text-2xl font-bold text-white mb-4">Make with Scratch Editor</h2>
+                <p className="text-gray-300 mb-4">
+                  Use the Scratch editor to create interactive projects with your trained model. 
+                  You can add blocks, sprites, and create engaging experiences.
+                </p>
+                
+                {/* Project Sharing Issue Notice */}
+                <div className="bg-yellow-900/20 border border-yellow-600/30 rounded-lg p-4 mb-4">
+                  <div className="flex items-start space-x-3">
+                    <div className="text-yellow-400 text-xl">⚠️</div>
+                    <div>
+                      <h3 className="text-yellow-400 font-semibold mb-2">Important: Project Sharing Issue</h3>
+                      <p className="text-yellow-200 text-sm mb-2">
+                        If you have multiple Scratch editor tabs open and they show the same project content, 
+                        this is a known issue with localStorage sharing between tabs.
+                      </p>
+                      <p className="text-yellow-200 text-sm">
+                        <strong>Solution:</strong> Always open Scratch editor from this page, not by copying URLs manually. 
+                        If issues persist, use the debug tools in the Scratch editor.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                
                 <button
                   onClick={handleOpenInScratch}
-                  disabled={!projectDataLoaded || isLoadingProjectData}
-                  className={`px-8 py-4 rounded-lg font-medium text-xl transition-all duration-300 ${
-                    projectDataLoaded && !isLoadingProjectData
-                      ? 'bg-blue-600 hover:bg-blue-700 text-white cursor-pointer'
-                      : 'bg-gray-500 text-gray-300 cursor-not-allowed'
-                  }`}
+                  disabled={isLoadingProjectData}
+                  className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white px-6 py-3 rounded-lg font-semibold transition-colors flex items-center space-x-2"
                 >
-                  {isLoadingProjectData ? 'Loading...' : 'Open in Scratch 3.0'}
+                  {isLoadingProjectData ? (
+                    <>
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                      <span>Loading Project...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>🚀 Open in Scratch Editor</span>
+                    </>
+                  )}
                 </button>
-                
-                {!projectDataLoaded && !isLoadingProjectData && (
-                  <p className="text-sm text-gray-400 mt-2">
-                    Click &ldquo;Open Scratch Editor&rdquo; first to load project data
-                  </p>
-                )}
               </div>
 
               {/* Project Data Summary */}

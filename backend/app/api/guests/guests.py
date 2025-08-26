@@ -435,16 +435,65 @@ async def start_guest_training(
                 detail="No examples found. Add some examples before training."
             )
         
-        # Create training job and add to queue
+        # For now, try simple training without worker to debug
         try:
-            config_dict = training_config.model_dump() if training_config else None
-            training_job = await training_job_service.create_training_job(project_id, config_dict)
+            logger.info(f"Starting simple training for project {project_id}")
+            logger.info(f"Examples count: {len(examples)}")
+            logger.info(f"Example types: {[type(ex).__name__ for ex in examples]}")
             
-            return TrainingResponse(
-                success=True,
-                message="Training job queued successfully!",
-                jobId=training_job.id
-            )
+            # Convert examples to the format expected by trainer
+            training_examples = []
+            for i, ex in enumerate(examples):
+                logger.info(f"Processing example {i}: {ex}")
+                if hasattr(ex, 'text') and hasattr(ex, 'label'):
+                    training_examples.append(ex)
+                    logger.info(f"Added example {i}: text='{ex.text[:50]}...', label='{ex.label}'")
+                elif isinstance(ex, dict):
+                    try:
+                        text_example = TextExample(**ex)
+                        training_examples.append(text_example)
+                        logger.info(f"Converted dict example {i}: text='{text_example.text[:50]}...', label='{text_example.label}'")
+                    except Exception as conv_error:
+                        logger.error(f"Failed to convert example {i}: {conv_error}")
+                        logger.error(f"Example data: {ex}")
+                else:
+                    logger.warning(f"Unexpected example format {i}: {type(ex)} - {ex}")
+            
+            if not training_examples:
+                raise ValueError("No valid examples found for training")
+            
+            logger.info(f"Training with {len(training_examples)} examples")
+            logger.info(f"Example labels: {[ex.label for ex in training_examples]}")
+            
+            # Try direct training first (for debugging)
+            try:
+                logger.info("Attempting direct training...")
+                training_result = trainer.train_model(training_examples)
+                logger.info(f"Direct training successful: {training_result}")
+                
+                # Create a simple training job response
+                return TrainingResponse(
+                    success=True,
+                    message="Training completed successfully!",
+                    jobId=f"direct-{project_id}-{int(datetime.now().timestamp())}"
+                )
+                
+            except Exception as training_error:
+                logger.error(f"Direct training failed: {training_error}")
+                logger.error(f"Training error type: {type(training_error)}")
+                logger.error(f"Training error details: {str(training_error)}")
+                
+                # Fall back to worker-based training
+                logger.info("Falling back to worker-based training")
+                
+                config_dict = training_config.model_dump() if training_config else None
+                training_job = await training_job_service.create_training_job(project_id, config_dict)
+                
+                return TrainingResponse(
+                    success=True,
+                    message="Training job queued successfully!",
+                    jobId=training_job.id
+                )
             
         except ValueError as e:
             # Training validation failed
@@ -456,6 +505,7 @@ async def start_guest_training(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Training error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

@@ -10,44 +10,36 @@ from sklearn.preprocessing import StandardScaler
 import numpy as np
 from datetime import datetime, timezone
 import re
-import nltk
-from nltk.corpus import stopwords
-from nltk.stem import WordNetLemmatizer, PorterStemmer
-from nltk.tokenize import word_tokenize
+import spacy
 
-# Download required NLTK data
+# Load spaCy model (download if not available)
 try:
-    nltk.data.find('tokenizers/punkt')
-except LookupError:
-    nltk.download('punkt')
-try:
-    nltk.data.find('corpora/stopwords')
-except LookupError:
-    nltk.download('stopwords')
-try:
-    nltk.data.find('corpora/wordnet')
-except LookupError:
-    nltk.download('wordnet')
+    nlp = spacy.load("en_core_web_sm")
+    print("✅ spaCy English model loaded successfully")
+except OSError:
+    print("📥 Downloading spaCy English model...")
+    import subprocess
+    import sys
+    subprocess.check_call([sys.executable, "-m", "spacy", "download", "en_core_web_sm"])
+    nlp = spacy.load("en_core_web_sm")
+    print("✅ spaCy English model downloaded and loaded successfully")
 
 from .models import TextExample, TrainedModel
 
 
 class EnhancedTextPreprocessor:
-    """Enhanced text preprocessing for better feature extraction"""
+    """Enhanced text preprocessing using spaCy for better feature extraction"""
     
     def __init__(self):
-        self.lemmatizer = WordNetLemmatizer()
-        self.stemmer = PorterStemmer()
-        self.stop_words = set(stopwords.words('english'))
+        self.nlp = nlp
         
-        # Add custom stop words for better text classification
-        custom_stops = {
+        # Custom stop words for better text classification
+        self.custom_stops = {
             'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
             'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
             'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
             'should', 'may', 'might', 'can', 'this', 'that', 'these', 'those'
         }
-        self.stop_words.update(custom_stops)
     
     def clean_text(self, text: str) -> str:
         """Clean and normalize text"""
@@ -66,24 +58,39 @@ class EnhancedTextPreprocessor:
         return text
     
     def tokenize_and_clean(self, text: str) -> List[str]:
-        """Tokenize and clean text"""
-        # Clean text first
-        cleaned_text = self.clean_text(text)
-        
-        # Tokenize
-        tokens = word_tokenize(cleaned_text)
-        
-        # Remove stop words and short tokens
-        filtered_tokens = []
-        for token in tokens:
-            if len(token) > 2 and token.lower() not in self.stop_words:
-                # Lemmatize the token
-                lemmatized = self.lemmatizer.lemmatize(token.lower())
-                # Stem the token
-                stemmed = self.stemmer.stem(lemmatized)
-                filtered_tokens.append(stemmed)
-        
-        return filtered_tokens
+        """Tokenize and clean text using spaCy"""
+        try:
+            # Clean text first
+            cleaned_text = self.clean_text(text)
+            
+            print(f"🔍 Processing text with spaCy: '{text[:50]}...'")
+            
+            # Process with spaCy
+            doc = self.nlp(cleaned_text)
+            
+            # Extract tokens with advanced filtering
+            filtered_tokens = []
+            for token in doc:
+                # Skip stop words, punctuation, whitespace, and very short tokens
+                if (not token.is_stop and 
+                    not token.is_punct and 
+                    not token.is_space and 
+                    len(token.text) > 2 and
+                    token.text.lower() not in self.custom_stops):
+                    
+                    # Lemmatize the token
+                    lemmatized = token.lemma_.lower()
+                    filtered_tokens.append(lemmatized)
+            
+            print(f"✅ spaCy processing complete: {len(filtered_tokens)} filtered tokens")
+            return filtered_tokens
+            
+        except Exception as e:
+            print(f"❌ Error in tokenize_and_clean: {e}")
+            print(f"❌ Error type: {type(e)}")
+            import traceback
+            print(f"❌ Traceback: {traceback.format_exc()}")
+            raise Exception(f"Text processing failed: {str(e)}")
     
     def preprocess_text(self, text: str) -> str:
         """Preprocess text for vectorization"""
@@ -213,95 +220,87 @@ class EnhancedLogisticRegressionTrainer:
         }
     
     def train_model(self, examples: List[TextExample]) -> Dict[str, Any]:
-        """Train enhanced logistic regression model"""
-        # Validate dataset
-        is_valid, message = self.validate_dataset(examples)
-        if not is_valid:
-            raise ValueError(message)
-        
-        print(f"🚀 Starting enhanced training with {len(examples)} examples...")
-        
-        # Preprocess data
-        texts, labels = self.preprocess_data(examples)
-        print(f"📝 Preprocessed {len(texts)} texts")
-        
-        # Calculate label distribution
-        label_counts = {}
-        for label in labels:
-            label_counts[label] = label_counts.get(label, 0) + 1
-        
-        print(f"🏷️ Label distribution: {label_counts}")
-        
-        # Split data (80% train, 20% validation)
-        min_examples_per_class = 2
-        can_stratify = all(label_counts.get(label, 0) >= min_examples_per_class for label in set(labels))
-        
-        if can_stratify:
+        """Train a logistic regression model on text examples"""
+        try:
+            print("🚀 Starting model training...")
+            print(f"📊 Training with {len(examples)} examples")
+            
+            # Validate dataset
+            print("🔍 Validating dataset...")
+            is_valid, validation_message = self.validate_dataset(examples)
+            if not is_valid:
+                raise ValueError(validation_message)
+            print("✅ Dataset validation passed")
+            
+            # Preprocess data
+            print("🔧 Preprocessing training data...")
+            try:
+                texts, labels = self.preprocess_data(examples)
+                print(f"✅ Preprocessing complete: {len(texts)} processed texts, {len(labels)} labels")
+            except Exception as preprocess_error:
+                print(f"❌ Preprocessing failed: {preprocess_error}")
+                print(f"❌ Preprocessing error type: {type(preprocess_error)}")
+                import traceback
+                print(f"❌ Preprocessing traceback: {traceback.format_exc()}")
+                raise Exception(f"Data preprocessing failed: {str(preprocess_error)}")
+            
+            # Split data
+            print("✂️ Splitting data into train/validation sets...")
             X_train, X_val, y_train, y_val = train_test_split(
                 texts, labels, test_size=0.2, random_state=42, stratify=labels
             )
-        else:
-            X_train, X_val, y_train, y_val = train_test_split(
-                texts, labels, test_size=0.2, random_state=42
-            )
-        
-        print(f"📊 Training set: {len(X_train)} examples, Validation set: {len(X_val)} examples")
-        
-        # Find best hyperparameters
-        hyperparam_result = self.find_best_hyperparameters(X_train, y_train)
-        best_pipeline = hyperparam_result['best_estimator']
-        
-        # Train final model with best parameters
-        print("🎯 Training final model with best parameters...")
-        best_pipeline.fit(X_train, y_train)
-        
-        # Evaluate model
-        y_pred = best_pipeline.predict(X_val)
-        accuracy = accuracy_score(y_val, y_pred)
-        
-        # Cross-validation score
-        cv_scores = cross_val_score(best_pipeline, X_train, y_train, cv=5, scoring='accuracy')
-        cv_accuracy = cv_scores.mean()
-        cv_std = cv_scores.std()
-        
-        # Detailed evaluation
-        classification_rep = classification_report(y_val, y_pred, output_dict=True)
-        confusion_mat = confusion_matrix(y_val, y_pred)
-        
-        # Get feature importance (top words for each class)
-        vectorizer = best_pipeline.named_steps['vectorizer']
-        classifier = best_pipeline.named_steps['classifier']
-        feature_names = vectorizer.get_feature_names_out()
-        feature_importance = self._get_enhanced_feature_importance(feature_names, classifier)
-        
-        # Get unique labels
-        unique_labels = sorted(list(set(labels)))
-        
-        # Calculate per-class accuracy
-        per_class_accuracy = {}
-        for label in unique_labels:
-            if label in classification_rep:
-                per_class_accuracy[label] = round(classification_rep[label]['precision'] * 100, 2)
-        
-        print(f"✅ Training completed!")
-        print(f"📈 Validation Accuracy: {accuracy:.4f} ({accuracy*100:.2f}%)")
-        print(f"🔄 Cross-Validation Accuracy: {cv_accuracy:.4f} ± {cv_std:.4f}")
-        
-        return {
-            'accuracy': round(accuracy * 100, 2),
-            'cv_accuracy': round(cv_accuracy * 100, 2),
-            'cv_std': round(cv_std * 100, 2),
-            'labels': unique_labels,
-            'label_counts': label_counts,
-            'per_class_accuracy': per_class_accuracy,
-            'feature_importance': feature_importance,
-            'confusion_matrix': confusion_mat.tolist(),
-            'classification_report': classification_rep,
-            'best_hyperparameters': hyperparam_result['best_params'],
-            'training_examples': len(X_train),
-            'validation_examples': len(X_val),
-            'total_examples': len(examples)
-        }
+            print(f"✅ Data split complete: {len(X_train)} training, {len(X_val)} validation")
+            
+            # Find best hyperparameters
+            print("🔍 Finding best hyperparameters...")
+            try:
+                best_params = self.find_best_hyperparameters(X_train, y_train)
+                print("✅ Hyperparameter optimization complete")
+            except Exception as hp_error:
+                print(f"❌ Hyperparameter optimization failed: {hp_error}")
+                print("⚠️ Using default parameters")
+                best_params = None
+            
+            # Train final model
+            print("🎯 Training final model...")
+            if best_params and 'best_estimator' in best_params:
+                best_pipeline = best_params['best_estimator']
+            else:
+                best_pipeline = self.pipeline
+            
+            # Train final model with best parameters
+            print("🎯 Training final model with best parameters...")
+            best_pipeline.fit(X_train, y_train)
+            
+            # Evaluate model
+            y_pred = best_pipeline.predict(X_val)
+            accuracy = accuracy_score(y_val, y_pred)
+            
+            print(f"✅ Training complete! Validation accuracy: {accuracy:.4f}")
+            
+            # Get feature names and importance
+            feature_names = best_pipeline.named_steps['vectorizer'].get_feature_names_out()
+            labels = list(set(labels))
+            
+            # Create result dictionary
+            result = {
+                'accuracy': accuracy,
+                'labels': labels,
+                'training_examples': len(X_train),
+                'validation_examples': len(X_val),
+                'total_features': len(feature_names),
+                'model': best_pipeline
+            }
+            
+            print("🎉 Training completed successfully!")
+            return result
+            
+        except Exception as e:
+            print(f"❌ Training failed: {e}")
+            print(f"❌ Error type: {type(e)}")
+            import traceback
+            print(f"❌ Training traceback: {traceback.format_exc()}")
+            raise Exception(f"Model training failed: {str(e)}")
     
     def _get_enhanced_feature_importance(self, feature_names: np.ndarray, classifier: LogisticRegression) -> Dict[str, List[Dict[str, Any]]]:
         """Get enhanced feature importance for each class"""

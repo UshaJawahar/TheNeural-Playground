@@ -466,7 +466,21 @@ export default function LearnPage() {
 
 
   const handleTrainModel = async () => {
-    if (!canTrainModel) return;
+    console.log('🎯 handleTrainModel called');
+    console.log('📊 Training stats:', trainingStats);
+    console.log('✅ canTrainModel:', canTrainModel);
+    
+    if (!canTrainModel) {
+      console.log('❌ Training requirements not met');
+      alert(`Cannot train model yet. You need at least 6 examples and 2 labels. Current: ${trainingStats.totalExamples} examples, ${trainingStats.totalLabels} labels`);
+      return;
+    }
+    
+    if (!actualSessionId || !actualProjectId) {
+      console.log('❌ Missing session or project ID');
+      alert('Missing session or project information. Please refresh the page.');
+      return;
+    }
     
     setIsTraining(true);
     
@@ -485,7 +499,10 @@ export default function LearnPage() {
       
       console.log('📋 Training config:', trainingConfig);
       
-      const response = await fetch(`${config.apiBaseUrl}${config.api.guests.trainModel(actualSessionId, actualProjectId)}`, {
+      const apiUrl = `${config.apiBaseUrl}${config.api.guests.trainModel(actualSessionId, actualProjectId)}`;
+      console.log('🌐 API URL:', apiUrl);
+      
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -500,16 +517,18 @@ export default function LearnPage() {
         console.log('✅ Training started successfully:', result);
         
         // Create model object for UI
-      const now = new Date();
-      const expiresAt = new Date(now.getTime() + 4 * 60 * 60 * 1000); // 4 hours from now
-      
-      const newModel: TrainedModel = {
+        const now = new Date();
+        const expiresAt = new Date(now.getTime() + 4 * 60 * 60 * 1000); // 4 hours from now
+        
+        const newModel: TrainedModel = {
           id: result.jobId || `model-${Date.now()}`,
           status: 'training',
-        startedAt: now,
-        expiresAt: expiresAt
-      };
-      
+          startedAt: now,
+          expiresAt: expiresAt
+        };
+        
+        setTrainedModel(newModel);
+        
         // Start polling for status updates - the API will handle the actual training
         // setIsTraining will remain true until the polling detects completion
         
@@ -544,7 +563,7 @@ export default function LearnPage() {
       console.error('❌ Network error during training:', error);
       alert('Network error: Failed to connect to the training server. Please check your connection.');
       setIsTraining(false);
-      }
+    }
   };
 
   const handleGoToTrain = () => {
@@ -622,9 +641,41 @@ export default function LearnPage() {
     }
   };
 
-  const handleTrainNewModel = () => {
+  const handleTrainNewModel = async () => {
+    // Clear previous model state
     setTrainedModel(null);
     setTestResult(null);
+    
+    // Start training the new model
+    await handleTrainModel();
+  };
+
+  // Test function to check if training API is accessible
+  const testTrainingAPI = async () => {
+    if (!actualSessionId || !actualProjectId) {
+      alert('Missing session or project ID');
+      return;
+    }
+    
+    try {
+      console.log('🧪 Testing training API endpoint...');
+      const apiUrl = `${config.apiBaseUrl}${config.api.guests.trainModel(actualSessionId, actualProjectId)}`;
+      console.log('🌐 Testing URL:', apiUrl);
+      
+      // Test with OPTIONS request to check if endpoint exists
+      const response = await fetch(apiUrl, {
+        method: 'OPTIONS'
+      });
+      
+      console.log('🧪 OPTIONS response status:', response.status);
+      console.log('🧪 Response headers:', Object.fromEntries(response.headers.entries()));
+      
+      alert(`Training API test: ${response.status === 200 ? '✅ Endpoint accessible' : '❌ Endpoint not accessible (Status: ' + response.status + ')'}`);
+      
+    } catch (error) {
+      console.error('🧪 API test error:', error);
+      alert('❌ API test failed: ' + error);
+    }
   };
 
   const handleTestModel = async () => {
@@ -1139,6 +1190,25 @@ export default function LearnPage() {
                     </div>
                   </div>
                 )}
+                
+                {/* Debug Info */}
+                <div className="text-center p-4 bg-[#2a2a2a] border border-[#bc6cd3]/20 rounded-lg max-w-md">
+                  <h4 className="text-[#dcfc84] font-medium mb-2">🔍 Debug Info</h4>
+                  <p className="text-white text-sm">
+                    Session ID: {actualSessionId ? `${actualSessionId.substring(0, 8)}...` : 'Not set'}<br />
+                    Project ID: {actualProjectId ? `${actualProjectId.substring(0, 8)}...` : 'Not set'}<br />
+                    Examples: {trainingStats.totalExamples}<br />
+                    Labels: {trainingStats.totalLabels}<br />
+                    Can Train: {canTrainModel ? '✅ Yes' : '❌ No'}
+                  </p>
+                  <button
+                    onClick={testTrainingAPI}
+                    className="mt-3 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300"
+                  >
+                    🧪 Test Training API
+                  </button>
+                </div>
+                
                 <button
                   onClick={handleTrainModel}
                   disabled={!canTrainModel}
@@ -1148,7 +1218,23 @@ export default function LearnPage() {
                       : 'bg-[#1c1c1c] border border-[#bc6cd3]/20 text-white/50 cursor-not-allowed'
                   }`}
                 >
-                  Train new machine learning model
+                  {canTrainModel ? (
+                    <>
+                      🚀 Train new machine learning model
+                      <br />
+                      <span className="text-sm opacity-75">
+                        ({trainingStats.totalExamples} examples, {trainingStats.totalLabels} labels)
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      Train new machine learning model
+                      <br />
+                      <span className="text-sm opacity-75">
+                        Need 6+ examples and 2+ labels
+                      </span>
+                    </>
+                  )}
                 </button>
               </div>
             )}
