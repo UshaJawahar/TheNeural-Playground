@@ -96,10 +96,24 @@ async def startup_event():
     logger.info(f"GCP Project: {settings.google_cloud_project}")
     logger.info(f"CORS Origin: {settings.cors_origin}")
     
+    # Check spaCy model availability
+    try:
+        import spacy
+        nlp = spacy.load("en_core_web_sm")
+        logger.info("✅ spaCy English model loaded successfully")
+    except Exception as e:
+        logger.error(f"❌ Failed to load spaCy model: {e}")
+        logger.error("This will cause training to fail. Please ensure the model is downloaded.")
+    
     # Start training worker in background thread
-    worker_thread = threading.Thread(target=start_training_worker, daemon=True)
-    worker_thread.start()
-    logger.info("Training worker started in background")
+    try:
+        worker_thread = threading.Thread(target=start_training_worker, daemon=True)
+        worker_thread.start()
+        logger.info("Training worker started in background")
+    except Exception as e:
+        logger.error(f"Failed to start training worker: {e}")
+    
+    logger.info("✅ TheNeural Backend API startup complete")
 
 # Shutdown event
 @app.on_event("shutdown")

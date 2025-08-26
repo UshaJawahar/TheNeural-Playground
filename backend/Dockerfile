@@ -25,6 +25,9 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
     pip check && \
     pip cache purge
 
+# Pre-download spaCy model during build time to avoid startup delays
+RUN python -m spacy download en_core_web_sm
+
 # Copy application code
 COPY . .
 
@@ -45,11 +48,13 @@ ENV PYTHONPATH=/app \
     PORT=8080 \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONHASHSEED=random
+    PYTHONHASHSEED=random \
+    PYTHONPATH=/app \
+    PYTHONIOENCODING=utf-8
 
-# Health check (if needed, uncomment and adjust)
-HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+# Health check with longer timeout for Cloud Run
+HEALTHCHECK --interval=30s --timeout=30s --start-period=60s --retries=5 \
      CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
 
-# Run the application
-CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
+# Run startup check first, then start the application
+CMD ["sh", "-c", "python startup_check.py && python -m uvicorn app.main:app --host 0.0.0.0 --port 8080 --timeout-keep-alive 120"]
