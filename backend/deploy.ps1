@@ -22,9 +22,9 @@ Write-Host "Step 1: Authenticating Docker with Google Cloud..." -ForegroundColor
 gcloud auth configure-docker
 if ($LASTEXITCODE -ne 0) { throw "Docker authentication failed" }
 
-# Step 2: Build the Docker image
-Write-Host "Step 2: Building Docker image..." -ForegroundColor Blue
-docker build -t "${IMAGE_NAME}:latest" .
+# Step 2: Build the Docker image (force clean build)
+Write-Host "Step 2: Building Docker image (clean build)..." -ForegroundColor Blue
+docker build --no-cache --pull -t "${IMAGE_NAME}:latest" .
 if ($LASTEXITCODE -ne 0) { throw "Docker build failed" }
 
 # Step 3: Push to Google Container Registry
