@@ -13,6 +13,7 @@ RUN apk update && \
         musl-dev \
         linux-headers \
         build-base \
+        wget \
         && rm -rf /var/cache/apk/* \
         && rm -rf /tmp/*
 
@@ -24,9 +25,6 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
     pip install --no-cache-dir --upgrade --force-reinstall -r requirements.txt && \
     pip check && \
     pip cache purge
-
-# Pre-download spaCy model during build time to avoid startup delays
-RUN python -m spacy download en_core_web_sm
 
 # Copy application code
 COPY . .
@@ -56,5 +54,5 @@ ENV PYTHONPATH=/app \
 HEALTHCHECK --interval=30s --timeout=30s --start-period=60s --retries=5 \
      CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
 
-# Run startup check first, then start the application
-CMD ["sh", "-c", "python startup_check.py && python -m uvicorn app.main:app --host 0.0.0.0 --port 8080 --timeout-keep-alive 120"]
+# Start the FastAPI application with uvicorn
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080", "--timeout-keep-alive", "120"]

@@ -10,14 +10,22 @@ logger = logging.getLogger(__name__)
 async def health_check():
     """Health check endpoint for Cloud Run"""
     try:
-        # Check spaCy model availability
+        # Check spaCy model availability (non-blocking, optional)
         import spacy
         nlp = spacy.load("en_core_web_sm")
         spacy_status = "available"
         spacy_test = "working"
+    except ImportError:
+        # spaCy not installed yet
+        spacy_status = "not_installed"
+        spacy_test = "pending_install"
+    except OSError:
+        # Model not downloaded yet, but this is not a critical failure
+        spacy_status = "pending_download"
+        spacy_test = "not_available"
     except Exception as e:
         logger.error(f"spaCy model check failed: {e}")
-        spacy_status = "unavailable"
+        spacy_status = "error"
         spacy_test = "failed"
     
     return {

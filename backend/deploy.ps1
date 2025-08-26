@@ -45,7 +45,7 @@ gcloud run deploy $SERVICE_NAME `
   --cpu 1 `
   --min-instances 0 `
   --max-instances 10 `
-  --timeout 900 `
+  --timeout 1500 `
   --port 8080
 
 if ($LASTEXITCODE -ne 0) { throw "Cloud Run deployment failed" }

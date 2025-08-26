@@ -12,15 +12,23 @@ from datetime import datetime, timezone
 import re
 import spacy
 
-# Load spaCy model (should be pre-downloaded in Docker container)
+# Load spaCy model (download if not available)
 try:
     nlp = spacy.load("en_core_web_sm")
     print("✅ spaCy English model loaded successfully")
 except OSError:
-    print("❌ spaCy English model not found. This should not happen in production.")
-    print("📥 The model should be pre-downloaded during Docker build.")
-    print("🔧 If running locally, run: python -m spacy download en_core_web_sm")
-    raise Exception("spaCy English model not available. Please ensure the model is downloaded.")
+    print("📥 spaCy English model not found, downloading...")
+    try:
+        import subprocess
+        import sys
+        subprocess.check_call([sys.executable, "-m", "spacy", "download", "en_core_web_sm"], 
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        nlp = spacy.load("en_core_web_sm")
+        print("✅ spaCy English model downloaded and loaded successfully")
+    except Exception as e:
+        print(f"❌ Failed to download spaCy model: {e}")
+        print("🔧 Please ensure internet connectivity and try again")
+        raise Exception("spaCy English model not available. Please ensure the model is downloaded.")
 
 from .models import TextExample, TrainedModel
 

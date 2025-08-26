@@ -96,14 +96,18 @@ async def startup_event():
     logger.info(f"GCP Project: {settings.google_cloud_project}")
     logger.info(f"CORS Origin: {settings.cors_origin}")
     
-    # Check spaCy model availability
+    # Check spaCy model availability (non-blocking, optional)
     try:
         import spacy
         nlp = spacy.load("en_core_web_sm")
         logger.info("✅ spaCy English model loaded successfully")
+    except ImportError:
+        logger.info("📝 spaCy not installed yet - will install when needed")
+    except OSError:
+        logger.info("📥 spaCy model not downloaded yet - will download when needed")
     except Exception as e:
-        logger.error(f"❌ Failed to load spaCy model: {e}")
-        logger.error("This will cause training to fail. Please ensure the model is downloaded.")
+        logger.warning(f"⚠️ spaCy model check failed: {e}")
+        logger.info("📝 Model will be downloaded when first training request is made")
     
     # Start training worker in background thread
     try:
