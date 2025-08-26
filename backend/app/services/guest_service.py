@@ -333,7 +333,7 @@ class GuestService:
             
             # Also create a corresponding project in the projects collection
             # This follows the same structure as existing projects in your Firestore
-             project_data = {
+            project_data = {
                  "id": project_id,
                  "name": "My Project",
                  "description": "",
