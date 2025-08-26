@@ -418,24 +418,28 @@ async def start_guest_training(
     project_id: str,
     training_config: Optional[TrainingConfig] = None,
     session: dict = Depends(validate_session_dependency),
-    project_service: ProjectService = Depends(get_project_service)
+    guest_service: GuestService = Depends(get_guest_service)
 ):
     """Start training job for a guest project using logistic regression"""
     try:
-        # Verify project belongs to this session
-        project = await project_service.get_project(project_id)
-        if not project or project.student_id != session_id:
-            raise HTTPException(status_code=404, detail="Project not found")
+        # Get guest session which contains the project data
+        guest_session = await guest_service.get_guest_session(session_id)
+        if not guest_session:
+            raise HTTPException(status_code=404, detail="Guest session not found")
         
-        # Get examples for training
-        examples = await project_service.get_examples(project_id)
-        if not examples:
+        # Verify the project_id matches the one in the guest session
+        if guest_session.project_id != project_id:
+            raise HTTPException(status_code=404, detail="Project not found in this session")
+        
+        # Get examples for training from guest session
+        examples = guest_session.dataset
+        if not examples or len(examples) < 2:
             raise HTTPException(
                 status_code=400, 
-                detail="No examples found. Add some examples before training."
+                detail="Need at least 2 examples to start training. Add some examples first."
             )
         
-        # For now, try simple training without worker to debug
+        # Convert examples to the format expected by trainer
         try:
             logger.info(f"Starting simple training for project {project_id}")
             logger.info(f"Examples count: {len(examples)}")
@@ -445,10 +449,7 @@ async def start_guest_training(
             training_examples = []
             for i, ex in enumerate(examples):
                 logger.info(f"Processing example {i}: {ex}")
-                if hasattr(ex, 'text') and hasattr(ex, 'label'):
-                    training_examples.append(ex)
-                    logger.info(f"Added example {i}: text='{ex.text[:50]}...', label='{ex.label}'")
-                elif isinstance(ex, dict):
+                if isinstance(ex, dict) and 'text' in ex and 'label' in ex:
                     try:
                         text_example = TextExample(**ex)
                         training_examples.append(text_example)
@@ -471,6 +472,12 @@ async def start_guest_training(
                 training_result = trainer.train_model(training_examples)
                 logger.info(f"Direct training successful: {training_result}")
                 
+                # Update guest session status to trained
+                await guest_service.update_guest_session(session_id, GuestUpdate(
+                    training_status="completed",
+                    status="trained"
+                ))
+                
                 # Create a simple training job response
                 return TrainingResponse(
                     success=True,
@@ -488,6 +495,13 @@ async def start_guest_training(
                 
                 config_dict = training_config.model_dump() if training_config else None
                 training_job = await training_job_service.create_training_job(project_id, config_dict)
+                
+                # Update guest session with job ID and status
+                await guest_service.update_guest_session(session_id, GuestUpdate(
+                    currentJobId=training_job.id,
+                    training_status="training",
+                    status="training"
+                ))
                 
                 return TrainingResponse(
                     success=True,
@@ -514,26 +528,30 @@ async def get_guest_training_status(
     session_id: str,
     project_id: str,
     session: dict = Depends(validate_session_dependency),
-    project_service: ProjectService = Depends(get_project_service)
+    guest_service: GuestService = Depends(get_guest_service)
 ):
     """Get training status and job information for a guest project"""
     try:
-        # Verify project belongs to this session
-        project = await project_service.get_project(project_id)
-        if not project or project.student_id != session_id:
-            raise HTTPException(status_code=404, detail="Project not found")
+        # Get guest session which contains the project data
+        guest_session = await guest_service.get_guest_session(session_id)
+        if not guest_session:
+            raise HTTPException(status_code=404, detail="Guest session not found")
         
-        # Get training jobs
+        # Verify the project_id matches the one in the guest session
+        if guest_session.project_id != project_id:
+            raise HTTPException(status_code=404, detail="Project not found in this session")
+        
+        # Get training jobs for this project
         jobs = await training_job_service.get_project_jobs(project_id)
         
-        # Get current job status
+        # Get current job status if there's a current job
         current_job = None
-        if project.currentJobId:
-            current_job = await training_job_service.get_job_status(project.currentJobId)
+        if hasattr(guest_session, 'currentJobId') and guest_session.currentJobId:
+            current_job = await training_job_service.get_job_status(guest_session.currentJobId)
         
         return {
             "success": True,
-            "projectStatus": project.status,
+            "projectStatus": guest_session.status,
             "currentJob": current_job.model_dump() if current_job else None,
             "allJobs": [job.model_dump() for job in jobs],
             "totalJobs": len(jobs)
@@ -549,23 +567,27 @@ async def cancel_guest_training(
     session_id: str,
     project_id: str,
     session: dict = Depends(validate_session_dependency),
-    project_service: ProjectService = Depends(get_project_service)
+    guest_service: GuestService = Depends(get_guest_service)
 ):
     """Cancel current training job for a guest project"""
     try:
-        # Verify project belongs to this session
-        project = await project_service.get_project(project_id)
-        if not project or project.student_id != session_id:
-            raise HTTPException(status_code=404, detail="Project not found")
+        # Get guest session which contains the project data
+        guest_session = await guest_service.get_guest_session(session_id)
+        if not guest_session:
+            raise HTTPException(status_code=404, detail="Guest session not found")
         
-        if not project.currentJobId:
+        # Verify the project_id matches the one in the guest session
+        if guest_session.project_id != project_id:
+            raise HTTPException(status_code=404, detail="Project not found in this session")
+        
+        if not hasattr(guest_session, 'currentJobId') or not guest_session.currentJobId:
             raise HTTPException(
                 status_code=400,
                 detail="No training job in progress"
             )
         
         # Cancel the job
-        success = await training_job_service.cancel_job(project.currentJobId)
+        success = await training_job_service.cancel_job(guest_session.currentJobId)
         
         if success:
             return {
@@ -594,33 +616,31 @@ async def predict_guest_text(
     project_id: str,
     prediction_request: PredictionRequest,
     session: dict = Depends(validate_session_dependency),
-    project_service: ProjectService = Depends(get_project_service)
+    guest_service: GuestService = Depends(get_guest_service)
 ):
     """Make prediction using trained guest model"""
     try:
-        # Verify project belongs to this session
-        project = await project_service.get_project(project_id)
-        if not project or project.student_id != session_id:
-            raise HTTPException(status_code=404, detail="Project not found")
+        # Get guest session which contains the project data
+        guest_session = await guest_service.get_guest_session(session_id)
+        if not guest_session:
+            raise HTTPException(status_code=404, detail="Guest session not found")
         
-        if project.status != 'trained':
+        # Verify the project_id matches the one in the guest session
+        if guest_session.project_id != project_id:
+            raise HTTPException(status_code=404, detail="Project not found in this session")
+        
+        if guest_session.status != 'trained':
             raise HTTPException(
                 status_code=400, 
                 detail="Project is not trained yet. Train the model first."
             )
         
-        # Make prediction using model from GCS
-        prediction_result = trainer.predict_from_gcs(
-            prediction_request.text, 
-            gcp_clients.get_bucket(),
-            project.model.gcsPath
-        )
-        
-        return PredictionResponse(
-            success=True,
-            label=prediction_result['label'],
-            confidence=prediction_result['confidence'],
-            alternatives=prediction_result['alternatives']
+        # For guest projects, we need to implement a different prediction mechanism
+        # since they don't have the same model structure as regular projects
+        # For now, return an error indicating this needs to be implemented
+        raise HTTPException(
+            status_code=501,
+            detail="Prediction for guest projects is not yet implemented"
         )
         
     except HTTPException:
@@ -638,22 +658,34 @@ async def get_guest_project_status(
     session_id: str,
     project_id: str,
     session: dict = Depends(validate_session_dependency),
-    project_service: ProjectService = Depends(get_project_service)
+    guest_service: GuestService = Depends(get_guest_service)
 ):
     """Get guest project status and metadata"""
     try:
-        # Verify project belongs to this session
-        project = await project_service.get_project(project_id)
-        if not project or project.student_id != session_id:
-            raise HTTPException(status_code=404, detail="Project not found")
+        # Get guest session which contains the project data
+        guest_session = await guest_service.get_guest_session(session_id)
+        if not guest_session:
+            raise HTTPException(status_code=404, detail="Guest session not found")
         
+        # Verify the project_id matches the one in the guest session
+        if guest_session.project_id != project_id:
+            raise HTTPException(status_code=404, detail="Project not found in this session")
+        
+        # Convert guest session data to project status format
         status_response = {
-            "id": project.id,
-            "status": project.status,
-            "dataset": project.dataset,
-            "datasets": project.datasets,
-            "model": project.model,
-            "updatedAt": project.updatedAt
+            "id": guest_session.project_id,
+            "status": guest_session.status,
+            "dataset": {
+                "examples": guest_session.dataset,
+                "size": guest_session.dataset_size
+            },
+            "datasets": [],  # Guest projects only have one dataset
+            "model": {
+                "type": guest_session.model_type,
+                "version": guest_session.model_version,
+                "status": "available" if guest_session.status == "trained" else "unavailable"
+            },
+            "updatedAt": guest_session.updated_at
         }
         
         return ProjectStatusResponseWrapper(data=status_response)
@@ -673,14 +705,18 @@ async def get_guest_job_status(
     project_id: str,
     job_id: str,
     session: dict = Depends(validate_session_dependency),
-    project_service: ProjectService = Depends(get_project_service)
+    guest_service: GuestService = Depends(get_guest_service)
 ):
     """Get training job status for a guest project"""
     try:
-        # Verify project belongs to this session
-        project = await project_service.get_project(project_id)
-        if not project or project.student_id != session_id:
-            raise HTTPException(status_code=404, detail="Project not found")
+        # Get guest session which contains the project data
+        guest_session = await guest_service.get_guest_session(session_id)
+        if not guest_session:
+            raise HTTPException(status_code=404, detail="Guest session not found")
+        
+        # Verify the project_id matches the one in the guest session
+        if guest_session.project_id != project_id:
+            raise HTTPException(status_code=404, detail="Project not found in this session")
         
         job = await training_job_service.get_job_status(job_id)
         if not job:
@@ -1744,47 +1780,3 @@ async def train_guest_project(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/session/{session_id}/projects/{project_id}/train", response_model=dict)
-async def get_guest_training_status(
-    session_id: str,
-    project_id: str,
-    session: dict = Depends(validate_session_dependency),
-    project_service: ProjectService = Depends(get_project_service)
-):
-    """Get training status for Scratch extension"""
-    try:
-        # Validate that the project belongs to this session
-        project = await project_service.get_project(project_id)
-        if not project:
-            raise HTTPException(status_code=404, detail="Project not found")
-        
-        # Check if project belongs to this session
-        if project.guest_session_id != session_id:
-            raise HTTPException(status_code=403, detail="Project does not belong to this session")
-        
-        # Get examples for this project
-        examples = await project_service.get_project_examples(project_id)
-        
-        # Determine training status
-        if len(examples) == 0:
-            status = "no_data"
-        elif len(examples) < 2:
-            status = "insufficient_data"
-        else:
-            status = "ready"
-        
-        return {
-            "success": True,
-            "data": {
-                "status": status,
-                "examples_count": len(examples),
-                "project_name": project.name,
-                "last_updated": project.updatedAt.isoformat() if project.updatedAt else None
-            }
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error getting training status for project {project_id}: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))

@@ -353,6 +353,7 @@ class Guest(BaseModel):
     training_logs: List[str] = Field(default_factory=list, description="Training progress logs")
     trained_at: Optional[datetime] = Field(None, description="When training completed")
     metrics: Dict[str, float] = Field(default_factory=dict, description="Training metrics (accuracy, loss, f1)")
+    currentJobId: Optional[str] = Field(None, description="Current training job ID")
     
     # Test results
     test_results: List[Dict[str, str]] = Field(default_factory=list, description="Test predictions with input, expected, and predicted")
