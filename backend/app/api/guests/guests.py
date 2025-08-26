@@ -1129,6 +1129,205 @@ async def delete_specific_example(
         raise HTTPException(status_code=500, detail=f"Failed to delete example: {str(e)}")
 
 
+@router.delete("/projects/{project_id}/labels/{label}")
+async def delete_label(
+    project_id: str,
+    label: str,
+    session_id: str = Query(..., description="Guest session ID"),
+    guest_service: GuestService = Depends(get_guest_service),
+    project_service: ProjectService = Depends(get_project_service)
+):
+    """Delete a label completely from a guest project, including all its examples"""
+    try:
+        # Validate session
+        session = await validate_session_dependency(session_id, guest_service)
+        logger.info(f"Session validated for project {project_id}, session {session_id}, label: {label}")
+        
+        # Get project to verify ownership
+        project = await project_service.get_project(project_id)
+        if not project:
+            logger.error(f"Project {project_id} not found")
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        # Verify project belongs to this guest session
+        if project.student_id != session_id:
+            logger.error(f"Project {project_id} does not belong to session {session_id}")
+            raise HTTPException(status_code=403, detail="Project does not belong to this session")
+        
+        # Ensure dataset is properly typed (in case deserialization had issues)
+        if isinstance(project.dataset, dict):
+            logger.info(f"Debug: Converting dataset dict to Dataset object for project {project_id}")
+            # Convert examples if needed
+            if 'examples' in project.dataset and isinstance(project.dataset['examples'], list):
+                examples = []
+                for example_data in project.dataset['examples']:
+                    if isinstance(example_data, dict):
+                        examples.append(TextExample(**example_data))
+                    else:
+                        examples.append(example_data)
+                project.dataset['examples'] = examples
+            project.dataset = Dataset(**project.dataset)
+        
+        # Check if project has dataset
+        if not project.dataset:
+            logger.warning(f"Project {project_id} has no dataset")
+            raise HTTPException(status_code=404, detail="No dataset found for this project")
+        
+        # Count examples before deletion
+        examples_before = len(project.dataset.examples) if project.dataset.examples else 0
+        examples_with_label = [ex for ex in project.dataset.examples if ex.label == label] if project.dataset.examples else []
+        examples_to_delete = len(examples_with_label)
+        
+        logger.info(f"Project {project_id} has {examples_before} total examples before deletion")
+        logger.info(f"Found {examples_to_delete} examples with label '{label}' to delete")
+        
+        # Remove examples with the specified label
+        if project.dataset.examples:
+            project.dataset.examples = [ex for ex in project.dataset.examples if ex.label != label]
+        
+        # Remove the label from the labels list
+        if hasattr(project.dataset, 'labels') and project.dataset.labels:
+            if label in project.dataset.labels:
+                project.dataset.labels.remove(label)
+                logger.info(f"Removed label '{label}' from labels list")
+        
+        # Update dataset size
+        project.dataset.records = len(project.dataset.examples) if project.dataset.examples else 0
+        
+        logger.info(f"After deletion, project has {len(project.dataset.examples) if project.dataset.examples else 0} examples")
+        logger.info(f"Dataset records updated to: {project.dataset.records}")
+        
+        # Save the complete project with updated dataset to database
+        try:
+            # Ensure all dataset fields are properly set
+            if not hasattr(project.dataset, 'labels') or project.dataset.labels is None:
+                # Regenerate labels from remaining examples
+                all_labels = set(example.label for example in project.dataset.examples) if project.dataset.examples else set()
+                project.dataset.labels = list(all_labels)
+            
+            # Use the save_project method to avoid any ProjectUpdate serialization issues
+            await project_service.save_project(project)
+            
+            logger.info(f"Successfully deleted label '{label}' and {examples_to_delete} examples from project {project_id}")
+            logger.info(f"Project saved to database with {project.dataset.records} examples")
+            
+        except Exception as e:
+            logger.error(f"Error updating project after label deletion: {str(e)}")
+            logger.error(f"Debug: Dataset type: {type(project.dataset)}")
+            logger.error(f"Debug: Dataset has records attr: {hasattr(project.dataset, 'records')}")
+            if hasattr(project.dataset, 'examples'):
+                logger.error(f"Debug: Examples type: {type(project.dataset.examples)}")
+            raise HTTPException(status_code=500, detail=f"Failed to update project: {str(e)}")
+        
+        return {
+            "success": True,
+            "message": f"Successfully deleted label '{label}' and {examples_to_delete} examples",
+            "project_id": project_id,
+            "label": label,
+            "examples_deleted": examples_to_delete,
+            "examples_before": examples_before,
+            "examples_after": len(project.dataset.examples) if project.dataset.examples else 0,
+            "label_removed": True
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error deleting label: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete label: {str(e)}")
+
+
+@router.delete("/projects/{project_id}/labels/{label}/empty")
+async def delete_empty_label(
+    project_id: str,
+    label: str,
+    session_id: str = Query(..., description="Guest session ID"),
+    guest_service: GuestService = Depends(get_guest_service),
+    project_service: ProjectService = Depends(get_project_service)
+):
+    """Delete an empty label (label with no examples) from a guest project"""
+    try:
+        # Validate session
+        session = await validate_session_dependency(session_id, guest_service)
+        logger.info(f"Session validated for project {project_id}, session {session_id}, label: {label}")
+        
+        # Get project to verify ownership
+        project = await project_service.get_project(project_id)
+        if not project:
+            logger.error(f"Project {project_id} not found")
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        # Verify project belongs to this guest session
+        if project.student_id != session_id:
+            logger.error(f"Project {project_id} does not belong to session {session_id}")
+            raise HTTPException(status_code=403, detail="Project does not belong to this session")
+        
+        # Ensure dataset is properly typed (in case deserialization had issues)
+        if isinstance(project.dataset, dict):
+            logger.info(f"Debug: Converting dataset dict to Dataset object for project {project_id}")
+            # Convert examples if needed
+            if 'examples' in project.dataset and isinstance(project.dataset['examples'], list):
+                examples = []
+                for example_data in project.dataset['examples']:
+                    if isinstance(example_data, dict):
+                        examples.append(TextExample(**example_data))
+                    else:
+                        examples.append(example_data)
+                project.dataset['examples'] = examples
+            project.dataset = Dataset(**project.dataset)
+        
+        # Check if project has dataset
+        if not project.dataset:
+            logger.warning(f"Project {project_id} has no dataset")
+            raise HTTPException(status_code=404, detail="No dataset found for this project")
+        
+        # Check if label has examples
+        examples_with_label = [ex for ex in project.dataset.examples if ex.label == label] if project.dataset.examples else []
+        
+        if examples_with_label:
+            logger.warning(f"Label '{label}' has {len(examples_with_label)} examples, cannot delete as empty label")
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Label '{label}' has {len(examples_with_label)} examples. Use the regular label deletion endpoint to delete label with examples."
+            )
+        
+        # Check if label exists in labels list
+        if not hasattr(project.dataset, 'labels') or not project.dataset.labels or label not in project.dataset.labels:
+            logger.warning(f"Label '{label}' not found in labels list for project {project_id}")
+            raise HTTPException(status_code=404, detail=f"Label '{label}' not found")
+        
+        # Remove the label from the labels list
+        project.dataset.labels.remove(label)
+        logger.info(f"Removed empty label '{label}' from labels list")
+        
+        # Save the complete project with updated dataset to database
+        try:
+            # Use the save_project method to avoid any ProjectUpdate serialization issues
+            await project_service.save_project(project)
+            
+            logger.info(f"Successfully deleted empty label '{label}' from project {project_id}")
+            logger.info(f"Project saved to database")
+            
+        except Exception as e:
+            logger.error(f"Error updating project after empty label deletion: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Failed to update project: {str(e)}")
+        
+        return {
+            "success": True,
+            "message": f"Successfully deleted empty label '{label}'",
+            "project_id": project_id,
+            "label": label,
+            "examples_deleted": 0,
+            "label_removed": True
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error deleting empty label: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete empty label: {str(e)}")
+
+
 # ============================================================================
 # SESSION CLEANUP
 # ============================================================================

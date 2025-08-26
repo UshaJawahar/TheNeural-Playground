@@ -648,66 +648,21 @@ export default function TrainPage() {
       console.log('Label:', label.name);
       console.log('Examples count:', label.examples.length);
       
-      let success = false;
+      // Use the new delete label endpoint that handles both cases
+      const response = await fetch(`${config.apiBaseUrl}${config.api.guests.deleteLabel(actualSessionId, actualProjectId, label.name)}?session_id=${actualSessionId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
       
-      if (label.examples.length > 0) {
-        // Case 1: Label has examples - delete all examples first, then remove label from UI
-        console.log('🗑️ Label has examples, deleting all examples first...');
-        
-        const response = await fetch(`${config.apiBaseUrl}${config.api.guests.deleteExamplesByLabel(actualSessionId, actualProjectId, label.name)}?session_id=${actualSessionId}`, {
-          method: 'DELETE',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        });
-        
-        console.log('🗑️ Delete Examples by Label API Response Status:', response.status);
-        
-        if (response.ok) {
-          const result = await response.json();
-          console.log('✅ All examples deleted successfully:', result);
-          success = true;
-        } else {
-          console.error('❌ Delete Examples by Label API failed:', response.status);
-          
-          let errorDetails;
-          try {
-            errorDetails = await response.json();
-            console.error('📋 Error Details:', errorDetails);
-          } catch (jsonError) {
-            const errorText = await response.text();
-            console.error('📝 Error Text:', errorText);
-            errorDetails = { detail: errorText };
-          }
-          
-          // Show user-friendly error
-          if (response.status === 404) {
-            // Examples might have been deleted already, continue with label removal
-            console.log('⚠️ Examples not found (might be deleted already), continuing with label removal...');
-            success = true;
-          } else if (response.status === 403) {
-            alert('Access denied. You do not have permission to delete these examples.');
-            return;
-          } else if (response.status === 500) {
-            alert('Server error occurred while deleting the examples. Please try again later.');
-            return;
-          } else {
-            alert(`Failed to delete examples (${response.status}): ${errorDetails.detail || 'Unknown error'}`);
-            return;
-          }
-        }
-      } else {
-        // Case 2: Label has no examples - just remove from UI
-        console.log('🗑️ Label has no examples, removing directly...');
-        success = true;
-      }
+      console.log('🗑️ Delete Label API Response Status:', response.status);
       
-      if (success) {
-        // Remove label from local state
-        const updatedLabels = labels.filter(l => l.id !== labelId);
-        setLabels(updatedLabels);
+      if (response.ok) {
+        const result = await response.json();
+        console.log('✅ Label deleted successfully:', result);
         
-        // Refresh from API to ensure sync
+        // Refresh from API to ensure sync - this will update the UI with the correct state
         await refreshExamplesFromAPI();
         
         // Show success message
@@ -715,6 +670,29 @@ export default function TrainPage() {
           alert(`Successfully deleted the label "${label.name}" and all ${label.examples.length} examples!`);
         } else {
           alert(`Successfully deleted the empty label "${label.name}"!`);
+        }
+      } else {
+        console.error('❌ Delete Label API failed:', response.status);
+        
+        let errorDetails;
+        try {
+          errorDetails = await response.json();
+          console.error('📋 Error Details:', errorDetails);
+        } catch (jsonError) {
+          const errorText = await response.text();
+          console.error('📝 Error Text:', errorText);
+          errorDetails = { detail: errorText };
+        }
+        
+        // Show user-friendly error
+        if (response.status === 404) {
+          alert('Label not found. It may have already been deleted.');
+        } else if (response.status === 403) {
+          alert('Access denied. You do not have permission to delete this label.');
+        } else if (response.status === 500) {
+          alert('Server error occurred while deleting the label. Please try again later.');
+        } else {
+          alert(`Failed to delete label (${response.status}): ${errorDetails.detail || 'Unknown error'}`);
         }
       }
     } catch (error) {
@@ -750,20 +728,56 @@ export default function TrainPage() {
     setDeletingLabelId(labelId);
     
     try {
-      console.log('🗑️ Deleting empty label:', label.name);
+      console.log('🗑️ Deleting empty label via API:', label.name);
       
-      // For empty labels, just remove from local state and refresh
-      const updatedLabels = labels.filter(l => l.id !== labelId);
-      setLabels(updatedLabels);
+      // Use the new delete empty label endpoint
+      const response = await fetch(`${config.apiBaseUrl}${config.api.guests.deleteEmptyLabel(actualSessionId, actualProjectId, label.name)}?session_id=${actualSessionId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
       
-      // Refresh from API to ensure sync
-      await refreshExamplesFromAPI();
+      console.log('🗑️ Delete Empty Label API Response Status:', response.status);
       
-      // Show success message
-      alert(`Successfully deleted the empty label "${label.name}"!`);
+      if (response.ok) {
+        const result = await response.json();
+        console.log('✅ Empty label deleted successfully:', result);
+        
+        // Refresh from API to ensure sync
+        await refreshExamplesFromAPI();
+        
+        // Show success message
+        alert(`Successfully deleted the empty label "${label.name}"!`);
+      } else {
+        console.error('❌ Delete Empty Label API failed:', response.status);
+        
+        let errorDetails;
+        try {
+          errorDetails = await response.json();
+          console.error('📋 Error Details:', errorDetails);
+        } catch (jsonError) {
+          const errorText = await response.text();
+          console.error('📝 Error Text:', errorText);
+          errorDetails = { detail: errorText };
+        }
+        
+        // Show user-friendly error
+        if (response.status === 400) {
+          alert(errorDetails.detail || 'This label has examples and cannot be deleted as an empty label.');
+        } else if (response.status === 404) {
+          alert('Label not found. It may have already been deleted.');
+        } else if (response.status === 403) {
+          alert('Access denied. You do not have permission to delete this label.');
+        } else if (response.status === 500) {
+          alert('Server error occurred while deleting the label. Please try again later.');
+        } else {
+          alert(`Failed to delete empty label (${response.status}): ${errorDetails.detail || 'Unknown error'}`);
+        }
+      }
     } catch (error) {
-      console.error('❌ Error during empty label deletion:', error);
-      alert('Error occurred while deleting the label. Please try again.');
+      console.error('❌ Network error during empty label deletion:', error);
+      alert('Network error: Failed to connect to the server. Please check your connection and try again.');
     } finally {
       setIsDeletingLabel(false);
       setDeletingLabelId(null);
