@@ -72,8 +72,8 @@ class GuestService:
                 last_accessed_at=datetime.now(timezone.utc)
             )
             
-            # Save to Firestore
-            doc_ref = self.collection.document(session_id)
+            # Save to Firestore - store in projects collection with student_id = session_id
+            doc_ref = self.projects_collection.document(project_id)
             doc_ref.set(guest.model_dump())
             
             logger.info(f"Created guest session: {session_id} with project: {project_id}")
@@ -84,12 +84,13 @@ class GuestService:
             raise
     
     async def get_guest_session(self, session_id: str) -> Optional[Guest]:
-        """Get a guest session by ID"""
+        """Get a guest session by ID - looks in projects collection where student_id = session_id"""
         try:
-            doc_ref = self.collection.document(session_id)
-            doc = doc_ref.get()
+            # Query projects collection for projects where student_id matches the session_id
+            query = self.projects_collection.where("student_id", "==", session_id).limit(1)
+            docs = query.stream()
             
-            if doc.exists:
+            for doc in docs:
                 data = doc.to_dict()
                 return Guest(**data)
             return None
@@ -98,7 +99,7 @@ class GuestService:
             logger.error(f"Error getting guest session {session_id}: {str(e)}")
             raise
     
-    async def get_guest_project_by_id(self, project_id: str) -> Optional[Guest]:
+    async def get_guest_project_by_id(self, project_id: str) -> Optional[dict]:
         """Get a guest project by project_id - looks in projects collection"""
         try:
             # Query the projects collection to find a project with the given project_id
@@ -107,7 +108,7 @@ class GuestService:
             
             for doc in docs:
                 data = doc.to_dict()
-                return Guest(**data)
+                return data  # Return raw data instead of trying to parse as Guest model
             return None
             
         except Exception as e:
@@ -149,12 +150,14 @@ class GuestService:
     async def delete_guest_session(self, session_id: str) -> bool:
         """Delete a guest session"""
         try:
-            doc_ref = self.collection.document(session_id)
-            doc = doc_ref.get()
+            # Find the project document where student_id matches the session_id
+            query = self.projects_collection.where("student_id", "==", session_id).limit(1)
+            docs = list(query.stream())
             
-            if not doc.exists:
+            if not docs:
                 return False
             
+            doc_ref = docs[0].reference
             doc_ref.delete()
             logger.info(f"Deleted guest session: {session_id}")
             return True
@@ -163,13 +166,13 @@ class GuestService:
             logger.error(f"Error deleting guest session {session_id}: {str(e)}")
             raise
     
-    async def get_active_sessions(self, limit: int = 100) -> List[Guest]:
+    async def get_active_sessions(self, limit: int = 100) -> List[dict]:
         """Get all active guest sessions"""
         try:
-            query = self.collection.where(
-                filter=FieldFilter("active", "==", True)
+            query = self.projects_collection.where(
+                filter=FieldFilter("student_id", "startswith", "session_")
             ).where(
-                filter=FieldFilter("expiresAt", ">", datetime.now(timezone.utc))
+                filter=FieldFilter("expiryTimestamp", ">", datetime.now(timezone.utc))
             ).limit(limit)
             
             docs = query.stream()
@@ -177,7 +180,7 @@ class GuestService:
             
             for doc in docs:
                 try:
-                    sessions.append(Guest(**doc.to_dict()))
+                    sessions.append(doc.to_dict())
                 except Exception as e:
                     logger.warning(f"Error parsing guest session {doc.id}: {str(e)}")
                     continue
@@ -192,8 +195,10 @@ class GuestService:
         """Clean up expired guest sessions"""
         try:
             current_time = datetime.now(timezone.utc)
-            query = self.collection.where(
-                filter=FieldFilter("expiresAt", "<=", current_time)
+            query = self.projects_collection.where(
+                filter=FieldFilter("student_id", "startswith", "session_")
+            ).where(
+                filter=FieldFilter("expiryTimestamp", "<=", current_time)
             )
             
             docs = list(query.stream())
@@ -216,62 +221,66 @@ class GuestService:
             logger.error(f"Error cleaning up expired sessions: {str(e)}")
             raise
     
-    async def add_training_examples(self, session_id: str, examples: List[Dict[str, str]]) -> Optional[Guest]:
+    async def add_training_examples(self, session_id: str, examples: List[Dict[str, str]]) -> Optional[dict]:
         """Add training examples to a guest project"""
         try:
-            doc_ref = self.collection.document(session_id)
-            doc = doc_ref.get()
+            # Find the project document where student_id matches the session_id
+            query = self.projects_collection.where("student_id", "==", session_id).limit(1)
+            docs = list(query.stream())
             
-            if not doc.exists:
+            if not docs:
                 return None
             
-            guest_data = doc.to_dict()
-            current_dataset = guest_data.get('dataset', [])
+            doc_ref = docs[0].reference
+            guest_data = docs[0].to_dict()
+            current_dataset = guest_data.get('dataset', {})
+            current_examples = current_dataset.get('examples', [])
             
             # Add new examples
-            current_dataset.extend(examples)
+            current_examples.extend(examples)
             
             # Update document
             update_data = {
-                'dataset': current_dataset,
-                'dataset_size': len(current_dataset),
-                'updated_at': datetime.now(timezone.utc),
-                'last_active': datetime.now(timezone.utc)
+                'dataset.examples': current_examples,
+                'dataset.records': len(current_examples),
+                'updatedAt': datetime.now(timezone.utc)
             }
             
             doc_ref.update(update_data)
             
             # Return updated document
             updated_doc = doc_ref.get()
-            return Guest(**updated_doc.to_dict())
+            return updated_doc.to_dict()
             
         except Exception as e:
             logger.error(f"Error adding examples to session {session_id}: {str(e)}")
             raise
     
-    async def update_training_status(self, session_id: str, status: str, logs: Optional[List[str]] = None, metrics: Optional[Dict[str, float]] = None) -> Optional[Guest]:
+    async def update_training_status(self, session_id: str, status: str, logs: Optional[List[str]] = None, metrics: Optional[Dict[str, float]] = None) -> Optional[dict]:
         """Update training status and results for a guest project"""
         try:
-            doc_ref = self.collection.document(session_id)
-            doc = doc_ref.get()
+            # Find the project document where student_id matches the session_id
+            query = self.projects_collection.where("student_id", "==", session_id).limit(1)
+            docs = list(query.stream())
             
-            if not doc.exists:
+            if not docs:
                 return None
             
+            doc_ref = docs[0].reference
+            
             update_data = {
-                'training_status': status,
-                'updated_at': datetime.now(timezone.utc),
-                'last_active': datetime.now(timezone.utc)
+                'updatedAt': datetime.now(timezone.utc)
             }
             
             if logs:
-                update_data['training_logs'] = logs
+                update_data['trainingHistory'] = logs
             
             if metrics:
-                update_data['metrics'] = metrics
+                update_data['model.accuracy'] = metrics.get('accuracy')
+                update_data['model.loss'] = metrics.get('loss')
                 
             if status == "completed":
-                update_data['trained_at'] = datetime.now(timezone.utc)
+                update_data['model.trainedAt'] = datetime.now(timezone.utc)
                 update_data['status'] = "trained"
             elif status == "failed":
                 update_data['status'] = "failed"
@@ -280,7 +289,7 @@ class GuestService:
             
             # Return updated document
             updated_doc = doc_ref.get()
-            return Guest(**updated_doc.to_dict())
+            return updated_doc.to_dict()
             
         except Exception as e:
             logger.error(f"Error updating training status for session {session_id}: {str(e)}")

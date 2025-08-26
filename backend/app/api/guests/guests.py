@@ -546,12 +546,12 @@ async def get_guest_training_status(
         
         # Get current job status if there's a current job
         current_job = None
-        if hasattr(guest_project, 'currentJobId') and guest_project.currentJobId:
-            current_job = await training_job_service.get_job_status(guest_project.currentJobId)
+        if guest_project.get('currentJobId'):
+            current_job = await training_job_service.get_job_status(guest_project['currentJobId'])
         
         return {
             "success": True,
-            "projectStatus": guest_project.status,
+            "projectStatus": guest_project.get('status', 'draft'),
             "currentJob": current_job.model_dump() if current_job else None,
             "allJobs": [job.model_dump() for job in jobs],
             "totalJobs": len(jobs)
