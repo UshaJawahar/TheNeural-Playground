@@ -637,38 +637,28 @@ async def predict_guest_text(
         
         # Use the same prediction infrastructure as regular projects
         # Guest projects store their models in the same format
-        try:
-            from ..training_service import trainer
-            from ..config import gcp_clients
-            
-            # Get the model path from the project
-            model_gcs_path = guest_project.get('model', {}).get('gcsPath')
-            if not model_gcs_path:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Model not found. Please ensure the model was saved during training."
-                )
-            
-            # Make prediction using the trained model
-            prediction_result = trainer.predict_from_gcs(
-                prediction_request.text,
-                gcp_clients.get_bucket(),
-                model_gcs_path
-            )
-            
-            return PredictionResponse(
-                success=True,
-                label=prediction_result['label'],
-                confidence=prediction_result['confidence'],
-                alternatives=prediction_result['alternatives']
-            )
-            
-        except Exception as e:
-            logger.error(f"Prediction failed for guest project {project_id}: {str(e)}")
+        
+        # Get the model path from the project
+        model_gcs_path = guest_project.get('model', {}).get('gcsPath')
+        if not model_gcs_path:
             raise HTTPException(
-                status_code=500,
-                detail=f"Prediction failed: {str(e)}"
+                status_code=400,
+                detail="Model not found. Please ensure the model was saved during training."
             )
+        
+        # Make prediction using the trained model
+        prediction_result = trainer.predict_from_gcs(
+            prediction_request.text,
+            gcp_clients.get_bucket(),
+            model_gcs_path
+        )
+        
+        return PredictionResponse(
+            success=True,
+            label=prediction_result['label'],
+            confidence=prediction_result['confidence'],
+            alternatives=prediction_result['alternatives']
+        )
         
     except HTTPException:
         raise
