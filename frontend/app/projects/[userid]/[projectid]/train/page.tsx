@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, usePathname } from 'next/navigation';
 import Header from '../../../../../components/Header';
 import config from '../../../../../lib/config';
 import { 
@@ -71,14 +71,65 @@ export default function TrainPage() {
   const [isSubmittingToAPI, setIsSubmittingToAPI] = useState(false);
   const [isDeletingExample, setIsDeletingExample] = useState(false);
   const [deletingExampleId, setDeletingExampleId] = useState<string | null>(null);
+  const [hasInitialDataLoaded, setHasInitialDataLoaded] = useState(false);
+  const [lastDataRefresh, setLastDataRefresh] = useState<number>(0);
 
   const params = useParams();
   const urlUserId = params?.userid as string;
   const urlProjectId = params?.projectid as string;
+  const pathname = usePathname();
 
   useEffect(() => {
     validateGuestSession();
-  }, [urlUserId, urlProjectId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [urlUserId, urlProjectId, pathname]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Add focus event listener to detect when user returns to the train page
+  useEffect(() => {
+    const handleFocus = () => {
+      // Only reload data if we have valid session and project IDs, and initial data was loaded before
+      if (actualSessionId && actualProjectId && isValidSession && hasInitialDataLoaded) {
+        console.log('🔄 User returned to train page, reloading existing data...');
+        refreshExamplesFromAPI();
+      }
+    };
+
+    // Listen for when the window/tab becomes focused
+    window.addEventListener('focus', handleFocus);
+    
+    // Also listen for visibility change (when user switches back to tab)
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && actualSessionId && actualProjectId && isValidSession && hasInitialDataLoaded) {
+        console.log('🔄 Tab became visible, reloading existing data...');
+        refreshExamplesFromAPI();
+      }
+    });
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleFocus);
+    };
+  }, [actualSessionId, actualProjectId, isValidSession, hasInitialDataLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Comprehensive data refresh effect - handles all cases when user returns to train page
+  useEffect(() => {
+    // Only reload data if we have valid session and project IDs, and initial data was loaded before
+    if (pathname.includes('/train') && actualSessionId && actualProjectId && isValidSession && hasInitialDataLoaded) {
+      console.log('🔄 User on train page with valid session, ensuring data is fresh...');
+      
+      // Add a small delay to avoid immediate API calls during navigation
+      const timer = setTimeout(() => {
+        // Only refresh if we haven't refreshed recently
+        const now = Date.now();
+        if (now - lastDataRefresh > 5000) {
+          refreshExamplesFromAPI();
+        } else {
+          console.log('🔄 Data was refreshed recently, skipping refresh...');
+        }
+      }, 100);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [pathname, actualSessionId, actualProjectId, isValidSession, hasInitialDataLoaded, lastDataRefresh]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const validateGuestSession = async () => {
     if (!urlUserId || !urlProjectId) {
@@ -146,13 +197,23 @@ export default function TrainPage() {
           const expiresAt = new Date(sessionResponse.data.expiresAt);
           
           if (now < expiresAt) {
+            // Check if this is a new session or if we're returning to an existing valid session
+            const isReturningToValidSession = actualSessionId === sessionId && actualProjectId === projectId && isValidSession;
+            
             setActualSessionId(sessionId);
             setActualProjectId(projectId);
             setGuestSession(sessionResponse.data);
             setIsValidSession(true);
             
-            // Load project and labels after setting session as valid
-            await loadProjectAndLabels(sessionId, projectId);
+            if (isReturningToValidSession && hasInitialDataLoaded) {
+              // We're returning to a valid session, just refresh the data
+              console.log('🔄 Returning to valid session, refreshing data...');
+              await refreshExamplesFromAPI();
+            } else {
+              // New session or first time loading, load project and labels
+              console.log('🔄 New session or first time loading, loading project and labels...');
+              await loadProjectAndLabels(sessionId, projectId);
+            }
           } else {
             console.error('Session expired');
             await cleanupSessionWithReason(SessionCleanupReason.EXPIRED_BACKEND);
@@ -184,6 +245,13 @@ export default function TrainPage() {
 
   const refreshExamplesFromAPI = async () => {
     if (!actualSessionId || !actualProjectId) return;
+    
+    // Prevent refreshing data too frequently (within 5 seconds)
+    const now = Date.now();
+    if (now - lastDataRefresh < 5000) {
+      console.log('🔄 Data was refreshed recently, skipping refresh...');
+      return;
+    }
     
     try {
       console.log('🔄 Refreshing examples from API');
@@ -233,6 +301,15 @@ export default function TrainPage() {
           
           console.log('🔄 Updating labels with fresh API data:', newLabels);
           setLabels(newLabels);
+          
+          // Set flag that initial data has been loaded
+          if (!hasInitialDataLoaded) {
+            setHasInitialDataLoaded(true);
+            console.log('✅ Initial data loaded successfully');
+          }
+          
+          // Update last refresh timestamp
+          setLastDataRefresh(Date.now());
           
           // Don't save to localStorage - let API be the source of truth
           // saveLabels(actualSessionId, actualProjectId, newLabels);
@@ -735,7 +812,7 @@ export default function TrainPage() {
         <div className="max-w-7xl mx-auto">
           
 
-                     <div className="flex items-center mb-8">
+                     <div className="flex items-center justify-between mb-8">
              <Link
                href={`/projects/${urlUserId}/${urlProjectId}`}
                className="p-2 text-white/70 hover:text-white hover:bg-[#bc6cd3]/10 rounded-lg transition-all duration-300 flex items-center gap-2 text-sm"
@@ -745,6 +822,23 @@ export default function TrainPage() {
                </svg>
                Back to project
              </Link>
+             
+             {/* Refresh button */}
+             <button
+               onClick={() => {
+                 if (actualSessionId && actualProjectId) {
+                   console.log('🔄 Manual refresh requested');
+                   refreshExamplesFromAPI();
+                 }
+               }}
+               className="p-2 text-[#dcfc84] hover:text-[#dcfc84]/80 hover:bg-[#dcfc84]/10 rounded-lg transition-all duration-300 flex items-center gap-2 text-sm"
+               title="Refresh data from server"
+             >
+               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+               </svg>
+               Refresh
+             </button>
            </div>
 
            
