@@ -1,6 +1,6 @@
 import joblib
 import pickle
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Optional
 from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split, cross_val_score, GridSearchCV
@@ -11,24 +11,39 @@ import numpy as np
 from datetime import datetime, timezone
 import re
 import spacy
+import logging
 
-# Load spaCy model (download if not available)
-try:
-    nlp = spacy.load("en_core_web_sm")
-    print("✅ spaCy English model loaded successfully")
-except OSError:
-    print("📥 spaCy English model not found, downloading...")
-    try:
-        import subprocess
-        import sys
-        subprocess.check_call([sys.executable, "-m", "spacy", "download", "en_core_web_sm"], 
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        nlp = spacy.load("en_core_web_sm")
-        print("✅ spaCy English model downloaded and loaded successfully")
-    except Exception as e:
-        print(f"❌ Failed to download spaCy model: {e}")
-        print("🔧 Please ensure internet connectivity and try again")
-        raise Exception("spaCy English model not available. Please ensure the model is downloaded.")
+# Configure logging
+logger = logging.getLogger(__name__)
+
+# Global variable for spaCy model (lazy loaded)
+_nlp_model = None
+
+def get_spacy_model():
+    """Lazy load spaCy model - only loads when first needed"""
+    global _nlp_model
+    
+    if _nlp_model is None:
+        try:
+            logger.info("Loading spaCy English model...")
+            _nlp_model = spacy.load("en_core_web_sm")
+            logger.info("✅ spaCy English model loaded successfully")
+        except OSError:
+            logger.warning("📥 spaCy English model not found, attempting to download...")
+            try:
+                import subprocess
+                import sys
+                subprocess.check_call([sys.executable, "-m", "spacy", "download", "en_core_web_sm"], 
+                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                _nlp_model = spacy.load("en_core_web_sm")
+                logger.info("✅ spaCy English model downloaded and loaded successfully")
+            except Exception as e:
+                logger.error(f"❌ Failed to download spaCy model: {e}")
+                logger.warning("🔧 spaCy model not available - some features may be limited")
+                # Don't raise exception - allow application to continue without spaCy
+                _nlp_model = None
+    
+    return _nlp_model
 
 from .models import TextExample, TrainedModel
 
@@ -37,7 +52,8 @@ class EnhancedTextPreprocessor:
     """Enhanced text preprocessing using spaCy for better feature extraction"""
     
     def __init__(self):
-        self.nlp = nlp
+        self.nlp = None  # Will be loaded lazily
+        self._spacy_available = False
         
         # Custom stop words for better text classification
         self.custom_stops = {
@@ -46,6 +62,12 @@ class EnhancedTextPreprocessor:
             'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
             'should', 'may', 'might', 'can', 'this', 'that', 'these', 'those'
         }
+    
+    def _ensure_spacy_loaded(self):
+        """Ensure spaCy model is loaded when needed"""
+        if self.nlp is None:
+            self.nlp = get_spacy_model()
+            self._spacy_available = self.nlp is not None
     
     def clean_text(self, text: str) -> str:
         """Clean and normalize text"""
@@ -64,39 +86,60 @@ class EnhancedTextPreprocessor:
         return text
     
     def tokenize_and_clean(self, text: str) -> List[str]:
-        """Tokenize and clean text using spaCy"""
+        """Tokenize and clean text using spaCy if available, fallback to basic tokenization"""
         try:
             # Clean text first
             cleaned_text = self.clean_text(text)
             
-            print(f"🔍 Processing text with spaCy: '{text[:50]}...'")
+            # Try to use spaCy if available
+            self._ensure_spacy_loaded()
             
-            # Process with spaCy
-            doc = self.nlp(cleaned_text)
-            
-            # Extract tokens with advanced filtering
-            filtered_tokens = []
-            for token in doc:
-                # Skip stop words, punctuation, whitespace, and very short tokens
-                if (not token.is_stop and 
-                    not token.is_punct and 
-                    not token.is_space and 
-                    len(token.text) > 2 and
-                    token.text.lower() not in self.custom_stops):
-                    
-                    # Lemmatize the token
-                    lemmatized = token.lemma_.lower()
-                    filtered_tokens.append(lemmatized)
-            
-            print(f"✅ spaCy processing complete: {len(filtered_tokens)} filtered tokens")
-            return filtered_tokens
+            if self._spacy_available and self.nlp:
+                logger.debug(f"🔍 Processing text with spaCy: '{text[:50]}...'")
+                
+                # Process with spaCy
+                doc = self.nlp(cleaned_text)
+                
+                # Extract tokens with advanced filtering
+                filtered_tokens = []
+                for token in doc:
+                    # Skip stop words, punctuation, whitespace, and very short tokens
+                    if (not token.is_stop and 
+                        not token.is_punct and 
+                        not token.is_space and 
+                        len(token.text) > 2 and
+                        token.text.lower() not in self.custom_stops):
+                        
+                        # Lemmatize the token
+                        lemmatized = token.lemma_.lower()
+                        filtered_tokens.append(lemmatized)
+                
+                logger.debug(f"✅ spaCy processing complete: {len(filtered_tokens)} filtered tokens")
+                return filtered_tokens
+            else:
+                # Fallback to basic tokenization without spaCy
+                logger.debug("⚠️ spaCy not available, using basic tokenization")
+                return self._basic_tokenize(cleaned_text)
             
         except Exception as e:
-            print(f"❌ Error in tokenize_and_clean: {e}")
-            print(f"❌ Error type: {type(e)}")
-            import traceback
-            print(f"❌ Traceback: {traceback.format_exc()}")
-            raise Exception(f"Text processing failed: {str(e)}")
+            logger.error(f"❌ Error in tokenize_and_clean: {e}")
+            logger.warning("⚠️ Falling back to basic tokenization")
+            return self._basic_tokenize(self.clean_text(text))
+    
+    def _basic_tokenize(self, text: str) -> List[str]:
+        """Basic tokenization fallback when spaCy is not available"""
+        # Simple word splitting and filtering
+        tokens = text.split()
+        filtered_tokens = []
+        
+        for token in tokens:
+            # Basic filtering
+            if (len(token) > 2 and 
+                token.lower() not in self.custom_stops and
+                token.isalpha()):
+                filtered_tokens.append(token.lower())
+        
+        return filtered_tokens
     
     def preprocess_text(self, text: str) -> str:
         """Preprocess text for vectorization"""

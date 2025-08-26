@@ -17,14 +17,36 @@ class TrainingWorker:
     """Worker that processes training jobs from Pub/Sub queue"""
     
     def __init__(self):
-        self.pubsub_client = gcp_clients.get_pubsub_client()
-        self.subscriber_client = gcp_clients.get_subscriber_client()  # Use from config
-        self.topic_path = gcp_clients.get_topic_path()
-        self.training_job_service = training_job_service  # Added missing service
+        # Lazy initialization - don't create clients until needed
+        self._pubsub_client = None
+        self._subscriber_client = None
+        self._topic_path = None
+        self.training_job_service = training_job_service
         
         # Worker configuration
         self.max_concurrent_jobs = 3  # Limit concurrent training jobs
         self.running_jobs = set()
+    
+    @property
+    def pubsub_client(self):
+        """Lazy load pubsub client"""
+        if self._pubsub_client is None:
+            self._pubsub_client = gcp_clients.get_pubsub_client()
+        return self._pubsub_client
+    
+    @property
+    def subscriber_client(self):
+        """Lazy load subscriber client"""
+        if self._subscriber_client is None:
+            self._subscriber_client = gcp_clients.get_subscriber_client()
+        return self._subscriber_client
+    
+    @property
+    def topic_path(self):
+        """Lazy load topic path"""
+        if self._topic_path is None:
+            self._topic_path = gcp_clients.get_topic_path()
+        return self._topic_path
     
     def get_subscription_path(self):
         """Get the subscription path for training jobs"""
