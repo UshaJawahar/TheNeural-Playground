@@ -634,7 +634,7 @@ export default function TrainPage() {
     }
     
     // Show confirmation dialog
-    if (!confirm(`Are you sure you want to delete the label "${label.name}" and all its examples? This action cannot be undone.`)) {
+    if (!confirm(`Are you sure you want to delete the label "${label.name}"${label.examples.length > 0 ? ` and all ${label.examples.length} examples` : ''}? This action cannot be undone.`)) {
       return;
     }
     
@@ -646,53 +646,124 @@ export default function TrainPage() {
       console.log('Session ID:', actualSessionId);
       console.log('Project ID:', actualProjectId);
       console.log('Label:', label.name);
+      console.log('Examples count:', label.examples.length);
       
-      // Delete all examples under this label using the existing API
-      const response = await fetch(`${config.apiBaseUrl}${config.api.guests.deleteExamplesByLabel(actualSessionId, actualProjectId, label.name)}?session_id=${actualSessionId}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      let success = false;
       
-      console.log('🗑️ Delete Label API Response Status:', response.status);
-      
-      if (response.ok) {
-        const result = await response.json();
-        console.log('✅ Label deleted successfully:', result);
+      if (label.examples.length > 0) {
+        // Case 1: Label has examples - delete all examples first, then remove label from UI
+        console.log('🗑️ Label has examples, deleting all examples first...');
         
-        // Refresh from API to ensure sync - this will update the UI with the correct state
+        const response = await fetch(`${config.apiBaseUrl}${config.api.guests.deleteExamplesByLabel(actualSessionId, actualProjectId, label.name)}?session_id=${actualSessionId}`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        console.log('🗑️ Delete Examples by Label API Response Status:', response.status);
+        
+        if (response.ok) {
+          const result = await response.json();
+          console.log('✅ All examples deleted successfully:', result);
+          success = true;
+        } else {
+          console.error('❌ Delete Examples by Label API failed:', response.status);
+          
+          let errorDetails;
+          try {
+            errorDetails = await response.json();
+            console.error('📋 Error Details:', errorDetails);
+          } catch (jsonError) {
+            const errorText = await response.text();
+            console.error('📝 Error Text:', errorText);
+            errorDetails = { detail: errorText };
+          }
+          
+          // Show user-friendly error
+          if (response.status === 404) {
+            // Examples might have been deleted already, continue with label removal
+            console.log('⚠️ Examples not found (might be deleted already), continuing with label removal...');
+            success = true;
+          } else if (response.status === 403) {
+            alert('Access denied. You do not have permission to delete these examples.');
+            return;
+          } else if (response.status === 500) {
+            alert('Server error occurred while deleting the examples. Please try again later.');
+            return;
+          } else {
+            alert(`Failed to delete examples (${response.status}): ${errorDetails.detail || 'Unknown error'}`);
+            return;
+          }
+        }
+      } else {
+        // Case 2: Label has no examples - just remove from UI
+        console.log('🗑️ Label has no examples, removing directly...');
+        success = true;
+      }
+      
+      if (success) {
+        // Remove label from local state
+        const updatedLabels = labels.filter(l => l.id !== labelId);
+        setLabels(updatedLabels);
+        
+        // Refresh from API to ensure sync
         await refreshExamplesFromAPI();
         
         // Show success message
-        alert(`Successfully deleted the label "${label.name}" and all its examples!`);
-      } else {
-        console.error('❌ Delete Label API failed:', response.status);
-        
-        let errorDetails;
-        try {
-          errorDetails = await response.json();
-          console.error('📋 Error Details:', errorDetails);
-        } catch (jsonError) {
-          const errorText = await response.text();
-          console.error('📝 Error Text:', errorText);
-          errorDetails = { detail: errorText };
-        }
-        
-        // Show user-friendly error
-        if (response.status === 404) {
-          alert('Label not found. It may have already been deleted.');
-        } else if (response.status === 403) {
-          alert('Access denied. You do not have permission to delete this label.');
-        } else if (response.status === 500) {
-          alert('Server error occurred while deleting the label. Please try again later.');
+        if (label.examples.length > 0) {
+          alert(`Successfully deleted the label "${label.name}" and all ${label.examples.length} examples!`);
         } else {
-          alert(`Failed to delete label (${response.status}): ${errorDetails.detail || 'Unknown error'}`);
+          alert(`Successfully deleted the empty label "${label.name}"!`);
         }
       }
     } catch (error) {
       console.error('❌ Network error during label deletion:', error);
       alert('Network error: Failed to connect to the server. Please check your connection and try again.');
+    } finally {
+      setIsDeletingLabel(false);
+      setDeletingLabelId(null);
+    }
+  };
+
+  const handleDeleteEmptyLabel = async (labelId: string) => {
+    if (!actualSessionId || !actualProjectId) return;
+    
+    // Find the label to get the label name
+    const label = labels.find(l => l.id === labelId);
+    if (!label) {
+      alert('Label not found');
+      return;
+    }
+    
+    if (label.examples.length > 0) {
+      alert('This label has examples. Please delete all examples first or use the "Delete Label" button to delete both label and examples.');
+      return;
+    }
+    
+    // Show confirmation dialog
+    if (!confirm(`Are you sure you want to delete the empty label "${label.name}"? This action cannot be undone.`)) {
+      return;
+    }
+    
+    setIsDeletingLabel(true);
+    setDeletingLabelId(labelId);
+    
+    try {
+      console.log('🗑️ Deleting empty label:', label.name);
+      
+      // For empty labels, just remove from local state and refresh
+      const updatedLabels = labels.filter(l => l.id !== labelId);
+      setLabels(updatedLabels);
+      
+      // Refresh from API to ensure sync
+      await refreshExamplesFromAPI();
+      
+      // Show success message
+      alert(`Successfully deleted the empty label "${label.name}"!`);
+    } catch (error) {
+      console.error('❌ Error during empty label deletion:', error);
+      alert('Error occurred while deleting the label. Please try again.');
     } finally {
       setIsDeletingLabel(false);
       setDeletingLabelId(null);
@@ -763,7 +834,10 @@ export default function TrainPage() {
         
         // Show user-friendly error
         if (response.status === 404) {
-          alert('Example not found. It may have already been deleted.');
+          // Example might have been deleted already, refresh to sync
+          console.log('⚠️ Example not found (might be deleted already), refreshing data...');
+          await refreshExamplesFromAPI();
+          alert('Example not found. The data has been refreshed to show current state.');
         } else if (response.status === 403) {
           alert('Access denied. You do not have permission to delete this example.');
         } else if (response.status === 500) {
@@ -843,7 +917,10 @@ export default function TrainPage() {
         
         // Show user-friendly error
         if (response.status === 404) {
-          alert('No examples found with this label.');
+          // Examples might have been deleted already, refresh to sync
+          console.log('⚠️ Examples not found (might be deleted already), refreshing data...');
+          await refreshExamplesFromAPI();
+          alert('Examples not found. The data has been refreshed to show current state.');
         } else if (response.status === 403) {
           alert('Access denied. You do not have permission to delete these examples.');
         } else if (response.status === 500) {
@@ -1050,20 +1127,40 @@ export default function TrainPage() {
                            {isDeletingExample ? 'Deleting...' : 'Clear All'}
                          </button>
                        )}
-                                               <button
-                          onClick={() => handleDeleteLabel(label.id)}
-                          disabled={isDeletingLabel || isDeletingExample}
-                          className="text-red-500 hover:text-red-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                          title="Delete label"
-                        >
-                          {isDeletingLabel && deletingLabelId === label.id ? (
-                            <div className="w-4 h-4 border border-red-500/20 border-t-red-500 rounded-full animate-spin"></div>
-                          ) : (
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                          )}
-                        </button>
+                                               {/* Show different delete button based on whether label has examples */}
+                        {label.examples.length > 0 ? (
+                          // Label has examples - delete entire label with examples
+                          <button
+                            onClick={() => handleDeleteLabel(label.id)}
+                            disabled={isDeletingLabel || isDeletingExample}
+                            className="text-red-500 hover:text-red-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="Delete label and all examples"
+                          >
+                            {isDeletingLabel && deletingLabelId === label.id ? (
+                              <div className="w-4 h-4 border border-red-500/20 border-t-red-500 rounded-full animate-spin"></div>
+                            ) : (
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            )}
+                          </button>
+                        ) : (
+                          // Label has no examples - delete empty label only
+                          <button
+                            onClick={() => handleDeleteEmptyLabel(label.id)}
+                            disabled={isDeletingLabel}
+                            className="text-red-400 hover:text-red-600 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="Delete empty label"
+                          >
+                            {isDeletingLabel && deletingLabelId === label.id ? (
+                              <div className="w-4 h-4 border border-red-400/20 border-t-red-400 rounded-full animate-spin"></div>
+                            ) : (
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            )}
+                          </button>
+                        )}
                      </div>
                    </div>
 
