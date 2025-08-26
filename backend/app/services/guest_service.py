@@ -26,7 +26,7 @@ class GuestService:
         self.projects_collection = self.db.collection("projects")
         self.session_collection = self.db.collection("guest_sessions")
     
-    async def create_guest_session(self, guest_data: GuestCreate, ip_address: Optional[str] = None, user_agent: Optional[str] = None) -> Guest:
+    async def create_guest_session(self, guest_data: GuestCreate, ip_address: Optional[str] = None, user_agent: Optional[str] = None) -> dict:
         """Create a new guest session with embedded project data"""
         try:
             # Generate unique IDs
@@ -36,63 +36,74 @@ class GuestService:
             # Calculate expiration time
             expiration_time = datetime.now(timezone.utc) + timedelta(hours=guest_data.session_duration_hours)
             
-            # Create guest document with embedded project
-            guest = Guest(
-                session_id=session_id,
-                createdAt=datetime.now(timezone.utc),
-                expiresAt=expiration_time,
-                active=True,
-                ip_address=ip_address,
-                user_agent=user_agent,
-                last_active=datetime.now(timezone.utc),
-                
-                # Project data
-                project_id=project_id,
-                name=guest_data.name,
-                created_at=datetime.now(timezone.utc),
-                updated_at=datetime.now(timezone.utc),
-                status="draft",
-                dataset_type=guest_data.dataset_type,
-                dataset=[],
-                dataset_size=0,
-                model_type="logistic_regression",
-                model_version=1,
-                ml_config={},
-                training_status="pending",
-                training_logs=[],
-                trained_at=None,
-                metrics={},
-                test_results=[],
-                test_accuracy=None,
-                last_tested_at=None,
-                scratch_api_key=None,
-                scratch_enabled=False,
-                usage_count=0,
-                last_accessed_by=None,
-                last_accessed_at=datetime.now(timezone.utc)
-            )
+            # Create project data that matches your actual Firestore structure
+            project_data = {
+                "id": project_id,
+                "name": guest_data.name,
+                "description": "",
+                "type": "text-recognition",
+                "status": "draft",
+                "createdAt": datetime.now(timezone.utc),
+                "updatedAt": datetime.now(timezone.utc),
+                "createdBy": f"guest:{session_id}",  # This links the project to the guest session
+                "teacher_id": "",
+                "classroom_id": "",
+                "schoolId": "",
+                "classId": "",
+                "dataset": {
+                    "filename": "",
+                    "size": 0,
+                    "records": 0,
+                    "uploadedAt": None,
+                    "gcsPath": "",
+                    "examples": [],
+                    "labels": []
+                },
+                "datasets": [],
+                "model": {
+                    "filename": "",
+                    "accuracy": None,
+                    "loss": None,
+                    "trainedAt": None,
+                    "gcsPath": "",
+                    "labels": [],
+                    "modelType": "logistic_regression",
+                    "endpointUrl": ""
+                },
+                "config": {
+                    "epochs": 100,
+                    "batchSize": 32,
+                    "learningRate": 0.001,
+                    "validationSplit": 0.2
+                },
+                "trainingHistory": [],
+                "currentJobId": None,
+                "expiryTimestamp": expiration_time,
+                "tags": [],
+                "notes": ""
+            }
             
-            # Save to Firestore - store in projects collection with student_id = session_id
+            # Save project to Firestore
             doc_ref = self.projects_collection.document(project_id)
-            doc_ref.set(guest.model_dump())
+            doc_ref.set(project_data)
             
             logger.info(f"Created guest session: {session_id} with project: {project_id}")
-            return guest
+            return project_data
             
         except Exception as e:
             logger.error(f"Error creating guest session: {str(e)}")
             raise
     
-    async def get_guest_session(self, session_id: str) -> Optional[Guest]:
-        """Get a guest session by ID - looks in projects collection where student_id = session_id"""
+    async def get_guest_session(self, session_id: str) -> Optional[dict]:
+        """Get a guest session by ID - looks in projects collection where createdBy contains session_id"""
         try:
-            # Query projects collection for projects where student_id matches the session_id
-            query = self.projects_collection.where("student_id", "==", session_id).limit(1)
+            # Query projects collection for projects where createdBy contains the session_id
+            query = self.projects_collection.where("createdBy", "==", f"guest:{session_id}").limit(1)
             docs = query.stream()
             
             for doc in docs:
                 data = doc.to_dict()
-                return Guest(**data)
+                return data  # Return raw data instead of trying to parse as Guest model
             return None
             
         except Exception as e:
@@ -115,11 +126,11 @@ class GuestService:
             logger.error(f"Error getting guest project by project_id {project_id}: {str(e)}")
             raise
     
-    async def update_guest_session(self, session_id: str, update_data: GuestUpdate) -> Optional[Guest]:
+    async def update_guest_session(self, session_id: str, update_data: GuestUpdate) -> Optional[dict]:
         """Update a guest session"""
         try:
-            # Find the project document where student_id matches the session_id
-            query = self.projects_collection.where("student_id", "==", session_id).limit(1)
+            # Find the project document where createdBy contains the session_id
+            query = self.projects_collection.where("createdBy", "==", f"guest:{session_id}").limit(1)
             docs = list(query.stream())
             
             if not docs:
@@ -141,7 +152,7 @@ class GuestService:
             
             # Return updated document
             updated_doc = doc_ref.get()
-            return Guest(**updated_doc.to_dict())
+            return updated_doc.to_dict()
             
         except Exception as e:
             logger.error(f"Error updating guest session {session_id}: {str(e)}")
@@ -150,8 +161,8 @@ class GuestService:
     async def delete_guest_session(self, session_id: str) -> bool:
         """Delete a guest session"""
         try:
-            # Find the project document where student_id matches the session_id
-            query = self.projects_collection.where("student_id", "==", session_id).limit(1)
+            # Find the project document where createdBy contains the session_id
+            query = self.projects_collection.where("createdBy", "==", f"guest:{session_id}").limit(1)
             docs = list(query.stream())
             
             if not docs:
@@ -170,7 +181,7 @@ class GuestService:
         """Get all active guest sessions"""
         try:
             query = self.projects_collection.where(
-                filter=FieldFilter("student_id", "startswith", "session_")
+                filter=FieldFilter("createdBy", "startswith", "guest:session_")
             ).where(
                 filter=FieldFilter("expiryTimestamp", ">", datetime.now(timezone.utc))
             ).limit(limit)
@@ -196,7 +207,7 @@ class GuestService:
         try:
             current_time = datetime.now(timezone.utc)
             query = self.projects_collection.where(
-                filter=FieldFilter("student_id", "startswith", "session_")
+                filter=FieldFilter("createdBy", "startswith", "guest:session_")
             ).where(
                 filter=FieldFilter("expiryTimestamp", "<=", current_time)
             )
@@ -224,8 +235,8 @@ class GuestService:
     async def add_training_examples(self, session_id: str, examples: List[Dict[str, str]]) -> Optional[dict]:
         """Add training examples to a guest project"""
         try:
-            # Find the project document where student_id matches the session_id
-            query = self.projects_collection.where("student_id", "==", session_id).limit(1)
+            # Find the project document where createdBy contains the session_id
+            query = self.projects_collection.where("createdBy", "==", f"guest:{session_id}").limit(1)
             docs = list(query.stream())
             
             if not docs:
@@ -259,8 +270,8 @@ class GuestService:
     async def update_training_status(self, session_id: str, status: str, logs: Optional[List[str]] = None, metrics: Optional[Dict[str, float]] = None) -> Optional[dict]:
         """Update training status and results for a guest project"""
         try:
-            # Find the project document where student_id matches the session_id
-            query = self.projects_collection.where("student_id", "==", session_id).limit(1)
+            # Find the project document where createdBy contains the session_id
+            query = self.projects_collection.where("createdBy", "==", f"guest:{session_id}").limit(1)
             docs = list(query.stream())
             
             if not docs:
@@ -320,54 +331,53 @@ class GuestService:
             doc_ref = self.session_collection.document(session_id)
             doc_ref.set(guest_session.model_dump())
             
-            # Also create a corresponding project in the projects collection
-            # This follows the same structure as existing projects in your Firestore
-            project_data = {
-                "id": project_id,
-                "name": "My Project",
-                "description": "",
-                "type": "text-recognition",
-                "status": "draft",
-                "createdAt": datetime.now(timezone.utc),
-                "updatedAt": datetime.now(timezone.utc),
-                "createdBy": f"guest:{session_id}",
-                "teacher_id": "",
-                "classroom_id": "",
-                "student_id": session_id,  # This links the project to the guest session
-                "schoolId": "",
-                "classId": "",
-                "dataset": {
-                    "filename": "",
-                    "size": 0,
-                    "records": 0,
-                    "uploadedAt": None,
-                    "gcsPath": "",
-                    "examples": [],
-                    "labels": []
-                },
-                "datasets": [],
-                "model": {
-                    "filename": "",
-                    "accuracy": None,
-                    "loss": None,
-                    "trainedAt": None,
-                    "gcsPath": "",
-                    "labels": [],
-                    "modelType": "logistic_regression",
-                    "endpointUrl": ""
-                },
-                "config": {
-                    "epochs": 100,
-                    "batchSize": 32,
-                    "learningRate": 0.001,
-                    "validationSplit": 0.2
-                },
-                "trainingHistory": [],
-                "currentJobId": None,
-                "expiryTimestamp": expiration_time,
-                "tags": [],
-                "notes": ""
-            }
+                         # Also create a corresponding project in the projects collection
+             # This follows the same structure as existing projects in your Firestore
+             project_data = {
+                 "id": project_id,
+                 "name": "My Project",
+                 "description": "",
+                 "type": "text-recognition",
+                 "status": "draft",
+                 "createdAt": datetime.now(timezone.utc),
+                 "updatedAt": datetime.now(timezone.utc),
+                 "createdBy": f"guest:{session_id}",  # This links the project to the guest session
+                 "teacher_id": "",
+                 "classroom_id": "",
+                 "schoolId": "",
+                 "classId": "",
+                 "dataset": {
+                     "filename": "",
+                     "size": 0,
+                     "records": 0,
+                     "uploadedAt": None,
+                     "gcsPath": "",
+                     "examples": [],
+                     "labels": []
+                 },
+                 "datasets": [],
+                 "model": {
+                     "filename": "",
+                     "accuracy": None,
+                     "loss": None,
+                     "trainedAt": None,
+                     "gcsPath": "",
+                     "labels": [],
+                     "modelType": "logistic_regression",
+                     "endpointUrl": ""
+                 },
+                 "config": {
+                     "epochs": 100,
+                     "batchSize": 32,
+                     "learningRate": 0.001,
+                     "validationSplit": 0.2
+                 },
+                 "trainingHistory": [],
+                 "currentJobId": None,
+                 "expiryTimestamp": expiration_time,
+                 "tags": [],
+                 "notes": ""
+             }
             
             # Save project to Firestore
             project_doc_ref = self.projects_collection.document(project_id)
