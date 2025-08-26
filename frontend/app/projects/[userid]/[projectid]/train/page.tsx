@@ -131,6 +131,19 @@ export default function TrainPage() {
     }
   }, [pathname, actualSessionId, actualProjectId, isValidSession, hasInitialDataLoaded, lastDataRefresh]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Immediate data loading when component has valid session and project IDs
+  useEffect(() => {
+    if (actualSessionId && actualProjectId && isValidSession && !hasInitialDataLoaded) {
+      console.log('🔄 Component has valid session, loading data immediately...');
+      // Small delay to ensure component is fully mounted
+      const timer = setTimeout(() => {
+        refreshExamplesFromAPI();
+      }, 200);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [actualSessionId, actualProjectId, isValidSession, hasInitialDataLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const validateGuestSession = async () => {
     if (!urlUserId || !urlProjectId) {
       setIsLoading(false);
@@ -319,6 +332,12 @@ export default function TrainPage() {
       }
     } catch (error) {
       console.error('❌ Error refreshing examples from API:', error);
+    } finally {
+      // Always mark as loaded after API call completes, regardless of success/failure
+      if (!hasInitialDataLoaded) {
+        setHasInitialDataLoaded(true);
+        console.log('✅ Initial data load completed');
+      }
     }
   };
 
@@ -345,6 +364,12 @@ export default function TrainPage() {
             
             // Load labels for this project from API instead of localStorage
             await refreshExamplesFromAPI();
+            
+            // Ensure hasInitialDataLoaded is set even if refreshExamplesFromAPI didn't set it
+            if (!hasInitialDataLoaded) {
+              setHasInitialDataLoaded(true);
+              console.log('✅ Project loaded successfully, marking initial data as loaded');
+            }
           } else {
             // Project not found in the session's projects
             console.error('Project not found in session projects. Looking for:', projectId);
@@ -366,6 +391,13 @@ export default function TrainPage() {
       }
     } catch (error) {
       console.error('Error loading project and labels:', error);
+      
+      // Even on error, mark as loaded so refresh mechanisms work
+      if (!hasInitialDataLoaded) {
+        setHasInitialDataLoaded(true);
+        console.log('✅ Initial data load completed (with error)');
+      }
+      
       window.location.href = `/projects/${urlUserId}`;
       return;
     }
