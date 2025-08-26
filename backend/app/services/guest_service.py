@@ -331,8 +331,8 @@ class GuestService:
             doc_ref = self.session_collection.document(session_id)
             doc_ref.set(guest_session.model_dump())
             
-                         # Also create a corresponding project in the projects collection
-             # This follows the same structure as existing projects in your Firestore
+            # Also create a corresponding project in the projects collection
+            # This follows the same structure as existing projects in your Firestore
              project_data = {
                  "id": project_id,
                  "name": "My Project",
