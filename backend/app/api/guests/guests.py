@@ -635,13 +635,40 @@ async def predict_guest_text(
                 detail="Project is not trained yet. Train the model first."
             )
         
-        # For guest projects, we need to implement a different prediction mechanism
-        # since they don't have the same model structure as regular projects
-        # For now, return an error indicating this needs to be implemented
-        raise HTTPException(
-            status_code=501,
-            detail="Prediction for guest projects is not yet implemented"
-        )
+        # Use the same prediction infrastructure as regular projects
+        # Guest projects store their models in the same format
+        try:
+            from ..training_service import trainer
+            from ..config import gcp_clients
+            
+            # Get the model path from the project
+            model_gcs_path = guest_project.get('model', {}).get('gcsPath')
+            if not model_gcs_path:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Model not found. Please ensure the model was saved during training."
+                )
+            
+            # Make prediction using the trained model
+            prediction_result = trainer.predict_from_gcs(
+                prediction_request.text,
+                gcp_clients.get_bucket(),
+                model_gcs_path
+            )
+            
+            return PredictionResponse(
+                success=True,
+                label=prediction_result['label'],
+                confidence=prediction_result['confidence'],
+                alternatives=prediction_result['alternatives']
+            )
+            
+        except Exception as e:
+            logger.error(f"Prediction failed for guest project {project_id}: {str(e)}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Prediction failed: {str(e)}"
+            )
         
     except HTTPException:
         raise
@@ -1632,86 +1659,7 @@ async def get_guest_examples(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/session/{session_id}/projects/{project_id}/predict", response_model=dict)
-async def predict_guest_text(
-    session_id: str,
-    project_id: str,
-    request: PredictionRequest,
-    session: dict = Depends(validate_session_dependency),
-    project_service: ProjectService = Depends(get_project_service)
-):
-    """Predict text classification for Scratch extension"""
-    try:
-        # Validate that the project belongs to this session
-        project = await project_service.get_project(project_id)
-        if not project:
-            raise HTTPException(status_code=404, detail="Project not found")
-        
-        # Check if project belongs to this session
-        if project.guest_session_id != session_id:
-            raise HTTPException(status_code=403, detail="Project does not belong to this session")
-        
-        # Get examples for this project
-        examples = await project_service.get_project_examples(project_id)
-        
-        if not examples:
-            raise HTTPException(status_code=400, detail="No training data available for prediction")
-        
-        # Simple text classification based on training examples
-        # In a real implementation, you would use a trained ML model here
-        text = request.text.lower()
-        
-        # Find the most similar example
-        best_match = None
-        best_score = 0
-        
-        for example in examples:
-            if example.text:
-                # Simple similarity score (word overlap)
-                example_words = set(example.text.lower().split())
-                text_words = set(text.lower().split())
-                
-                if example_words and text_words:
-                    overlap = len(example_words.intersection(text_words))
-                    total = len(example_words.union(text_words))
-                    score = overlap / total if total > 0 else 0
-                    
-                    if score > best_score:
-                        best_score = score
-                        best_match = example
-        
-        if best_match and best_score > 0.1:  # Minimum similarity threshold
-            return {
-                "success": True,
-                "data": {
-                    "label": best_match.label,
-                    "text": text,
-                    "confidence": best_score
-                }
-            }
-        else:
-            # Return the most common label with low confidence
-            label_counts = {}
-            for ex in examples:
-                if ex.label:
-                    label_counts[ex.label] = label_counts.get(ex.label, 0) + 1
-            
-            most_common_label = max(label_counts.items(), key=lambda x: x[1])[0] if label_counts else "unknown"
-            
-            return {
-                "success": True,
-                "data": {
-                    "label": most_common_label,
-                    "text": text,
-                    "confidence": 0.1
-                }
-            }
-            
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error predicting text for project {project_id}: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+
 
 
 @router.post("/session/{session_id}/projects/{project_id}/train", response_model=dict)
