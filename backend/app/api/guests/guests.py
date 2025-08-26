@@ -472,11 +472,33 @@ async def start_guest_training(
                 training_result = trainer.train_model(training_examples)
                 logger.info(f"Direct training successful: {training_result}")
                 
-                # Update guest session status to trained
-                await guest_service.update_guest_session(session_id, GuestUpdate(
-                    training_status="completed",
-                    status="trained"
-                ))
+                # Save the trained model to GCS
+                model_filename = f"model_{project_id}.pkl"
+                model_path = f"models/{project_id}/{model_filename}"
+                
+                logger.info(f"Saving model to GCS: {model_path}")
+                trainer.save_model_to_gcs(gcp_clients.get_bucket(), model_path)
+                logger.info("Model saved to GCS successfully")
+                
+                # Update guest project with model info and status
+                model_update = {
+                    'model.filename': model_filename,
+                    'model.gcsPath': model_path,
+                    'model.accuracy': training_result.get('accuracy'),
+                    'model.loss': training_result.get('loss'),
+                    'model.labels': training_result.get('labels', []),
+                    'model.modelType': 'logistic_regression',
+                    'model.trainedAt': datetime.now(timezone.utc).isoformat(),
+                    'model.endpointUrl': f"/api/guests/session/{session_id}/projects/{project_id}/predict",
+                    'status': 'trained',
+                    'updatedAt': datetime.now(timezone.utc).isoformat()
+                }
+                
+                # Update the project document directly
+                project_doc_ref = guest_service.projects_collection.document(project_id)
+                project_doc_ref.update(model_update)
+                
+                logger.info(f"Guest project {project_id} updated with model info")
                 
                 # Create a simple training job response
                 return TrainingResponse(
