@@ -390,11 +390,14 @@ class EnhancedLogisticRegressionTrainer:
         
         return model_path
     
-    def save_model_to_gcs(self, bucket, gcs_path: str) -> str:
-        """Save trained model directly to GCS"""
+    def save_model_to_gcs(self, bucket, gcs_path: str, trained_pipeline) -> str:
+        """Save trained model directly to GCS - only stores complete trained pipeline"""
+        if trained_pipeline is None:
+            raise ValueError("Trained pipeline is required - cannot save untrained models")
+        
+        # Save only the complete trained pipeline
         model_data = {
-            'vectorizer': self.tfidf_vectorizer, # Save the best vectorizer
-            'model': self.base_model, # Save the best model
+            'pipeline': trained_pipeline,  # Save the complete trained pipeline
             'trained_at': datetime.now(timezone.utc).isoformat()
         }
         
@@ -444,7 +447,7 @@ class EnhancedLogisticRegressionTrainer:
         }
     
     def predict_from_gcs(self, text: str, bucket, gcs_path: str) -> Dict[str, Any]:
-        """Make prediction using model stored in GCS"""
+        """Make prediction using model stored in GCS - only handles complete trained pipelines"""
         try:
             # Download model from GCS
             blob = bucket.blob(gcs_path)
@@ -453,21 +456,25 @@ class EnhancedLogisticRegressionTrainer:
             # Deserialize model data
             model_data = pickle.loads(model_bytes)
             
-            vectorizer = model_data['vectorizer']
-            model = model_data['model']
+            # Only handle complete trained pipelines
+            if 'pipeline' not in model_data:
+                raise ValueError("Model format not supported - only complete trained pipelines are supported")
             
-            # Vectorize input text
-            text_vector = vectorizer.transform([text])
+            # Get the trained pipeline
+            pipeline = model_data['pipeline']
             
-            # Make prediction
-            prediction = model.predict(text_vector)[0]
-            probabilities = model.predict_proba(text_vector)[0]
+            # Make prediction using the pipeline (which handles vectorization internally)
+            prediction = pipeline.predict([text])[0]
+            probabilities = pipeline.predict_proba([text])[0]
             
             # Get confidence and alternatives
             confidence = max(probabilities) * 100
             alternatives = []
             
-            for i, (label, prob) in enumerate(zip(model.classes_, probabilities)):
+            # Get class labels from the pipeline
+            classes = pipeline.classes_
+            
+            for i, (label, prob) in enumerate(zip(classes, probabilities)):
                 if label != prediction:
                     alternatives.append({
                         'label': label,

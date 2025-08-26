@@ -477,7 +477,8 @@ async def start_guest_training(
                 model_path = f"models/{project_id}/{model_filename}"
                 
                 logger.info(f"Saving model to GCS: {model_path}")
-                trainer.save_model_to_gcs(gcp_clients.get_bucket(), model_path)
+                # Save the complete trained pipeline to GCS
+                trainer.save_model_to_gcs(gcp_clients.get_bucket(), model_path, training_result['model'])
                 logger.info("Model saved to GCS successfully")
                 
                 # Update guest project with model info and status
