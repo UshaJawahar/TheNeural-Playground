@@ -379,6 +379,8 @@ class GuestUpdate(BaseModel):
     dataset: Optional[List[Dict[str, str]]] = None
     ml_config: Optional[Dict[str, Any]] = None
     training_status: Optional[str] = None
+    status: Optional[str] = None
+    currentJobId: Optional[str] = None
     metrics: Optional[Dict[str, float]] = None
     test_results: Optional[List[Dict[str, str]]] = None
     scratch_enabled: Optional[bool] = None

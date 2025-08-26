@@ -10,7 +10,7 @@ from ...models import (
     ProjectResponse, ProjectStatusResponseWrapper, TrainingConfig,
     FileUploadResponse, TrainingResponse, ErrorResponse,
     ExampleAdd, ExamplesBulkAdd, PredictionRequest, PredictionResponse,
-    GuestSessionResponse, TrainedModel, Dataset, TextExample
+    GuestSessionResponse, TrainedModel, Dataset, TextExample, GuestUpdate
 )
 from ...services.guest_service import GuestService
 from ...services.project_service import ProjectService
@@ -532,13 +532,13 @@ async def get_guest_training_status(
 ):
     """Get training status and job information for a guest project"""
     try:
-        # Get guest session which contains the project data
-        guest_session = await guest_service.get_guest_session(session_id)
-        if not guest_session:
-            raise HTTPException(status_code=404, detail="Guest session not found")
+        # Get guest project by project_id from the projects collection
+        guest_project = await guest_service.get_guest_project_by_id(project_id)
+        if not guest_project:
+            raise HTTPException(status_code=404, detail="Guest project not found")
         
-        # Verify the project_id matches the one in the guest session
-        if guest_session.project_id != project_id:
+        # Verify the project belongs to this session
+        if guest_project.student_id != session_id:
             raise HTTPException(status_code=404, detail="Project not found in this session")
         
         # Get training jobs for this project
@@ -546,12 +546,12 @@ async def get_guest_training_status(
         
         # Get current job status if there's a current job
         current_job = None
-        if hasattr(guest_session, 'currentJobId') and guest_session.currentJobId:
-            current_job = await training_job_service.get_job_status(guest_session.currentJobId)
+        if hasattr(guest_project, 'currentJobId') and guest_project.currentJobId:
+            current_job = await training_job_service.get_job_status(guest_project.currentJobId)
         
         return {
             "success": True,
-            "projectStatus": guest_session.status,
+            "projectStatus": guest_project.status,
             "currentJob": current_job.model_dump() if current_job else None,
             "allJobs": [job.model_dump() for job in jobs],
             "totalJobs": len(jobs)

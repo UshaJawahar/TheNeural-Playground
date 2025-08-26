@@ -11,7 +11,7 @@ from google.cloud import firestore
 from google.cloud.firestore_v1.base_query import FieldFilter
 
 from ..models import Guest, GuestCreate, GuestUpdate, GuestSession
-from ..config import settings
+from ..config import gcp_clients
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +20,10 @@ class GuestService:
     """Service for managing guest sessions and their embedded projects"""
     
     def __init__(self):
-        self.db = firestore.Client()
-        self.collection = self.db.collection("guests")
+        # Use the centralized GCP configuration
+        self.db = gcp_clients.get_firestore_client()
+        # Guest projects are stored in the projects collection, not a separate guests collection
+        self.projects_collection = self.db.collection("projects")
         self.session_collection = self.db.collection("guest_sessions")
     
     async def create_guest_session(self, guest_data: GuestCreate, ip_address: Optional[str] = None, user_agent: Optional[str] = None) -> Guest:
@@ -96,14 +98,33 @@ class GuestService:
             logger.error(f"Error getting guest session {session_id}: {str(e)}")
             raise
     
+    async def get_guest_project_by_id(self, project_id: str) -> Optional[Guest]:
+        """Get a guest project by project_id - looks in projects collection"""
+        try:
+            # Query the projects collection to find a project with the given project_id
+            query = self.projects_collection.where("id", "==", project_id).limit(1)
+            docs = query.stream()
+            
+            for doc in docs:
+                data = doc.to_dict()
+                return Guest(**data)
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error getting guest project by project_id {project_id}: {str(e)}")
+            raise
+    
     async def update_guest_session(self, session_id: str, update_data: GuestUpdate) -> Optional[Guest]:
         """Update a guest session"""
         try:
-            doc_ref = self.collection.document(session_id)
-            doc = doc_ref.get()
+            # Find the project document where student_id matches the session_id
+            query = self.projects_collection.where("student_id", "==", session_id).limit(1)
+            docs = list(query.stream())
             
-            if not doc.exists:
+            if not docs:
                 return None
+            
+            doc_ref = docs[0].reference
             
             # Prepare update data (only non-None fields)
             update_dict = {}
@@ -112,8 +133,7 @@ class GuestService:
                     update_dict[field] = value
             
             # Always update the timestamp
-            update_dict['updated_at'] = datetime.now(timezone.utc)
-            update_dict['last_active'] = datetime.now(timezone.utc)
+            update_dict['updatedAt'] = datetime.now(timezone.utc)
             
             # Update document
             doc_ref.update(update_dict)
@@ -269,8 +289,9 @@ class GuestService:
     async def create_simple_guest_session(self, ip_address: Optional[str] = None, user_agent: Optional[str] = None) -> GuestSession:
         """Create a simple guest session with just UUID, created time, and expiry time (7 days)"""
         try:
-            # Generate unique session ID
+            # Generate unique session ID and project ID
             session_id = f"session_{uuid.uuid4().hex[:16]}"
+            project_id = f"proj_{uuid.uuid4().hex[:8]}"
             
             # Calculate expiration time (7 days from now)
             expiration_time = datetime.now(timezone.utc) + timedelta(days=7)
@@ -286,11 +307,64 @@ class GuestService:
                 last_active=datetime.now(timezone.utc)
             )
             
-            # Save to Firestore
+            # Save simple session to Firestore
             doc_ref = self.session_collection.document(session_id)
             doc_ref.set(guest_session.model_dump())
             
-            logger.info(f"Created simple guest session: {session_id}")
+            # Also create a corresponding project in the projects collection
+            # This follows the same structure as existing projects in your Firestore
+            project_data = {
+                "id": project_id,
+                "name": "My Project",
+                "description": "",
+                "type": "text-recognition",
+                "status": "draft",
+                "createdAt": datetime.now(timezone.utc),
+                "updatedAt": datetime.now(timezone.utc),
+                "createdBy": f"guest:{session_id}",
+                "teacher_id": "",
+                "classroom_id": "",
+                "student_id": session_id,  # This links the project to the guest session
+                "schoolId": "",
+                "classId": "",
+                "dataset": {
+                    "filename": "",
+                    "size": 0,
+                    "records": 0,
+                    "uploadedAt": None,
+                    "gcsPath": "",
+                    "examples": [],
+                    "labels": []
+                },
+                "datasets": [],
+                "model": {
+                    "filename": "",
+                    "accuracy": None,
+                    "loss": None,
+                    "trainedAt": None,
+                    "gcsPath": "",
+                    "labels": [],
+                    "modelType": "logistic_regression",
+                    "endpointUrl": ""
+                },
+                "config": {
+                    "epochs": 100,
+                    "batchSize": 32,
+                    "learningRate": 0.001,
+                    "validationSplit": 0.2
+                },
+                "trainingHistory": [],
+                "currentJobId": None,
+                "expiryTimestamp": expiration_time,
+                "tags": [],
+                "notes": ""
+            }
+            
+            # Save project to Firestore
+            project_doc_ref = self.projects_collection.document(project_id)
+            project_doc_ref.set(project_data)
+            
+            logger.info(f"Created simple guest session: {session_id} with project: {project_id}")
             return guest_session
             
         except Exception as e:
