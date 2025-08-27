@@ -624,23 +624,7 @@ export default function MakePage() {
                   You can add blocks, sprites, and create engaging experiences.
                 </p>
                 
-                {/* Project Sharing Issue Notice */}
-                <div className="bg-yellow-900/20 border border-yellow-600/30 rounded-lg p-4 mb-4">
-                  <div className="flex items-start space-x-3">
-                    <div className="text-yellow-400 text-xl">⚠️</div>
-                    <div>
-                      <h3 className="text-yellow-400 font-semibold mb-2">Important: Project Sharing Issue</h3>
-                      <p className="text-yellow-200 text-sm mb-2">
-                        If you have multiple Scratch editor tabs open and they show the same project content, 
-                        this is a known issue with localStorage sharing between tabs.
-                      </p>
-                      <p className="text-yellow-200 text-sm">
-                        <strong>Solution:</strong> Always open Scratch editor from this page, not by copying URLs manually. 
-                        If issues persist, use the debug tools in the Scratch editor.
-                      </p>
-                    </div>
-                  </div>
-                </div>
+
                 
                 <button
                   onClick={handleOpenInScratch}

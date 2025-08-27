@@ -63,6 +63,7 @@ interface Project {
   description?: string;
   status?: string;
   maskedId?: string;
+  teachable_link?: string;
 }
 
 
@@ -70,6 +71,7 @@ interface Project {
 function CreateProjectPage() {
   const [projectName, setProjectName] = useState('');
   const [projectType, setProjectType] = useState('');
+  const [teachableLink, setTeachableLink] = useState('');
   const [projects, setProjects] = useState<Project[]>([]);
   const [currentSection, setCurrentSection] = useState<'projects-list' | 'new-project' | 'project-details'>('projects-list');
   const [selectedProject] = useState<Project | null>(null);
@@ -226,7 +228,7 @@ function CreateProjectPage() {
     }
   };
 
-  const createGuestProject = async (projectData: { name: string; model_type: string; description?: string }) => {
+  const createGuestProject = async (projectData: { name: string; model_type: string; description?: string; teachable_link?: string }) => {
     try {
       // Get session ID from localStorage
       const sessionId = localStorage.getItem('neural_playground_session_id');
@@ -249,7 +251,8 @@ function CreateProjectPage() {
           batchSize: 32,
           learningRate: 0.001,
           validationSplit: 0.2
-        }
+        },
+        teachable_link: projectData.teachable_link || undefined
       };
 
       const response = await fetch(`${config.apiBaseUrl}/api/guests/session/${sessionId}/projects`, {
@@ -306,14 +309,22 @@ function CreateProjectPage() {
         const newProject = await createGuestProject({
           name: projectName.trim(),
           model_type: projectType,
-          description: ''
+          description: '',
+          teachable_link: projectType === 'image-recognition' ? teachableLink : undefined
         });
         
         console.log('Created project:', newProject);
         
+        // If it's an image recognition project, open Scratch editor
+        if (projectType === 'image-recognition' && newProject.id) {
+          const scratchUrl = `${config.scratchEditor.gui}?sessionId=${actualSessionId}&projectId=${newProject.id}&teachableLink=${encodeURIComponent(teachableLink)}`;
+          window.open(scratchUrl, '_blank');
+        }
+        
         // Reset form
         setProjectName('');
         setProjectType('');
+        setTeachableLink('');
         
         // Reload projects to get updated list
         if (actualSessionId) {
@@ -389,6 +400,8 @@ function CreateProjectPage() {
     setCurrentSection('projects-list');
     setProjectName('');
     setProjectType('');
+    setTeachableLink('');
+    window.location.hash = '';
   };
 
 
@@ -736,8 +749,28 @@ function CreateProjectPage() {
                     <option value="text-recognition" className="bg-[#1c1c1c] text-white">
                       Text Recognition
                     </option>
+                    <option value="image-recognition" className="bg-[#1c1c1c] text-white">
+                      Image Recognition
+                    </option>
                   </select>
                 </div>
+
+                {/* Teachable Link Field - Only show for Image Recognition */}
+                {projectType === 'image-recognition' && (
+                  <div>
+                    <label htmlFor="teachableLink" className="block text-sm font-medium text-white mb-2">
+                      Teachable Link
+                    </label>
+                    <input
+                      type="text"
+                      id="teachableLink"
+                      value={teachableLink}
+                      onChange={(e) => setTeachableLink(e.target.value)}
+                      placeholder="Enter your Teachable Link"
+                      className="w-full px-4 py-3 bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-[#dcfc84] focus:ring-1 focus:ring-[#dcfc84] transition-all duration-300"
+                    />
+                  </div>
+                )}
 
                 {/* Form Buttons */}
                 <div className="flex gap-4 pt-4">

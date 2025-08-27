@@ -147,6 +147,7 @@ export default function LearnPage() {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [isValidSession, setIsValidSession] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingProject, setIsLoadingProject] = useState(false);
   const [actualSessionId, setActualSessionId] = useState<string>('');
   const [actualProjectId, setActualProjectId] = useState<string>('');
   const [trainingStats, setTrainingStats] = useState({
@@ -169,6 +170,8 @@ export default function LearnPage() {
   } | null>(null);
   const [isTestingModel, setIsTestingModel] = useState(false);
   const [isDeletingModel, setIsDeletingModel] = useState(false);
+  const [isStatusLoading, setIsStatusLoading] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
 
   const params = useParams();
   const urlUserId = params?.userid as string;
@@ -378,7 +381,11 @@ export default function LearnPage() {
   const fetchTrainingStatus = async () => {
     if (!actualSessionId || !actualProjectId) return;
     
+    // Prevent multiple simultaneous calls
+    if (isStatusLoading) return;
+    
     try {
+      setIsStatusLoading(true);
       console.log('🔍 Checking training status...');
       
       const response = await fetch(`${config.apiBaseUrl}${config.api.guests.trainingStatus(actualSessionId, actualProjectId)}`);
@@ -415,20 +422,53 @@ export default function LearnPage() {
               const modelKey = `neural_playground_model_${actualSessionId}_${actualProjectId}`;
               localStorage.setItem(modelKey, JSON.stringify(completedModel));
             }
-          } else if (projectStatus === 'trained' && currentJob && currentJob.status === 'ready') {
-            // Project already has a trained model
+          } else if (projectStatus === 'trained') {
+            // Project has a trained model - show it regardless of currentJob
             setIsTraining(false);
             
-            const existingModel: TrainedModel = {
-              id: currentJob.id,
-              status: 'available',
-              startedAt: new Date(currentJob.startedAt || currentJob.createdAt),
-              expiresAt: new Date(Date.now() + 4 * 60 * 60 * 1000)
-            };
-            
-            setTrainedModel(existingModel);
+            // If we have a current job with results, use it
+            if (currentJob && currentJob.status === 'ready') {
+              const existingModel: TrainedModel = {
+                id: currentJob.id,
+                status: 'available',
+                startedAt: new Date(currentJob.startedAt || currentJob.createdAt),
+                expiresAt: new Date(Date.now() + 4 * 60 * 60 * 1000)
+              };
+              setTrainedModel(existingModel);
+            } else {
+              // Create a model object from localStorage or create a default one
+              const modelKey = `neural_playground_model_${actualSessionId}_${actualProjectId}`;
+              const savedModel = localStorage.getItem(modelKey);
+              
+              if (savedModel) {
+                const modelData = JSON.parse(savedModel);
+                const trainedModel: TrainedModel = {
+                  ...modelData,
+                  startedAt: new Date(modelData.startedAt),
+                  expiresAt: new Date(modelData.expiresAt)
+                };
+                setTrainedModel(trainedModel);
+              } else {
+                // Create a default model object for trained projects
+                const defaultModel: TrainedModel = {
+                  id: `model-${actualProjectId}`,
+                  status: 'available',
+                  startedAt: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
+                  expiresAt: new Date(Date.now() + 2 * 60 * 60 * 1000) // 2 hours from now
+                };
+                setTrainedModel(defaultModel);
+                
+                // Save to localStorage
+                localStorage.setItem(modelKey, JSON.stringify(defaultModel));
+              }
+            }
           } else if (projectStatus === 'failed' || (currentJob && currentJob.status === 'failed')) {
             // Training failed
+            setIsTraining(false);
+            setTrainedModel(null);
+            setCurrentTrainingJob(null);
+          } else if (projectStatus === 'untrained') {
+            // No training has been done yet
             setIsTraining(false);
             setTrainedModel(null);
             setCurrentTrainingJob(null);
@@ -439,29 +479,21 @@ export default function LearnPage() {
       }
     } catch (error) {
       console.error('❌ Error fetching training status:', error);
+    } finally {
+      setIsStatusLoading(false);
+      setIsInitializing(false);
     }
   };
 
-  // Polling interval for training status
+
+
+  // Only check training status when necessary, not continuously
   useEffect(() => {
-    let pollInterval: NodeJS.Timeout | null = null;
-    
     if (actualSessionId && actualProjectId) {
-      // Initial status check
+      // Initial status check only once when page loads
       fetchTrainingStatus();
-      
-      // Set up polling when training is in progress
-      if (isTraining || currentTrainingJob?.status === 'running' || currentTrainingJob?.status === 'pending') {
-        pollInterval = setInterval(fetchTrainingStatus, 2000); // Poll every 2 seconds
-      }
     }
-    
-    return () => {
-      if (pollInterval) {
-        clearInterval(pollInterval);
-      }
-    };
-  }, [actualSessionId, actualProjectId, isTraining, currentTrainingJob?.status]);
+  }, [actualSessionId, actualProjectId]); // Only depend on session and project IDs, not training state
 
 
 
@@ -514,23 +546,75 @@ export default function LearnPage() {
       
       if (response.ok) {
         const result = await response.json();
-        console.log('✅ Training started successfully:', result);
+        console.log('✅ Training API response:', result);
         
-        // Create model object for UI
-        const now = new Date();
-        const expiresAt = new Date(now.getTime() + 4 * 60 * 60 * 1000); // 4 hours from now
-        
-        const newModel: TrainedModel = {
-          id: result.jobId || `model-${Date.now()}`,
-          status: 'training',
-          startedAt: now,
-          expiresAt: expiresAt
-        };
-        
-        setTrainedModel(newModel);
-        
-        // Start polling for status updates - the API will handle the actual training
-        // setIsTraining will remain true until the polling detects completion
+                 if (result.success && result.message === 'Training completed successfully!') {
+           // Training completed immediately (synchronous training)
+           console.log('🎉 Training completed immediately!');
+           setIsTraining(false);
+           
+           // Create completed model object
+           const now = new Date();
+           const expiresAt = new Date(now.getTime() + 4 * 60 * 60 * 1000); // 4 hours from now
+           
+           const completedModel: TrainedModel = {
+             id: result.jobId || `model-${Date.now()}`,
+             status: 'available',
+             startedAt: now,
+             expiresAt: expiresAt
+           };
+           
+           setTrainedModel(completedModel);
+           
+           // Save to localStorage
+           const modelKey = `neural_playground_model_${actualSessionId}_${actualProjectId}`;
+           localStorage.setItem(modelKey, JSON.stringify(completedModel));
+           
+           // Clear any existing training job
+           setCurrentTrainingJob(null);
+           
+           // Check training status once after completion
+           setTimeout(() => {
+             fetchTrainingStatus();
+           }, 1000);
+           
+         } else {
+           // Training started asynchronously
+           console.log('🚀 Training started asynchronously');
+           
+           // Create a temporary training job object to show progress
+           const tempTrainingJob: TrainingJob = {
+             id: result.jobId || `temp-${Date.now()}`,
+             projectId: actualProjectId,
+             status: 'pending',
+             createdAt: new Date().toISOString(),
+             startedAt: null,
+             completedAt: null,
+             error: null,
+             progress: 0,
+             config: trainingConfig
+           };
+           
+           setCurrentTrainingJob(tempTrainingJob);
+           
+           // Create model object for UI
+           const now = new Date();
+           const expiresAt = new Date(now.getTime() + 4 * 60 * 60 * 1000); // 4 hours from now
+           
+           const newModel: TrainedModel = {
+             id: result.jobId || `model-${Date.now()}`,
+             status: 'training',
+             startedAt: now,
+             expiresAt: expiresAt
+           };
+           
+           setTrainedModel(newModel);
+           
+           // For async training, check status once after a delay
+           setTimeout(() => {
+             fetchTrainingStatus();
+           }, 2000);
+         }
         
       } else {
         console.error('❌ Training API failed:', response.status);
@@ -558,11 +642,13 @@ export default function LearnPage() {
         }
         
         setIsTraining(false);
+        setCurrentTrainingJob(null);
       }
     } catch (error) {
       console.error('❌ Network error during training:', error);
       alert('Network error: Failed to connect to the training server. Please check your connection.');
       setIsTraining(false);
+      setCurrentTrainingJob(null);
     }
   };
 
@@ -572,6 +658,12 @@ export default function LearnPage() {
 
   const handleDeleteModel = async () => {
     if (!actualSessionId || !actualProjectId) return;
+    
+    // Check if we have a trained model to delete
+    if (!trainedModel) {
+      alert('No trained model found to delete.');
+      return;
+    }
     
     // Show confirmation dialog
     if (!confirm('Are you sure you want to delete this trained model? This action cannot be undone and will permanently remove the model from Google Cloud Storage.')) {
@@ -585,7 +677,13 @@ export default function LearnPage() {
       console.log('Session ID:', actualSessionId);
       console.log('Project ID:', actualProjectId);
       
-      const response = await fetch(`${config.apiBaseUrl}${config.api.guests.deleteModel(actualProjectId, actualSessionId)}`, {
+      const deleteUrl = `${config.apiBaseUrl}${config.api.guests.deleteModel(actualProjectId)}?session_id=${actualSessionId}`;
+      console.log('🗑️ Delete API URL:', deleteUrl);
+      console.log('🗑️ Request headers:', {
+        'Content-Type': 'application/json'
+      });
+      
+      const response = await fetch(deleteUrl, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -602,36 +700,50 @@ export default function LearnPage() {
         const modelKey = `neural_playground_model_${actualSessionId}_${actualProjectId}`;
         localStorage.removeItem(modelKey);
         
-        // Update UI state
-        setTrainedModel(null);
-        setTestResult(null);
-        setCurrentTrainingJob(null);
-        
-        // Show success message
-        alert('Model deleted successfully! The model has been removed from Google Cloud Storage and the project status has been reset to draft.');
+                 // Update UI state
+         setTrainedModel(null);
+         setTestResult(null);
+         setCurrentTrainingJob(null);
+         
+         // Show success message
+         alert('Model deleted successfully! The model has been removed from Google Cloud Storage and the project status has been reset to draft.');
+         
+         // Refresh training status to get updated project status
+         setTimeout(() => {
+           fetchTrainingStatus();
+         }, 1000);
       } else {
         console.error('❌ Delete API failed:', response.status);
         
-        let errorDetails;
-        try {
-          errorDetails = await response.json();
-          console.error('📋 Error Details:', errorDetails);
-        } catch (jsonError) {
-          const errorText = await response.text();
-          console.error('📝 Error Text:', errorText);
-          errorDetails = { detail: errorText };
-        }
-        
-        // Show user-friendly error
-        if (response.status === 404) {
-          alert('Model not found. It may have already been deleted.');
-        } else if (response.status === 403) {
-          alert('Access denied. You do not have permission to delete this model.');
-        } else if (response.status === 500) {
-          alert('Server error occurred while deleting the model. Please try again later.');
-        } else {
-          alert(`Failed to delete model (${response.status}): ${errorDetails.detail || 'Unknown error'}`);
-        }
+                 let errorDetails;
+         try {
+           errorDetails = await response.json();
+           console.error('📋 Error Details:', errorDetails);
+         } catch (jsonError) {
+           const errorText = await response.text();
+           console.error('📝 Error Text:', errorText);
+           errorDetails = { detail: errorText };
+         }
+         
+         // Show user-friendly error with more specific details
+         if (response.status === 404) {
+           alert('Model not found. It may have already been deleted.');
+         } else if (response.status === 403) {
+           alert('Access denied. You do not have permission to delete this model.');
+         } else if (response.status === 422) {
+           // Handle validation errors
+           let errorMessage = 'Failed to delete model: Validation error.';
+           if (errorDetails.detail && Array.isArray(errorDetails.detail)) {
+             errorMessage = `Failed to delete model: ${errorDetails.detail.join(', ')}`;
+           } else if (errorDetails.detail) {
+             errorMessage = `Failed to delete model: ${errorDetails.detail}`;
+           }
+           alert(errorMessage);
+         } else if (response.status === 500) {
+           alert('Server error occurred while deleting the model. Please try again later.');
+         } else {
+           alert(`Failed to delete model (${response.status}): ${errorDetails.detail || 'Unknown error'}`);
+         }
       }
     } catch (error) {
       console.error('❌ Network error during model deletion:', error);
@@ -650,40 +762,14 @@ export default function LearnPage() {
     await handleTrainModel();
   };
 
-  // Test function to check if training API is accessible
-  const testTrainingAPI = async () => {
-    if (!actualSessionId || !actualProjectId) {
-      alert('Missing session or project ID');
-      return;
-    }
-    
-    try {
-      console.log('🧪 Testing training API endpoint...');
-      const apiUrl = `${config.apiBaseUrl}${config.api.guests.trainModel(actualSessionId, actualProjectId)}`;
-      console.log('🌐 Testing URL:', apiUrl);
-      
-      // Test with OPTIONS request to check if endpoint exists
-      const response = await fetch(apiUrl, {
-        method: 'OPTIONS'
-      });
-      
-      console.log('🧪 OPTIONS response status:', response.status);
-      console.log('🧪 Response headers:', Object.fromEntries(response.headers.entries()));
-      
-      alert(`Training API test: ${response.status === 200 ? '✅ Endpoint accessible' : '❌ Endpoint not accessible (Status: ' + response.status + ')'}`);
-      
-    } catch (error) {
-      console.error('🧪 API test error:', error);
-      alert('❌ API test failed: ' + error);
-    }
-  };
+
 
   const handleTestModel = async () => {
     if (!testText.trim() || !trainedModel || !actualSessionId || !actualProjectId) return;
 
-    // Check if we have a completed training job
-    if (!currentTrainingJob || currentTrainingJob.status !== 'ready') {
-      console.warn('⚠️ Model not ready for predictions. Training job status:', currentTrainingJob?.status);
+    // Check if model is available for predictions
+    if (trainedModel.status !== 'available') {
+      console.warn('⚠️ Model not ready for predictions. Model status:', trainedModel.status);
       alert('Model is not ready for predictions yet. Please wait for training to complete.');
       return;
     }
@@ -791,14 +877,18 @@ export default function LearnPage() {
   // Check if training requirements are met
   const canTrainModel = trainingStats.totalExamples >= 6 && trainingStats.totalLabels >= 2;
 
-  if (isLoading) {
+  if (isLoading || isInitializing) {
     return (
       <div className="min-h-screen bg-[#1c1c1c] text-white">
         <Header />
         <main className="pt-24 pb-20 px-4 sm:px-6 lg:px-8">
           <div className="max-w-7xl mx-auto">
             <div className="flex items-center justify-center min-h-[400px]">
-              <div className="text-white text-xl">Loading...</div>
+              <div className="text-center">
+                <div className="w-16 h-16 border-4 border-[#bc6cd3]/20 border-t-[#dcfc84] rounded-full animate-spin mx-auto mb-4"></div>
+                <div className="text-white text-xl">Loading project data...</div>
+                <div className="text-white/70 text-sm mt-2">Please wait while we set up your learning environment</div>
+              </div>
             </div>
           </div>
         </main>
@@ -916,27 +1006,34 @@ export default function LearnPage() {
             </div>
           </div>
 
-          {/* Bottom Section: Info from training computer */}
-          <div className="bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-xl p-8 shadow-lg">
-            <h3 className="text-xl font-semibold text-white mb-6 text-left">
-              Info from training computer:
-            </h3>
+                                {/* Bottom Section: Info from training computer */}
+            <div className="bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-xl p-8 shadow-lg">
+              <h3 className="text-xl font-semibold text-white mb-6">
+                Info from training computer:
+              </h3>
             
-            {/* Loading State */}
-            {isLoading && (
-              <div className="text-center mb-6">
-                <div className="w-16 h-16 border-4 border-[#bc6cd3]/20 border-t-[#dcfc84] rounded-full animate-spin mx-auto mb-4"></div>
-                <h4 className="text-xl font-bold text-white mb-2">Loading...</h4>
-                <p className="text-white/70 mb-4">Please wait while we load your project data...</p>
-              </div>
-            )}
+                         {/* Loading State */}
+             {isInitializing && (
+               <div className="text-center mb-6">
+                 <div className="w-16 h-16 border-4 border-[#bc6cd3]/20 border-t-[#dcfc84] rounded-full animate-spin mx-auto mb-4"></div>
+                 <h4 className="text-xl font-bold text-white mb-2">Loading...</h4>
+                 <p className="text-white/70 mb-4">Please wait while we load your project data...</p>
+               </div>
+             )}
 
-            {/* Training in Progress */}
-            {isTraining && (
-              <div className="text-center mb-6">
-                <div className="w-16 h-16 border-4 border-[#bc6cd3]/20 border-t-[#dcfc84] rounded-full animate-spin mx-auto mb-4"></div>
-                <h4 className="text-xl font-bold text-white mb-2">Training in Progress</h4>
-                <p className="text-white/70 mb-4">Your machine learning model is being trained...</p>
+                         {/* Training in Progress */}
+             {isTraining && (
+               <div className="text-center mb-6">
+                 <div className="w-16 h-16 border-4 border-[#bc6cd3]/20 border-t-[#dcfc84] rounded-full animate-spin mx-auto mb-4"></div>
+                 <h4 className="text-xl font-bold text-white mb-2">Training in Progress</h4>
+                 <p className="text-white/70 mb-4">Your machine learning model is being trained...</p>
+                 
+                 {/* Status indicator */}
+                 {isStatusLoading && (
+                   <div className="text-center pt-2">
+                     <p className="text-[#dcfc84] text-sm">Checking training status...</p>
+                   </div>
+                 )}
                 <div className="bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-lg p-4 max-w-md mx-auto">
                   <div className="space-y-2 text-left">
                     <div className="flex justify-between">
@@ -958,55 +1055,60 @@ export default function LearnPage() {
                         {currentTrainingJob?.id ? currentTrainingJob.id.substring(0, 8) + '...' : 'Starting...'}
                       </span>
                     </div>
+                    {currentTrainingJob?.status === 'pending' && (
+                      <div className="text-center pt-2">
+                        <p className="text-[#dcfc84] text-sm">Initializing training job...</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Trained Model Interface */}
-            {trainedModel && !isTraining && (
-              <div className="space-y-6">
-                {/* Model Testing Section */}
-                <div className="bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-lg p-6">
-                  <h4 className="text-lg font-semibold text-white mb-4">
-                    Try putting in some text to see how it is recognised based on your training.
-                  </h4>
+                         {/* Trained Model Interface */}
+             {trainedModel && !isTraining && (
+               <div className="space-y-6">
+                 {/* Status indicator */}
+                 {isStatusLoading && (
+                   <div className="text-center mb-4">
+                     <p className="text-[#dcfc84] text-sm">Checking model status...</p>
+                   </div>
+                 )}
+                                 {/* Model Testing Section */}
+                 <div className="bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-lg p-6">
+                   <h4 className="text-lg font-semibold text-white mb-4">
+                     Try putting in some text to see how it is recognised based on your training.
+                   </h4>
                   <div className="flex gap-4 items-end mb-4">
                     <div className="flex-1">
                       <input
                         type="text"
                         value={testText}
                         onChange={(e) => setTestText(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && e.ctrlKey && testText.trim() && !isTestingModel) {
-                            e.preventDefault();
-                            handleTestModel();
-                          }
-                        }}
-                        placeholder="enter a test text here (Ctrl+Enter to test)"
+                                                 onKeyDown={(e) => {
+                           if (e.key === 'Enter' && testText.trim() && !isTestingModel) {
+                             e.preventDefault();
+                             handleTestModel();
+                           }
+                         }}
+                                                 placeholder="enter a test text here (Enter to test)"
                         className="w-full px-4 py-3 bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:border-[#dcfc84] focus:ring-1 focus:ring-[#dcfc84] transition-all duration-300"
                       />
                     </div>
-                    <button
-                      onClick={handleTestModel}
-                      disabled={!testText.trim() || isTestingModel}
-                      className="bg-[#bc6cd3] hover:bg-[#bc6cd3]/90 disabled:bg-[#1c1c1c] disabled:border disabled:border-[#bc6cd3]/20 disabled:text-white/50 text-white px-6 py-3 rounded-lg font-medium transition-colors duration-300"
-                    >
-                      {isTestingModel ? (
-                        <div className="flex items-center gap-2">
-                          <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
-                          Testing...
-                        </div>
-                      ) : (
-                        'Test'
-                      )}
-                    </button>
-                    <button
-                      onClick={handleDescribeModel}
-                      className="bg-[#1c1c1c] border border-[#bc6cd3]/20 hover:bg-[#bc6cd3]/10 text-white px-6 py-3 rounded-lg font-medium transition-colors duration-300"
-                    >
-                      Describe your model!
-                    </button>
+                                         <button
+                       onClick={handleTestModel}
+                       disabled={!testText.trim() || isTestingModel}
+                       className="bg-[#bc6cd3] hover:bg-[#bc6cd3]/90 disabled:bg-[#1c1c1c] disabled:border disabled:border-[#bc6cd3]/20 disabled:text-white/50 text-white px-6 py-3 rounded-lg font-medium transition-colors duration-300"
+                     >
+                       {isTestingModel ? (
+                         <div className="flex items-center gap-2">
+                           <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+                           Testing...
+                         </div>
+                       ) : (
+                         'Test'
+                       )}
+                     </button>
                   </div>
 
                   {/* Test Results */}
@@ -1139,11 +1241,11 @@ export default function LearnPage() {
                   </div>
 
                   <div className="flex gap-4">
-                    <button
-                      onClick={handleDeleteModel}
-                      disabled={isDeletingModel}
-                      className="bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white px-6 py-3 rounded-lg font-medium transition-colors duration-300 flex items-center gap-2"
-                    >
+                                         <button
+                       onClick={handleDeleteModel}
+                       disabled={isDeletingModel || !trainedModel}
+                       className="bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white px-6 py-3 rounded-lg font-medium transition-colors duration-300 flex items-center gap-2"
+                     >
                       {isDeletingModel ? (
                         <>
                           <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
@@ -1164,9 +1266,9 @@ export default function LearnPage() {
               </div>
             )}
 
-            {/* Default Training Interface */}
-            {!isTraining && !trainedModel && (
-              <div className="flex flex-col items-center space-y-4">
+                                      {/* Default Training Interface */}
+             {!isTraining && !trainedModel && (
+               <div className="flex flex-col items-center space-y-4">
                 {!canTrainModel && (
                   <div className="text-center p-4 bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-lg max-w-md">
                     <div className="flex items-start gap-3">
@@ -1191,34 +1293,24 @@ export default function LearnPage() {
                   </div>
                 )}
                 
-                {/* Debug Info */}
-                <div className="text-center p-4 bg-[#2a2a2a] border border-[#bc6cd3]/20 rounded-lg max-w-md">
-                  <h4 className="text-[#dcfc84] font-medium mb-2">🔍 Debug Info</h4>
-                  <p className="text-white text-sm">
-                    Session ID: {actualSessionId ? `${actualSessionId.substring(0, 8)}...` : 'Not set'}<br />
-                    Project ID: {actualProjectId ? `${actualProjectId.substring(0, 8)}...` : 'Not set'}<br />
-                    Examples: {trainingStats.totalExamples}<br />
-                    Labels: {trainingStats.totalLabels}<br />
-                    Can Train: {canTrainModel ? '✅ Yes' : '❌ No'}
-                  </p>
-                  <button
-                    onClick={testTrainingAPI}
-                    className="mt-3 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300"
-                  >
-                    🧪 Test Training API
-                  </button>
-                </div>
-                
                 <button
                   onClick={handleTrainModel}
-                  disabled={!canTrainModel}
+                  disabled={!canTrainModel || isTraining}
                   className={`px-8 py-4 rounded-lg font-medium text-lg transition-all duration-300 shadow-lg ${
-                    canTrainModel
+                    canTrainModel && !isTraining
                       ? 'bg-[#dcfc84] hover:bg-[#dcfc84]/90 text-[#1c1c1c] hover:scale-105'
                       : 'bg-[#1c1c1c] border border-[#bc6cd3]/20 text-white/50 cursor-not-allowed'
                   }`}
                 >
-                  {canTrainModel ? (
+                  {isTraining ? (
+                    <>
+                      ⏳ Training in progress...
+                      <br />
+                      <span className="text-sm opacity-75">
+                        Please wait for completion
+                      </span>
+                    </>
+                  ) : canTrainModel ? (
                     <>
                       🚀 Train new machine learning model
                       <br />

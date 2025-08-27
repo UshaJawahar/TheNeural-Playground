@@ -20,6 +20,7 @@ interface Project {
   updated_at: string;
   status: string;
   model_type?: string;
+  teachable_link?: string;
   training_data?: TrainingData;
 }
 

@@ -12,11 +12,13 @@ import {
     useGuestPrediction
 } from '../../lib/use-api';
 import { Project, TrainingStatus } from '../../lib/api-service';
+import config from '../../lib/config';
 
 interface GuestProjectFormData {
     name: string;
     description: string;
     model_type: string;
+    teachable_link?: string;
 }
 
 interface GuestProjectManagerProps {
@@ -27,7 +29,8 @@ const GuestProjectManager: React.FC<GuestProjectManagerProps> = ({ sessionId }) 
     const [formData, setFormData] = useState<GuestProjectFormData>({
         name: '',
         description: '',
-        model_type: 'text'
+        model_type: 'text',
+        teachable_link: ''
     });
     const [selectedProject, setSelectedProject] = useState<Project | null>(null);
     const [trainingConfig, setTrainingConfig] = useState({
@@ -57,6 +60,21 @@ const GuestProjectManager: React.FC<GuestProjectManagerProps> = ({ sessionId }) 
         }
     }, [sessionId]);
 
+    // Auto-open Scratch editor for newly created image recognition projects
+    useEffect(() => {
+        if (guestProjects.data && guestProjects.data.length > 0 && formData.model_type === 'image-recognition') {
+            // Find the most recently created project that matches our form data
+            const latestProject = guestProjects.data
+                .filter(p => p.name === formData.name && p.model_type === 'image-recognition')
+                .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+            
+            if (latestProject && !selectedProject) {
+                // Open Scratch editor for this project
+                openScratchEditor(latestProject.id);
+            }
+        }
+    }, [guestProjects.data, formData.model_type, formData.name, selectedProject]);
+
     // Handle form submission
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -67,9 +85,15 @@ const GuestProjectManager: React.FC<GuestProjectManagerProps> = ({ sessionId }) 
         }
         
         // Reset form and reload projects
-        setFormData({ name: '', description: '', model_type: 'text' });
+        setFormData({ name: '', description: '', model_type: 'text', teachable_link: '' });
         setSelectedProject(null);
         guestProjects.execute();
+    };
+
+    // Open Scratch editor for image recognition projects
+    const openScratchEditor = (projectId: string) => {
+        const scratchUrl = `${config.scratchEditor.gui}?sessionId=${sessionId}&projectId=${projectId}&teachableLink=${encodeURIComponent(formData.teachable_link || '')}`;
+        window.open(scratchUrl, '_blank');
     };
 
     // Handle project selection
@@ -78,7 +102,8 @@ const GuestProjectManager: React.FC<GuestProjectManagerProps> = ({ sessionId }) 
         setFormData({
             name: project.name,
             description: project.description || '',
-            model_type: project.model_type || 'text'
+            model_type: project.model_type || 'text',
+            teachable_link: project.teachable_link || ''
         });
     };
 
@@ -174,11 +199,25 @@ const GuestProjectManager: React.FC<GuestProjectManagerProps> = ({ sessionId }) 
                         >
                             <option value="text">Text Classification</option>
                             <option value="image">Image Classification</option>
+                            <option value="image-recognition">Image Recognition</option>
                             <option value="audio">Audio Classification</option>
                             <option value="tabular">Tabular Data</option>
                         </select>
                     </div>
                     
+                    {formData.model_type === 'image-recognition' && (
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">Teachable Link</label>
+                            <input
+                                type="text"
+                                value={formData.teachable_link || ''}
+                                onChange={(e) => setFormData({ ...formData, teachable_link: e.target.value })}
+                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                placeholder="Enter your Teachable Link"
+                            />
+                        </div>
+                    )}
+
                     <div className="flex space-x-3">
                         <button
                             type="submit"
@@ -193,7 +232,7 @@ const GuestProjectManager: React.FC<GuestProjectManagerProps> = ({ sessionId }) 
                                 type="button"
                                 onClick={() => {
                                     setSelectedProject(null);
-                                    setFormData({ name: '', description: '', model_type: 'text' });
+                                    setFormData({ name: '', description: '', model_type: 'text', teachable_link: '' });
                                 }}
                                 className="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600"
                             >

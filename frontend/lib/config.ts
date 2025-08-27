@@ -3,6 +3,12 @@ export const config = {
   // Backend API base URL
   apiBaseUrl: process.env.NEXT_PUBLIC_API_URL || 'https://theneural-backend-ed2fe2fxhq-uc.a.run.app',
   
+  // Scratch Editor URLs
+  scratchEditor: {
+    gui: process.env.NEXT_PUBLIC_SCRATCH_EDITOR_URL || 'http://localhost:8601',
+    vm: process.env.NEXT_PUBLIC_SCRATCH_VM_URL || 'http://localhost:8602',
+  },
+  
   // API endpoints
   api: {
     guests: {
@@ -14,7 +20,7 @@ export const config = {
       trainModel: (sessionId: string, projectId: string) => `/api/guests/session/${sessionId}/projects/${projectId}/train`,
       trainingStatus: (sessionId: string, projectId: string) => `/api/guests/session/${sessionId}/projects/${projectId}/train`,
       predict: (sessionId: string, projectId: string) => `/api/guests/session/${sessionId}/projects/${projectId}/predict`,
-      deleteModel: (sessionId: string, projectId: string) => `/api/guests/projects/${projectId}/model`,
+      deleteModel: (projectId: string) => `/api/guests/projects/${projectId}/model`,
       deleteExamplesByLabel: (sessionId: string, projectId: string, label: string) => `/api/guests/projects/${projectId}/examples/${label}`,
       deleteSpecificExample: (sessionId: string, projectId: string, label: string, exampleIndex: number) => `/api/guests/projects/${projectId}/examples/${label}/${exampleIndex}`,
       deleteLabel: (sessionId: string, projectId: string, label: string) => `/api/guests/projects/${projectId}/labels/${label}`,
