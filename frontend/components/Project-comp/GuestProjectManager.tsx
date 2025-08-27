@@ -92,7 +92,9 @@ const GuestProjectManager: React.FC<GuestProjectManagerProps> = ({ sessionId }) 
 
     // Open Scratch editor for image recognition projects
     const openScratchEditor = (projectId: string) => {
-        const scratchUrl = `${config.scratchEditor.gui}?sessionId=${sessionId}&projectId=${projectId}&teachableLink=${encodeURIComponent(formData.teachable_link || '')}`;
+        // Get the project name from the selected project or form data
+        const projectName = selectedProject?.name || formData.name;
+        const scratchUrl = `${config.scratchEditor.gui}?sessionId=${sessionId}&projectId=${projectId}&projectName=${encodeURIComponent(projectName)}&teachableLink=${encodeURIComponent(formData.teachable_link || '')}`;
         window.open(scratchUrl, '_blank');
     };
 
