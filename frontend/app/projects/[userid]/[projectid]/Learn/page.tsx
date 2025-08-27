@@ -1120,23 +1120,11 @@ export default function LearnPage() {
                           <span className="text-white font-medium">&ldquo;{testResult.text}&rdquo;</span>
                         </div>
                         <div className="flex items-center gap-2 mb-2">
-                          <span className="text-white/70">Primary:</span>
+                          <span className="text-white/70">Confidence:</span>
                               <span className="text-[#dcfc84] font-medium">
                             {testResult.prediction} ({testResult.confidence.toFixed(1)}%)
                               </span>
                         </div>
-                        {testResult.alternatives && testResult.alternatives.length > 0 && (
-                          <div className="flex items-center gap-2">
-                            <span className="text-white/70">Other possibilities:</span>
-                            <div className="flex gap-2 flex-wrap">
-                              {testResult.alternatives.map((alt, altIndex) => (
-                                <span key={altIndex} className="text-xs bg-[#1c1c1c] border border-[#bc6cd3]/20 text-white/80 px-2 py-1 rounded">
-                                  {alt.label} ({alt.confidence.toFixed(1)}%)
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
                       </div>
                     </div>
                   )}

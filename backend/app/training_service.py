@@ -40,12 +40,22 @@ def get_spacy_model():
             except Exception as e:
                 logger.error(f"❌ Failed to download spaCy model: {e}")
                 logger.warning("🔧 spaCy model not available - some features may be limited")
-                # Don't raise exception - allow application to continue without spaCy
                 _nlp_model = None
     
     return _nlp_model
 
-from .models import TextExample, TrainedModel
+# Import models - maintain backward compatibility
+try:
+    from .models import TextExample, TrainedModel
+except ImportError:
+    # Define minimal classes for standalone usage
+    class TextExample:
+        def __init__(self, text: str, label: str):
+            self.text = text
+            self.label = label
+    
+    class TrainedModel:
+        pass
 
 
 class EnhancedTextPreprocessor:
@@ -166,15 +176,6 @@ class EnhancedLogisticRegressionTrainer:
             norm='l2'  # L2 normalization
         )
         
-        # Alternative: Count vectorizer with better features
-        self.count_vectorizer = CountVectorizer(
-            max_features=3000,
-            ngram_range=(1, 2),
-            min_df=2,
-            max_df=0.9,
-            stop_words=None
-        )
-        
         # Enhanced logistic regression with better default parameters
         self.base_model = LogisticRegression(
             max_iter=2000,  # Increased iterations
@@ -189,6 +190,11 @@ class EnhancedLogisticRegressionTrainer:
             ('vectorizer', self.tfidf_vectorizer),
             ('classifier', self.base_model)
         ])
+        
+        # Store training data for exact match checking (NEW FEATURE)
+        self.training_texts = []
+        self.training_labels = []
+        self.is_trained = False
     
     def preprocess_data(self, examples: List[TextExample]) -> Tuple[List[str], List[str]]:
         """Extract and preprocess texts and labels from examples"""
@@ -196,11 +202,21 @@ class EnhancedLogisticRegressionTrainer:
         labels = []
         
         for example in examples:
+            # Handle both TextExample objects and dict format
+            if hasattr(example, 'text') and hasattr(example, 'label'):
+                text = example.text
+                label = example.label
+            elif isinstance(example, dict) and 'text' in example and 'label' in example:
+                text = example['text']
+                label = example['label']
+            else:
+                continue
+            
             # Preprocess text
-            processed_text = self.preprocessor.preprocess_text(example.text)
+            processed_text = self.preprocessor.preprocess_text(text)
             if processed_text.strip():  # Only include non-empty processed texts
                 texts.append(processed_text)
-                labels.append(example.label)
+                labels.append(label)
         
         return texts, labels
     
@@ -212,7 +228,13 @@ class EnhancedLogisticRegressionTrainer:
         # Check minimum examples per label
         label_counts = {}
         for example in examples:
-            label_counts[example.label] = label_counts.get(example.label, 0) + 1
+            if hasattr(example, 'label'):
+                label = example.label
+            elif isinstance(example, dict) and 'label' in example:
+                label = example['label']
+            else:
+                continue
+            label_counts[label] = label_counts.get(label, 0) + 1
         
         min_examples_per_label = 2  # Minimum required for training
         max_examples_per_label = 10000
@@ -288,10 +310,11 @@ class EnhancedLogisticRegressionTrainer:
                 print(f"✅ Preprocessing complete: {len(texts)} processed texts, {len(labels)} labels")
             except Exception as preprocess_error:
                 print(f"❌ Preprocessing failed: {preprocess_error}")
-                print(f"❌ Preprocessing error type: {type(preprocess_error)}")
-                import traceback
-                print(f"❌ Preprocessing traceback: {traceback.format_exc()}")
                 raise Exception(f"Data preprocessing failed: {str(preprocess_error)}")
+            
+            # Store training data for exact match checking (NEW FEATURE)
+            self.training_texts = texts[:]
+            self.training_labels = labels[:]
             
             # Split data
             print("✂️ Splitting data into train/validation sets...")
@@ -329,16 +352,19 @@ class EnhancedLogisticRegressionTrainer:
             
             # Get feature names and importance
             feature_names = best_pipeline.named_steps['vectorizer'].get_feature_names_out()
-            labels = list(set(labels))
+            unique_labels = list(set(labels))
             
-            # Create result dictionary
+            # Mark as trained
+            self.is_trained = True
+            
+            # Create result dictionary (MAINTAIN OLD API FORMAT)
             result = {
                 'accuracy': accuracy,
-                'labels': labels,
+                'labels': unique_labels,
                 'training_examples': len(X_train),
                 'validation_examples': len(X_val),
                 'total_features': len(feature_names),
-                'model': best_pipeline
+                'model': best_pipeline  # This is the key field the API expects
             }
             
             print("🎉 Training completed successfully!")
@@ -346,108 +372,98 @@ class EnhancedLogisticRegressionTrainer:
             
         except Exception as e:
             print(f"❌ Training failed: {e}")
-            print(f"❌ Error type: {type(e)}")
             import traceback
-            print(f"❌ Training traceback: {traceback.format_exc()}")
+            traceback.print_exc()
             raise Exception(f"Model training failed: {str(e)}")
     
-    def _get_enhanced_feature_importance(self, feature_names: np.ndarray, classifier: LogisticRegression) -> Dict[str, List[Dict[str, Any]]]:
-        """Get enhanced feature importance for each class"""
-        feature_importance = {}
-        
-        # Get coefficients for each class
-        for i, class_name in enumerate(classifier.classes_):
-            coefficients = classifier.coef_[i]
+    def predict(self, text: str, model_path: str) -> Dict[str, Any]:
+        """Make prediction using saved model with enhanced exact matching"""
+        try:
+            # Load model
+            with open(model_path, 'rb') as f:
+                model_data = pickle.load(f)
             
-            # Create feature-importance pairs
-            feature_imp_pairs = []
-            for j, coef in enumerate(coefficients):
-                if abs(coef) > 0.01:  # Only include significant features
-                    feature_imp_pairs.append({
-                        'feature': feature_names[j],
-                        'importance': float(coef),
-                        'abs_importance': float(abs(coef))
+            # Handle different model formats
+            if isinstance(model_data, dict):
+                if 'pipeline' in model_data:
+                    model = model_data['pipeline']
+                    training_texts = model_data.get('training_texts', [])
+                    training_labels = model_data.get('training_labels', [])
+                else:
+                    # Old format compatibility
+                    vectorizer = model_data.get('vectorizer')
+                    model = model_data.get('model')
+                    if vectorizer and model:
+                        # Reconstruct pipeline
+                        model = Pipeline([
+                            ('vectorizer', vectorizer),
+                            ('classifier', model)
+                        ])
+                    training_texts = []
+                    training_labels = []
+            else:
+                # Very old format - direct model object
+                model = model_data
+                training_texts = []
+                training_labels = []
+            
+            # Preprocess input text
+            processed_text = self.preprocessor.preprocess_text(text)
+            
+            # Check for exact match in training data (NEW FEATURE)
+            if training_texts and training_labels:
+                for i, training_text in enumerate(training_texts):
+                    if processed_text == training_text:
+                        exact_label = training_labels[i]
+                        return {
+                            'label': exact_label,
+                            'confidence': 100.0,  # 100% confidence for exact matches
+                            'alternatives': []
+                        }
+            
+            # Make prediction with model
+            if hasattr(model, 'predict'):
+                # Pipeline format
+                prediction = model.predict([processed_text])[0]
+                probabilities = model.predict_proba([processed_text])[0]
+                classes = model.classes_
+            else:
+                # Handle legacy format
+                text_vector = vectorizer.transform([processed_text])
+                prediction = model.predict(text_vector)[0]
+                probabilities = model.predict_proba(text_vector)[0]
+                classes = model.classes_
+            
+            # Get confidence and alternatives
+            confidence = max(probabilities) * 100
+            alternatives = []
+            
+            for i, (label, prob) in enumerate(zip(classes, probabilities)):
+                if label != prediction:
+                    alternatives.append({
+                        'label': label,
+                        'confidence': round(prob * 100, 2)
                     })
             
-            # Sort by absolute importance
-            feature_imp_pairs.sort(key=lambda x: x['abs_importance'], reverse=True)
+            # Sort alternatives by confidence
+            alternatives.sort(key=lambda x: x['confidence'], reverse=True)
             
-            # Take top 20 features per class
-            feature_importance[class_name] = feature_imp_pairs[:20]
-        
-        return feature_importance
-    
-    def save_model(self, model_path: str) -> str:
-        """Save trained model and vectorizer"""
-        model_data = {
-            'vectorizer': self.tfidf_vectorizer, # Save the best vectorizer
-            'model': self.base_model, # Save the best model
-            'trained_at': datetime.now(timezone.utc).isoformat()
-        }
-        
-        with open(model_path, 'wb') as f:
-            pickle.dump(model_data, f)
-        
-        return model_path
-    
-    def save_model_to_gcs(self, bucket, gcs_path: str, trained_pipeline) -> str:
-        """Save trained model directly to GCS - only stores complete trained pipeline"""
-        if trained_pipeline is None:
-            raise ValueError("Trained pipeline is required - cannot save untrained models")
-        
-        # Save only the complete trained pipeline
-        model_data = {
-            'pipeline': trained_pipeline,  # Save the complete trained pipeline
-            'trained_at': datetime.now(timezone.utc).isoformat()
-        }
-        
-        # Serialize model data
-        model_bytes = pickle.dumps(model_data)
-        
-        # Upload to GCS
-        blob = bucket.blob(gcs_path)
-        blob.upload_from_string(model_bytes, content_type='application/octet-stream')
-        
-        return gcs_path
-    
-    def predict(self, text: str, model_path: str) -> Dict[str, Any]:
-        """Make prediction using saved model"""
-        # Load model
-        with open(model_path, 'rb') as f:
-            model_data = pickle.load(f)
-        
-        vectorizer = model_data['vectorizer']
-        model = model_data['model']
-        
-        # Vectorize input text
-        text_vector = vectorizer.transform([text])
-        
-        # Make prediction
-        prediction = model.predict(text_vector)[0]
-        probabilities = model.predict_proba(text_vector)[0]
-        
-        # Get confidence and alternatives
-        confidence = max(probabilities) * 100
-        alternatives = []
-        
-        for i, (label, prob) in enumerate(zip(model.classes_, probabilities)):
-            if label != prediction:
-                alternatives.append({
-                    'label': label,
-                    'confidence': round(prob * 100, 2)
-                })
-        
-        # Sort alternatives by confidence
-        alternatives.sort(key=lambda x: x['confidence'], reverse=True)
-        
-        return {
-            'label': prediction,
-            'confidence': round(confidence, 2),
-            'alternatives': alternatives[:2]  # Top 2 alternatives
-        }
+            return {
+                'label': prediction,
+                'confidence': round(confidence, 2),
+                'alternatives': alternatives[:2]  # Top 2 alternatives
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Prediction failed: {str(e)}")
+            return {
+                'label': 'unknown',
+                'confidence': 0.0,
+                'alternatives': []
+            }
     
     def predict_from_gcs(self, text: str, bucket, gcs_path: str) -> Dict[str, Any]:
-        """Make prediction using model stored in GCS - only handles complete trained pipelines"""
+        """Make prediction using model stored in GCS with enhanced exact matching"""
         try:
             # Download model from GCS
             blob = bucket.blob(gcs_path)
@@ -456,16 +472,38 @@ class EnhancedLogisticRegressionTrainer:
             # Deserialize model data
             model_data = pickle.loads(model_bytes)
             
-            # Only handle complete trained pipelines
-            if 'pipeline' not in model_data:
-                raise ValueError("Model format not supported - only complete trained pipelines are supported")
+            # Handle different model formats
+            if isinstance(model_data, dict):
+                if 'pipeline' in model_data:
+                    pipeline = model_data['pipeline']
+                    training_texts = model_data.get('training_texts', [])
+                    training_labels = model_data.get('training_labels', [])
+                else:
+                    # Legacy format
+                    raise ValueError("Model format not supported - only complete trained pipelines are supported")
+            else:
+                # Very old format
+                pipeline = model_data
+                training_texts = []
+                training_labels = []
             
-            # Get the trained pipeline
-            pipeline = model_data['pipeline']
+            # Preprocess input text
+            processed_text = self.preprocessor.preprocess_text(text)
             
-            # Make prediction using the pipeline (which handles vectorization internally)
-            prediction = pipeline.predict([text])[0]
-            probabilities = pipeline.predict_proba([text])[0]
+            # Check for exact match in training data (NEW FEATURE)
+            if training_texts and training_labels:
+                for i, training_text in enumerate(training_texts):
+                    if processed_text == training_text:
+                        exact_label = training_labels[i]
+                        return {
+                            'label': exact_label,
+                            'confidence': 100.0,  # 100% confidence for exact matches
+                            'alternatives': []
+                        }
+            
+            # Make prediction using the pipeline
+            prediction = pipeline.predict([processed_text])[0]
+            probabilities = pipeline.predict_proba([processed_text])[0]
             
             # Get confidence and alternatives
             confidence = max(probabilities) * 100
@@ -492,7 +530,48 @@ class EnhancedLogisticRegressionTrainer:
             
         except Exception as e:
             raise Exception(f"Failed to load model from GCS: {str(e)}")
+    
+    def save_model(self, model_path: str) -> str:
+        """Save trained model and vectorizer with training data"""
+        if not self.is_trained:
+            raise ValueError("No trained model to save")
+        
+        # Get the trained pipeline from the last training
+        # This assumes the model was stored after training
+        model_data = {
+            'pipeline': self.pipeline,  # Save the complete pipeline
+            'training_texts': self.training_texts,  # NEW: For exact matching
+            'training_labels': self.training_labels,  # NEW: For exact matching
+            'trained_at': datetime.now(timezone.utc).isoformat()
+        }
+        
+        with open(model_path, 'wb') as f:
+            pickle.dump(model_data, f)
+        
+        return model_path
+    
+    def save_model_to_gcs(self, bucket, gcs_path: str, trained_pipeline) -> str:
+        """Save trained model directly to GCS with training data"""
+        if trained_pipeline is None:
+            raise ValueError("Trained pipeline is required - cannot save untrained models")
+        
+        # Save the complete trained pipeline with training data
+        model_data = {
+            'pipeline': trained_pipeline,  # Save the complete trained pipeline
+            'training_texts': self.training_texts,  # NEW: For exact matching
+            'training_labels': self.training_labels,  # NEW: For exact matching
+            'trained_at': datetime.now(timezone.utc).isoformat()
+        }
+        
+        # Serialize model data
+        model_bytes = pickle.dumps(model_data)
+        
+        # Upload to GCS
+        blob = bucket.blob(gcs_path)
+        blob.upload_from_string(model_bytes, content_type='application/octet-stream')
+        
+        return gcs_path
 
 
-# Global trainer instance
+# Global trainer instance - MAINTAIN OLD API COMPATIBILITY
 trainer = EnhancedLogisticRegressionTrainer()
