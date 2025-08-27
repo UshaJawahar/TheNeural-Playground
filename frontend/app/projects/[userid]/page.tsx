@@ -622,24 +622,7 @@ function CreateProjectPage() {
                 </button>
               </div>
 
-              {/* Session Expiration Info */}
-              {guestSession && (
-                <div className="mb-6 p-4 bg-[#bc6cd3]/10 border border-[#bc6cd3]/20 rounded-lg">
-                  <p className="text-sm text-white text-center">
-                    <span className="text-[#dcfc84] font-medium">Welcome back!</span> Session expires on{' '}
-                    {new Date(guestSession.expiresAt).toLocaleDateString('en-US', {
-                      weekday: 'long',
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric'
-                    })} at{' '}
-                    {new Date(guestSession.expiresAt).toLocaleTimeString('en-US', {
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}
-                  </p>
-                </div>
-              )}
+              
 
               {/* Projects Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
