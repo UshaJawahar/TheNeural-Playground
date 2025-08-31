@@ -1105,7 +1105,7 @@ export default function TrainPage() {
         <div className="max-w-7xl mx-auto">
           
 
-                     <div className="flex items-center justify-between mb-8">
+                     <div className="mb-8">
              <Link
                href={`/projects/${urlUserId}/${urlProjectId}`}
                className="p-2 text-white/70 hover:text-white hover:bg-[#bc6cd3]/10 rounded-lg transition-all duration-300 flex items-center gap-2 text-sm"
@@ -1115,23 +1115,6 @@ export default function TrainPage() {
                </svg>
                Back to project
              </Link>
-             
-             {/* Refresh button */}
-             <button
-               onClick={() => {
-                 if (actualSessionId && actualProjectId) {
-                   console.log('🔄 Manual refresh requested');
-                   refreshExamplesFromAPI();
-                 }
-               }}
-               className="p-2 text-[#dcfc84] hover:text-[#dcfc84]/80 hover:bg-[#dcfc84]/10 rounded-lg transition-all duration-300 flex items-center gap-2 text-sm"
-               title="Refresh data from server"
-             >
-               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-               </svg>
-               Refresh
-             </button>
            </div>
 
            
@@ -1400,6 +1383,18 @@ export default function TrainPage() {
                ))}
              </div>
                         ) : null}
+
+          {/* Next Step Button */}
+          {labels.length > 0 && (
+            <div className="flex justify-end mt-12">
+              <Link
+                href={`/projects/${urlUserId}/${urlProjectId}/learn`}
+                className="bg-[#dcfc84] hover:bg-[#dcfc84]/90 text-[#1c1c1c] px-8 py-4 rounded-lg text-lg font-medium hover:scale-105 transition-all duration-300 inline-block shadow-lg hover:shadow-xl"
+              >
+                Move to next - Training
+              </Link>
+            </div>
+          )}
         </div>
       </main>
 

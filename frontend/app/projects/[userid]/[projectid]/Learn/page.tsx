@@ -1318,6 +1318,18 @@ export default function LearnPage() {
                 </button>
               </div>
             )}
+
+            {/* Next Step Button */}
+            {trainingStats.totalExamples >= 6 && trainingStats.totalLabels >= 2 && trainedModel && trainedModel.status === 'available' && (
+              <div className="flex justify-end mt-12">
+                <a
+                  href={`/projects/${urlUserId}/${urlProjectId}/make`}
+                  className="bg-[#dcfc84] hover:bg-[#dcfc84]/90 text-[#1c1c1c] px-8 py-4 rounded-lg text-lg font-medium hover:scale-105 transition-all duration-300 inline-block shadow-lg hover:shadow-xl"
+                >
+                  Move to next - Use AI
+                </a>
+              </div>
+            )}
           </div>
         </div>
       </main>

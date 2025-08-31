@@ -41,17 +41,13 @@ interface Project {
   maskedId?: string;
 }
 
-
-
 export default function MakePage() {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isValidSession, setIsValidSession] = useState(false);
   const [actualSessionId, setActualSessionId] = useState<string>('');
   const [actualProjectId, setActualProjectId] = useState<string>('');
-  const [showScratchInfo, setShowScratchInfo] = useState(false);
   const [isLoadingProjectData, setIsLoadingProjectData] = useState(false);
-  const [projectDataLoaded, setProjectDataLoaded] = useState(false);
   const [projectLabels, setProjectLabels] = useState<string[]>([]);
 
   const params = useParams();
@@ -356,16 +352,16 @@ export default function MakePage() {
     }
   };
 
-  // New function to load detailed project data including labels
-  const loadProjectDetails = async () => {
+  // Function to load project details and open Scratch
+  const handleOpenScratch = async () => {
     if (!actualSessionId || !actualProjectId) {
-      console.error('Cannot load project details: missing session or project ID');
+      console.error('Cannot open Scratch: missing session or project ID');
       return;
     }
 
     setIsLoadingProjectData(true);
     try {
-      console.log('Loading detailed project data...');
+      console.log('Loading project details to open Scratch...');
       
       // Clear any existing ML extension data before loading new details
       const mlExtensionKeys = [
@@ -387,17 +383,6 @@ export default function MakePage() {
         if (projectResponse.success && projectResponse.data) {
           const details = projectResponse.data;
           
-          // Clear any existing ML extension data before setting new project details
-          const mlExtensionKeys = [
-            'ml_extension_project_id',
-            'ml_extension_session_id',
-            'ml_extension_project_name',
-            'ml_extension_project_labels'
-          ];
-          
-          mlExtensionKeys.forEach(key => localStorage.removeItem(key));
-          console.log('Cleared existing ML extension data before setting new project details');
-          
           // Extract labels from the model
           if (details.model && Array.isArray(details.model.labels)) {
             const labels = details.model.labels;
@@ -414,15 +399,29 @@ export default function MakePage() {
             localStorage.setItem('ml_extension_project_labels', '[]');
           }
           
-          // Mark project data as loaded
-          setProjectDataLoaded(true);
+          // Ensure localStorage has the current project information
+          localStorage.setItem('ml_extension_project_id', actualProjectId);
+          localStorage.setItem('ml_extension_session_id', actualSessionId);
+          localStorage.setItem('ml_extension_project_name', selectedProject?.name || 'Unknown Project');
           
-          console.log('Project details loaded successfully:', {
-            name: details.name,
+          // Open the Scratch GUI running on port 8601 with session and project parameters
+          const scratchGuiUrl = `${SCRATCH_EDITOR_URL}/?sessionId=${actualSessionId}&projectId=${actualProjectId}`;
+          window.open(scratchGuiUrl, '_blank');
+          
+          console.log('Scratch opened with fresh project data:', {
+            sessionId: actualSessionId,
+            projectId: actualProjectId,
+            projectName: selectedProject?.name,
             labels: projectLabels,
-            dataLoaded: true,
-            dataCleared: true,
-            freshData: true
+            storedInLocalStorage: true,
+            localStorageKeys: {
+              projectId: 'ml_extension_project_id',
+              sessionId: 'ml_extension_session_id',
+              projectName: 'ml_extension_project_name',
+              labels: 'ml_extension_project_labels'
+            },
+            oldDataCleared: true,
+            aggressiveClearing: true
           });
         } else {
           console.error('Failed to load project details:', projectResponse);
@@ -435,66 +434,6 @@ export default function MakePage() {
     } finally {
       setIsLoadingProjectData(false);
     }
-  };
-
-  const handleScratchClick = async () => {
-    // Load project details first
-    await loadProjectDetails();
-    
-    // Show the Scratch info page
-    setShowScratchInfo(true);
-  };
-
-  const handleOpenInScratch = () => {
-    // Aggressively clear ALL existing localStorage data to prevent project sharing issues
-    const keysToClear = [
-      'ml_extension_project_id',
-      'ml_extension_session_id',
-      'ml_extension_project_name',
-      'ml_extension_project_labels',
-      // Also clear any other potential ML extension keys
-      'ml_extension_*'
-    ];
-    
-    // Clear specific keys
-    keysToClear.slice(0, 4).forEach(key => localStorage.removeItem(key));
-    
-    // Clear any keys that start with ml_extension_
-    Object.keys(localStorage).forEach(key => {
-      if (key.startsWith('ml_extension_')) {
-        localStorage.removeItem(key);
-        console.log(`Cleared localStorage key: ${key}`);
-      }
-    });
-    
-    // Ensure localStorage has the current project information
-    localStorage.setItem('ml_extension_project_id', actualProjectId);
-    localStorage.setItem('ml_extension_session_id', actualSessionId);
-    localStorage.setItem('ml_extension_project_name', selectedProject?.name || 'Unknown Project');
-    
-    if (projectLabels.length > 0) {
-      localStorage.setItem('ml_extension_project_labels', JSON.stringify(projectLabels));
-    }
-    
-    // Open the Scratch GUI running on port 8601 with session and project parameters
-    const scratchGuiUrl = `${SCRATCH_EDITOR_URL}/?sessionId=${actualSessionId}&projectId=${actualProjectId}`;
-    window.open(scratchGuiUrl, '_blank');
-    
-    console.log('Scratch opened with fresh project data:', {
-      sessionId: actualSessionId,
-      projectId: actualProjectId,
-      projectName: selectedProject?.name,
-      labels: projectLabels,
-      storedInLocalStorage: true,
-      localStorageKeys: {
-        projectId: 'ml_extension_project_id',
-        sessionId: 'ml_extension_session_id',
-        projectName: 'ml_extension_project_name',
-        labels: 'ml_extension_project_labels'
-      },
-      oldDataCleared: true,
-      aggressiveClearing: true
-    });
   };
 
   if (isLoading) {
@@ -553,219 +492,47 @@ export default function MakePage() {
             </a>
           </div>
 
-          {!showScratchInfo ? (
-            <>
-              {/* Main Heading */}
-              <div className="text-center mb-12">
-                <h1 className="text-3xl md:text-4xl font-bold text-white">
-                  Make something with your machine learning model
-                </h1>
-              </div>
+          {/* Main Heading */}
+          <div className="text-center mb-12">
+            <h1 className="text-3xl md:text-4xl font-bold text-white">
+              Make something with your machine learning model
+            </h1>
+          </div>
 
-              {/* Integration Cards Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                
-                {/* Scratch 3 Card */}
-                <div className="bg-[#1c1c1c] border-2 border-[#bc6cd3]/20 rounded-lg p-6 shadow-lg">
-                  <div className="text-center mb-6">
-                    <h2 className="text-2xl font-bold text-white mb-3">Scratch 3</h2>
-                    <p className="text-[#dcfc84] text-sm mb-4">
-                      Use your machine learning model in Scratch
-                    </p>
-                    
-                    {/* Action Button */}
-                    <button 
-                      onClick={handleScratchClick}
-                      className="bg-[#dcfc84] hover:bg-[#dcfc84]/90 text-[#1c1c1c] px-6 py-2 rounded-lg font-medium text-sm transition-all duration-300"
-                    >
-                      Open Scratch Editor
-                    </button>
-                    
-                    {/* Scratch Image */}
-                    <div className="mt-4">
-                      <img src="/image.png" alt="Scratch Integration" className="w-full h-auto rounded-lg" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </>
-          ) : (
-            <>
-              {/* Scratch Info Page Header */}
-              <div className="flex items-center justify-between mb-8">
-                <h1 className="text-3xl md:text-4xl font-bold text-white">
-                  Custom Machine Learning Blocks for Scratch
-                </h1>
-                <button
-                  onClick={() => setShowScratchInfo(false)}
-                  className="bg-[#dcfc84] hover:bg-[#dcfc84]/90 text-[#1c1c1c] px-6 py-3 rounded-lg font-medium transition-all duration-300"
-                >
-                  Back to Options
-                </button>
-              </div>
-
-              {/* Loading State */}
-              {isLoadingProjectData && (
-                <div className="text-center mb-8">
-                  <div className="bg-[#2a2a2a] border border-[#bc6cd3]/20 rounded-lg p-6">
-                    <div className="flex items-center justify-center gap-3">
-                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#dcfc84]"></div>
-                      <span className="text-white">Loading project data...</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Open in Scratch Button - Only enabled when data is loaded */}
-              <div className="bg-[#1c1c1c] rounded-lg p-6 mb-6">
-                <h2 className="text-2xl font-bold text-white mb-4">Make with Scratch Editor</h2>
-                <p className="text-gray-300 mb-4">
-                  Use the Scratch editor to create interactive projects with your trained model. 
-                  You can add blocks, sprites, and create engaging experiences.
+          {/* Integration Cards Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            
+            {/* Scratch 3 Card */}
+            <div className="bg-[#1c1c1c] border-2 border-[#bc6cd3]/20 rounded-lg p-6 shadow-lg">
+              <div className="text-center mb-6">
+                <h2 className="text-2xl font-bold text-white mb-3">Scratch 3</h2>
+                <p className="text-[#dcfc84] text-sm mb-4">
+                  Use your machine learning model in Scratch
                 </p>
                 
-
-                
-                <button
-                  onClick={handleOpenInScratch}
+                {/* Action Button */}
+                <button 
+                  onClick={handleOpenScratch}
                   disabled={isLoadingProjectData}
-                  className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white px-6 py-3 rounded-lg font-semibold transition-colors flex items-center space-x-2"
+                  className="bg-[#dcfc84] hover:bg-[#dcfc84]/90 text-[#1c1c1c] px-6 py-2 rounded-lg font-medium text-sm transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isLoadingProjectData ? (
                     <>
-                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                      <span>Loading Project...</span>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#1c1c1c] mx-auto mb-2"></div>
+                      <span>Loading...</span>
                     </>
                   ) : (
-                    <>
-                      <span>🚀 Open in Scratch Editor</span>
-                    </>
+                    'Open Scratch Editor'
                   )}
                 </button>
-              </div>
-
-              {/* Project Data Summary */}
-              {projectDataLoaded && (
-                <div className="bg-[#2a2a2a] border border-[#bc6cd3]/20 rounded-lg p-6 mb-8">
-                  <h3 className="text-xl font-semibold text-white mb-4">Project Data Loaded</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-gray-300 mb-2">Project Name:</p>
-                      <p className="text-white font-mono">{selectedProject?.name}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-300 mb-2">Labels Found:</p>
-                      <p className="text-white font-mono">
-                        {projectLabels.length > 0 ? projectLabels.join(', ') : 'No labels found'}
-                      </p>
-                    </div>
-                  </div>
-                  <p className="text-sm text-green-400 mt-3">
-                    ✅ Project data is ready for Scratch. You can now open Scratch 3.0!
-                  </p>
-                </div>
-              )}
-
-              {/* Content Grid */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Left Section - Explanation of Custom Blocks */}
-                <div className="bg-[#2a2a2a] border border-[#bc6cd3]/20 rounded-lg p-6">
-                  <h3 className="text-xl font-semibold text-white mb-4">Your project will add these blocks to Scratch</h3>
-                  
-                  <div className="space-y-4">
-                    <div className="bg-blue-800 text-white p-3 rounded-lg">
-                      <p className="font-mono text-sm">ML recognise text text (label)</p>
-                      <p className="text-blue-100 text-xs mt-1">Takes text input and returns the label that the machine learning model recognizes it as.</p>
-                    </div>
-                    
-                    <div className="bg-blue-800 text-white p-3 rounded-lg">
-                      <p className="font-mono text-sm">ML recognise text text (confidence)</p>
-                      <p className="text-blue-100 text-xs mt-1">Returns a number from 0-100, indicating how confident the machine learning model is in recognizing the type of text.</p>
-                    </div>
-                    
-                    {/* Dynamic Labels */}
-                    {projectLabels.length > 0 ? (
-                      projectLabels.map((label, index) => (
-                        <div key={index} className="bg-blue-800 text-white p-3 rounded-lg">
-                          <p className="font-mono text-sm">ML {label}</p>
-                          <p className="text-blue-100 text-xs mt-1">Represents the &ldquo;{label}&rdquo; label from your project.</p>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="bg-blue-800 text-white p-3 rounded-lg">
-                        <p className="font-mono text-sm">ML label</p>
-                        <p className="text-blue-100 text-xs mt-1">Represents the labels created in your project, which can be used by your scripts.</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Right Section - Scratch Editor Preview */}
-                <div className="bg-[#2a2a2a] border border-[#bc6cd3]/20 rounded-lg p-6">
-                  <h3 className="text-xl font-semibold text-white mb-4">
-                    It will look something like this - with your project name: {selectedProject?.name}
-                  </h3>
-                  
-                  <div className="bg-white border rounded-lg p-4">
-                    {/* Scratch Editor Header */}
-                    <div className="flex items-center gap-4 mb-4 pb-2 border-b">
-                      <span className="font-bold text-blue-600">SCRATCH</span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-gray-600">🌐</span>
-                        <span className="text-gray-600">File</span>
-                        <span className="text-gray-600">Edit</span>
-                        <span className="text-gray-600">Project templates</span>
-                      </div>
-                    </div>
-
-                    {/* Tabs */}
-                    <div className="flex gap-1 mb-4">
-                      <span className="bg-blue-600 text-white px-3 py-1 rounded-t-lg text-sm">Code</span>
-                      <span className="bg-gray-200 text-gray-600 px-3 py-1 rounded-t-lg text-sm">Costumes</span>
-                      <span className="bg-gray-200 text-gray-600 px-3 py-1 rounded-t-lg text-sm">Sounds</span>
-                    </div>
-
-                    {/* Block Palette */}
-                    <div className="flex gap-4">
-                      <div className="w-48 space-y-2">
-                        <div className="flex items-center gap-2">
-                          <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                          <span className="text-sm font-medium">{selectedProject?.name || "my project"}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
-                          <span className="text-sm">Operators</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                          <span className="text-sm">Variables</span>
-                        </div>
-                        <div className="text-sm text-gray-600">My Blocks</div>
-                        <div className="text-sm text-gray-600">Images</div>
-                      </div>
-
-                      {/* Custom Blocks */}
-                      <div className="flex-1 space-y-2">
-                        <div className="bg-blue-800 text-white p-2 rounded text-sm font-mono">ML recognise text text (label)</div>
-                        <div className="bg-blue-800 text-white p-2 rounded text-sm font-mono">ML recognise text text (confidence)</div>
-                        
-                        {/* Dynamic Labels */}
-                        {projectLabels.length > 0 ? (
-                          projectLabels.map((label, index) => (
-                            <div key={index} className="bg-blue-800 text-white p-2 rounded text-sm font-mono">
-                              ML {label}
-                            </div>
-                          ))
-                        ) : (
-                          <div className="bg-blue-800 text-white p-2 rounded text-sm font-mono">ML label</div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
+                
+                {/* Scratch Image */}
+                <div className="mt-4">
+                  <img src="/image.png" alt="Scratch Integration" className="w-full h-auto rounded-lg" />
                 </div>
               </div>
-            </>
-          )}
+            </div>
+          </div>
         </div>
       </main>
     </div>
