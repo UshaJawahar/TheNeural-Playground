@@ -73,6 +73,8 @@ export default function TrainPage() {
   const [deletingExampleId, setDeletingExampleId] = useState<string | null>(null);
   const [isDeletingLabel, setIsDeletingLabel] = useState(false);
   const [deletingLabelId, setDeletingLabelId] = useState<string | null>(null);
+  const [deletingLabels, setDeletingLabels] = useState<Set<string>>(new Set());
+  const [deletingExamplesByLabel, setDeletingExamplesByLabel] = useState<Set<string>>(new Set());
   const [hasInitialDataLoaded, setHasInitialDataLoaded] = useState(false);
   const [lastDataRefresh, setLastDataRefresh] = useState<number>(0);
 
@@ -258,18 +260,60 @@ export default function TrainPage() {
     setIsLoading(false);
   };
 
-  const refreshExamplesFromAPI = async () => {
+  const saveLocalLabels = (sessionId: string, projectId: string, localLabels: Label[]) => {
+    try {
+      const labelsKey = `neural_playground_local_labels_${sessionId}_${projectId}`;
+      localStorage.setItem(labelsKey, JSON.stringify(localLabels));
+    } catch (error) {
+      console.error('Error saving local labels:', error);
+    }
+  };
+
+  const loadLocalLabels = (sessionId: string, projectId: string): Label[] => {
+    try {
+      const labelsKey = `neural_playground_local_labels_${sessionId}_${projectId}`;
+      const savedLabels = localStorage.getItem(labelsKey);
+      if (savedLabels) {
+        return JSON.parse(savedLabels);
+      }
+    } catch (error) {
+      console.error('Error loading local labels:', error);
+    }
+    return [];
+  };
+
+  const mergeLabels = (apiLabels: Label[], localLabels: Label[]): Label[] => {
+    // Create a map of API labels by name for quick lookup
+    const apiLabelsMap = new Map(apiLabels.map(label => [label.name, label]));
+    
+    // Start with API labels
+    const mergedLabels = [...apiLabels];
+    
+    // Add local labels that don't exist in API yet
+    localLabels.forEach(localLabel => {
+      if (!apiLabelsMap.has(localLabel.name)) {
+        // This is a locally created label that hasn't been submitted to API yet
+        mergedLabels.push(localLabel);
+      }
+    });
+    
+    return mergedLabels;
+  };
+
+  const refreshExamplesFromAPI = async (forceRefresh = false) => {
     if (!actualSessionId || !actualProjectId) return;
     
-    // Prevent refreshing data too frequently (within 5 seconds)
-    const now = Date.now();
-    if (now - lastDataRefresh < 5000) {
-      console.log('🔄 Data was refreshed recently, skipping refresh...');
-      return;
+    // Only apply cooldown for automatic refreshes, not for forced refreshes after API operations
+    if (!forceRefresh) {
+      const now = Date.now();
+      if (now - lastDataRefresh < 5000) {
+        console.log('🔄 Data was refreshed recently, skipping refresh...');
+        return;
+      }
     }
     
     try {
-      console.log('🔄 Refreshing examples from API');
+      console.log('🔄 Refreshing examples from API' + (forceRefresh ? ' (forced refresh)' : ''));
       
       const response = await fetch(`${config.apiBaseUrl}${config.api.guests.examples(actualSessionId, actualProjectId)}`);
       
@@ -295,8 +339,8 @@ export default function TrainPage() {
             });
           }
           
-          // Create completely new labels array based on API data
-          const newLabels: Label[] = [];
+          // Create labels array based on API data
+          const apiLabels: Label[] = [];
           
           // Get all unique labels - from examples AND from the labels list in the response
           const labelsFromExamples = result.examples ? [...new Set(result.examples.map((ex) => ex.label))] as string[] : [];
@@ -306,7 +350,7 @@ export default function TrainPage() {
           const allUniqueLabels = [...new Set([...labelsFromExamples, ...labelsFromAPI])] as string[];
           
           allUniqueLabels.forEach(labelName => {
-            newLabels.push({
+            apiLabels.push({
               id: `label-${Date.now()}-${Math.random()}`,
               name: labelName,
               examples: examplesByLabel[labelName] || [], // Will be empty array for labels without examples
@@ -314,8 +358,14 @@ export default function TrainPage() {
             });
           });
           
-          console.log('🔄 Updating labels with fresh API data:', newLabels);
-          setLabels(newLabels);
+          // Load locally saved labels to preserve any locally created labels
+          const localLabels = loadLocalLabels(actualSessionId, actualProjectId);
+          
+          // Merge API labels with local labels, preserving local labels that don't exist in API yet
+          const mergedLabels = mergeLabels(apiLabels, localLabels);
+          
+          console.log('🔄 Updating labels with merged data (API + local):', mergedLabels);
+          setLabels(mergedLabels);
           
           // Set flag that initial data has been loaded
           if (!hasInitialDataLoaded) {
@@ -326,8 +376,7 @@ export default function TrainPage() {
           // Update last refresh timestamp
           setLastDataRefresh(Date.now());
           
-          // Don't save to localStorage - let API be the source of truth
-          // saveLabels(actualSessionId, actualProjectId, newLabels);
+          // Don't save merged data to localStorage - only save local labels separately
         }
       } else {
         console.error('❌ Failed to refresh examples from API:', response.status);
@@ -405,15 +454,6 @@ export default function TrainPage() {
     }
   };
 
-  const saveLabels = (sessionId: string, projectId: string, labelsData: Label[]) => {
-    try {
-      const labelsKey = `neural_playground_labels_${sessionId}_${projectId}`;
-      localStorage.setItem(labelsKey, JSON.stringify(labelsData));
-    } catch (error) {
-      console.error('Error saving labels:', error);
-    }
-  };
-
   const submitExamplesToAPI = async (labelName: string, examples: Example[]) => {
     // Validation checks
     if (!actualSessionId || !actualProjectId) {
@@ -471,11 +511,17 @@ export default function TrainPage() {
 
       console.log('📤 Response Status:', response.status);
 
-      if (response.ok) {
-        const result = await response.json();
-        console.log('✅ Successfully submitted examples to API:', result);
-        return true;
-      } else {
+             if (response.ok) {
+         const result = await response.json();
+         console.log('✅ Successfully submitted examples to API:', result);
+         
+         // Remove this label from local storage since it's now on the API
+         const currentLocalLabels = loadLocalLabels(actualSessionId, actualProjectId);
+         const updatedLocalLabels = currentLocalLabels.filter(label => label.name !== labelName);
+         saveLocalLabels(actualSessionId, actualProjectId, updatedLocalLabels);
+         
+         return true;
+       } else {
         console.error('❌ API submission failed:', response.status);
         
         let errorDetails;
@@ -533,15 +579,27 @@ export default function TrainPage() {
 
   const handleAddLabel = async () => {
     if (newLabelName.trim() && actualSessionId && actualProjectId) {
+      // Validate label name - only allow alphanumeric characters, spaces, and common punctuation
+      const validLabelName = newLabelName.trim();
+      if (!/^[a-zA-Z0-9\s\-_]+$/.test(validLabelName)) {
+        alert('Label name can only contain letters, numbers, spaces, hyphens, and underscores. Please use a valid name.');
+        return;
+      }
+      
       const newLabel: Label = {
         id: `label-${Date.now()}`,
-        name: newLabelName.trim(),
+        name: validLabelName,
         examples: [],
         createdAt: new Date().toLocaleDateString()
       };
       
       const updatedLabels = [...labels, newLabel];
       setLabels(updatedLabels);
+      
+      // Save only the new local label to localStorage
+      const currentLocalLabels = loadLocalLabels(actualSessionId, actualProjectId);
+      const updatedLocalLabels = [...currentLocalLabels, newLabel];
+      saveLocalLabels(actualSessionId, actualProjectId, updatedLocalLabels);
       
       // Label created successfully - examples will be submitted when added
       // Don't submit empty labels to API as they might cause validation errors
@@ -565,10 +623,10 @@ export default function TrainPage() {
       const success = await submitExampleImmediately(label.name, newExampleText.trim());
       
       if (success) {
-        // Refresh from API to ensure sync - this will update the UI with the correct state
-        await refreshExamplesFromAPI();
-        
-        // Reset form and close modal
+                 // Refresh from API to ensure sync - this will update the UI with the correct state
+         await refreshExamplesFromAPI(true);
+         
+         // Reset form and close modal
         setNewExampleText('');
         setSelectedLabelId('');
         setShowAddExampleModal(false);
@@ -608,10 +666,10 @@ export default function TrainPage() {
         const success = await submitExamplesToAPI(label.name, newExamples);
         
         if (success) {
-          // Refresh from API to ensure sync - this will update the UI with the correct state
-          await refreshExamplesFromAPI();
-          
-          console.log(`✅ Successfully uploaded ${newExamples.length} examples from file`);
+                   // Refresh from API to ensure sync - this will update the UI with the correct state
+         await refreshExamplesFromAPI(true);
+         
+         console.log(`✅ Successfully uploaded ${newExamples.length} examples from file`);
         } else {
           alert(`Failed to upload examples from file. Please try again.`);
         }
@@ -638,7 +696,7 @@ export default function TrainPage() {
       return;
     }
     
-    setIsDeletingLabel(true);
+    setDeletingLabels(prev => new Set(prev).add(labelId));
     setDeletingLabelId(labelId);
     
     try {
@@ -658,20 +716,25 @@ export default function TrainPage() {
       
       console.log('🗑️ Delete Label API Response Status:', response.status);
       
-      if (response.ok) {
-        const result = await response.json();
-        console.log('✅ Label deleted successfully:', result);
-        
-        // Refresh from API to ensure sync - this will update the UI with the correct state
-        await refreshExamplesFromAPI();
-        
-        // Show success message
-        if (label.examples.length > 0) {
-          alert(`Successfully deleted the label "${label.name}" and all ${label.examples.length} examples!`);
-        } else {
-          alert(`Successfully deleted the empty label "${label.name}"!`);
-        }
-      } else {
+             if (response.ok) {
+         const result = await response.json();
+         console.log('✅ Label deleted successfully:', result);
+         
+         // Remove this label from local storage since it's been deleted from API
+         const currentLocalLabels = loadLocalLabels(actualSessionId, actualProjectId);
+         const updatedLocalLabels = currentLocalLabels.filter(localLabel => localLabel.name !== label.name);
+         saveLocalLabels(actualSessionId, actualProjectId, updatedLocalLabels);
+         
+         // Refresh from API to ensure sync - this will update the UI with the correct state
+         await refreshExamplesFromAPI(true);
+         
+         // Show success message
+         if (label.examples.length > 0) {
+           alert(`Successfully deleted the label "${label.name}" and all ${label.examples.length} examples!`);
+         } else {
+           alert(`Successfully deleted the empty label "${label.name}"!`);
+         }
+       } else {
         console.error('❌ Delete Label API failed:', response.status);
         
         let errorDetails;
@@ -699,12 +762,16 @@ export default function TrainPage() {
       console.error('❌ Network error during label deletion:', error);
       alert('Network error: Failed to connect to the server. Please check your connection and try again.');
     } finally {
-      setIsDeletingLabel(false);
+      setDeletingLabels(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(labelId);
+        return newSet;
+      });
       setDeletingLabelId(null);
     }
   };
 
-  const handleDeleteEmptyLabel = async (labelId: string) => {
+    const handleDeleteEmptyLabel = async (labelId: string) => {
     if (!actualSessionId || !actualProjectId) return;
     
     // Find the label to get the label name
@@ -724,63 +791,92 @@ export default function TrainPage() {
       return;
     }
     
-    setIsDeletingLabel(true);
-    setDeletingLabelId(labelId);
+    setDeletingLabels(prev => new Set(prev).add(labelId));
     
     try {
-      console.log('🗑️ Deleting empty label via API:', label.name);
+             // Check if this is a truly local label (never had examples) or an API-known label
+       // Local labels: label-1234567890 (created locally, never submitted to API)
+       // API-known labels: label-1234567890-0.123456 (created from API response)
+       const isLocalLabel = label.id.startsWith('label-') && !label.id.includes('-', 6);
       
-      // Use the new delete empty label endpoint
-      const response = await fetch(`${config.apiBaseUrl}${config.api.guests.deleteEmptyLabel(actualSessionId, actualProjectId, label.name)}?session_id=${actualSessionId}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      
-      console.log('🗑️ Delete Empty Label API Response Status:', response.status);
-      
-      if (response.ok) {
-        const result = await response.json();
-        console.log('✅ Empty label deleted successfully:', result);
+      if (isLocalLabel) {
+        // This is a locally created label that never had examples - delete locally
+        console.log('🗑️ Deleting local empty label:', label.name);
         
-        // Refresh from API to ensure sync
-        await refreshExamplesFromAPI();
+        // Remove from frontend state
+        setLabels(prevLabels => prevLabels.filter(l => l.id !== labelId));
+        
+        // Remove from local storage
+        const currentLocalLabels = loadLocalLabels(actualSessionId, actualProjectId);
+        const updatedLocalLabels = currentLocalLabels.filter(localLabel => localLabel.name !== label.name);
+        saveLocalLabels(actualSessionId, actualProjectId, updatedLocalLabels);
+        
+        console.log('✅ Local empty label deleted successfully from frontend');
         
         // Show success message
         alert(`Successfully deleted the empty label "${label.name}"!`);
       } else {
-        console.error('❌ Delete Empty Label API failed:', response.status);
+        // This is an API-known label that had examples before - delete via API
+        console.log('🗑️ Deleting API-known empty label via API:', label.name);
         
-        let errorDetails;
-        try {
-          errorDetails = await response.json();
-          console.error('📋 Error Details:', errorDetails);
-        } catch (jsonError) {
-          const errorText = await response.text();
-          console.error('📝 Error Text:', errorText);
-          errorDetails = { detail: errorText };
-        }
+        const response = await fetch(`${config.apiBaseUrl}${config.api.guests.deleteEmptyLabel(actualSessionId, actualProjectId, label.name)}?session_id=${actualSessionId}`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
         
-        // Show user-friendly error
-        if (response.status === 400) {
-          alert(errorDetails.detail || 'This label has examples and cannot be deleted as an empty label.');
-        } else if (response.status === 404) {
-          alert('Label not found. It may have already been deleted.');
-        } else if (response.status === 403) {
-          alert('Access denied. You do not have permission to delete this label.');
-        } else if (response.status === 500) {
-          alert('Server error occurred while deleting the label. Please try again later.');
+        console.log('🗑️ Delete Empty Label API Response Status:', response.status);
+        
+        if (response.ok) {
+          const result = await response.json();
+          console.log('✅ API-known empty label deleted successfully:', result);
+          
+          // Remove this label from local storage since it's been deleted from API
+          const currentLocalLabels = loadLocalLabels(actualSessionId, actualProjectId);
+          const updatedLocalLabels = currentLocalLabels.filter(localLabel => localLabel.name !== label.name);
+          saveLocalLabels(actualSessionId, actualProjectId, updatedLocalLabels);
+          
+          // Refresh from API to ensure sync
+          await refreshExamplesFromAPI(true);
+          
+          // Show success message
+          alert(`Successfully deleted the empty label "${label.name}"!`);
         } else {
-          alert(`Failed to delete empty label (${response.status}): ${errorDetails.detail || 'Unknown error'}`);
+          console.error('❌ Delete Empty Label API failed:', response.status);
+          
+          let errorDetails;
+          try {
+            errorDetails = await response.json();
+            console.error('📋 Error Details:', errorDetails);
+          } catch (jsonError) {
+            const errorText = await response.text();
+            console.error('📝 Error Text:', errorText);
+            errorDetails = { detail: errorText };
+          }
+          
+          // Show user-friendly error
+          if (response.status === 400) {
+            alert(errorDetails.detail || 'This label has examples and cannot be deleted as an empty label.');
+          } else if (response.status === 404) {
+            alert('Label not found. It may have already been deleted.');
+          } else if (response.status === 500) {
+            alert('Server error occurred while deleting the label. Please try again later.');
+          } else {
+            alert(`Failed to delete empty label (${response.status}): ${errorDetails.detail || 'Unknown error'}`);
+          }
         }
       }
+      
     } catch (error) {
-      console.error('❌ Network error during empty label deletion:', error);
-      alert('Network error: Failed to connect to the server. Please check your connection and try again.');
+      console.error('❌ Error during empty label deletion:', error);
+      alert('Error occurred while deleting the label. Please try again.');
     } finally {
-      setIsDeletingLabel(false);
-      setDeletingLabelId(null);
+      setDeletingLabels(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(labelId);
+        return newSet;
+      });
     }
   };
 
@@ -829,7 +925,7 @@ export default function TrainPage() {
         console.log('✅ Example deleted successfully:', result);
         
         // Refresh from API to ensure sync - this will update the UI with the correct state
-        await refreshExamplesFromAPI();
+        await refreshExamplesFromAPI(true);
         
         // Show success message
         alert('Example deleted successfully!');
@@ -850,7 +946,7 @@ export default function TrainPage() {
         if (response.status === 404) {
           // Example might have been deleted already, refresh to sync
           console.log('⚠️ Example not found (might be deleted already), refreshing data...');
-          await refreshExamplesFromAPI();
+          await refreshExamplesFromAPI(true);
           alert('Example not found. The data has been refreshed to show current state.');
         } else if (response.status === 403) {
           alert('Access denied. You do not have permission to delete this example.');
@@ -889,7 +985,7 @@ export default function TrainPage() {
       return;
     }
     
-    setIsDeletingExample(true);
+    setDeletingExamplesByLabel(prev => new Set(prev).add(labelId));
     
     try {
       console.log('🗑️ Deleting all examples by label via API');
@@ -912,7 +1008,7 @@ export default function TrainPage() {
         console.log('✅ All examples deleted successfully:', result);
         
         // Refresh from API to ensure sync - this will update the UI with the correct state
-        await refreshExamplesFromAPI();
+        await refreshExamplesFromAPI(true);
         
         // Show success message
         alert(`Successfully deleted all ${label.examples.length} examples from the "${label.name}" label!`);
@@ -933,7 +1029,7 @@ export default function TrainPage() {
         if (response.status === 404) {
           // Examples might have been deleted already, refresh to sync
           console.log('⚠️ Examples not found (might be deleted already), refreshing data...');
-          await refreshExamplesFromAPI();
+          await refreshExamplesFromAPI(true);
           alert('Examples not found. The data has been refreshed to show current state.');
         } else if (response.status === 403) {
           alert('Access denied. You do not have permission to delete these examples.');
@@ -947,7 +1043,11 @@ export default function TrainPage() {
       console.error('❌ Network error during examples deletion:', error);
       alert('Network error: Failed to connect to the server. Please check your connection and try again.');
     } finally {
-      setIsDeletingExample(false);
+      setDeletingExamplesByLabel(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(labelId);
+        return newSet;
+      });
     }
   };
 
@@ -1070,26 +1170,26 @@ export default function TrainPage() {
               )}
             </h1>
             
-            {/* Instruction and Button */}
-            <div className="flex justify-center items-center gap-4 mb-6">
-              {labels.length === 0 && (
-                <div className="bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-lg p-4 max-w-md">
-                  <p className="text-white text-sm text-center">
-                    Click on the &lsquo;plus&rsquo; button on the right to add your first label.→
-                  </p>
-                </div>
-              )}
+                         {/* Instruction and Button - only show when no labels exist */}
+             {labels.length === 0 && (
+               <div className="flex justify-center items-center gap-4 mb-6">
+                 <div className="bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-lg p-4 max-w-md">
+                   <p className="text-white text-sm text-center">
+                     Click on the &lsquo;plus&rsquo; button on the right to add your first label.→
+                   </p>
+                 </div>
 
-              <button
-                onClick={() => setShowAddLabelModal(true)}
-                className="bg-[#dcfc84] hover:bg-[#dcfc84]/90 text-[#1c1c1c] px-4 py-4 rounded-lg transition-all duration-300 inline-flex items-center gap-2 text-sm font-medium"
-              >
-               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-               </svg>
-               Add new label
-             </button>
-            </div>
+                 <button
+                   onClick={() => setShowAddLabelModal(true)}
+                   className="bg-[#dcfc84] hover:bg-[#dcfc84]/90 text-[#1c1c1c] px-4 py-4 rounded-lg transition-all duration-300 inline-flex items-center gap-2 text-sm font-medium"
+                 >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                  Add new label
+                </button>
+               </div>
+             )}
           </div>
 
           {/* Second Section: Requirements Note */}
@@ -1098,9 +1198,9 @@ export default function TrainPage() {
               <svg className="w-5 h-5 text-[#dcfc84] mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
               </svg>
-              <div>
+              <div className="flex-1">
                 <h3 className="text-[#dcfc84] font-medium mb-2">Note: Before you can proceed to next step</h3>
-                <div className="text-white text-sm space-y-1">
+                <div className="text-white text-sm space-y-1 mb-4">
                   <div className="flex items-center gap-2">
                     <strong>1.</strong> You need to create at least <strong>2 classes/labels</strong> (e.g., &ldquo;happy&rdquo;, &ldquo;sad&rdquo;)
                   </div>
@@ -1108,6 +1208,21 @@ export default function TrainPage() {
                     <strong>2.</strong> For each label fill in at least <strong>5 examples at minimum</strong>
                   </div>
                 </div>
+                
+                                 {/* Add new label button - positioned inside note box when labels exist */}
+                 {labels.length > 0 && (
+                   <div className="flex justify-end mt-3">
+                     <button
+                       onClick={() => setShowAddLabelModal(true)}
+                       className="bg-[#dcfc84] hover:bg-[#dcfc84]/90 text-[#1c1c1c] px-4 py-2 rounded-lg transition-all duration-300 inline-flex items-center gap-2 text-sm font-medium shadow-lg hover:shadow-xl"
+                     >
+                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                       </svg>
+                       Add new label
+                     </button>
+                   </div>
+                 )}
               </div>
             </div>
           </div>
@@ -1115,97 +1230,109 @@ export default function TrainPage() {
             
 
                                                {labels.length > 0 ? (
-                      <div className={`grid gap-4 ${
-                        labels.length === 1 ? 'grid-cols-1 max-w-2xl mx-auto' :
-                        labels.length === 2 ? 'grid-cols-2 max-w-4xl mx-auto' :
-                        'grid-cols-5 max-w-7xl mx-auto'
+                      <div className={`grid gap-6 ${
+                        labels.length === 1 ? 'grid-cols-1 max-w-3xl mx-auto' :
+                        labels.length === 2 ? 'grid-cols-2 max-w-5xl mx-auto' :
+                        labels.length === 3 ? 'grid-cols-3 max-w-6xl mx-auto' :
+                        labels.length === 4 ? 'grid-cols-4 max-w-7xl mx-auto' :
+                        'grid-cols-4 max-w-7xl mx-auto'
                       }`}>
                 {labels.map((label) => (
                   <div key={label.id} className={`bg-[#1c1c1c] border-2 border-[#bc6cd3]/20 rounded-lg overflow-hidden relative ${
-                             labels.length === 1 ? 'h-[500px]' :
-                             labels.length === 2 ? 'h-[420px]' :
-                             labels.length === 3 ? 'h-[350px]' :
-                             labels.length === 4 ? 'h-[280px]' :
-                             'h-[220px]'
+                             labels.length === 1 ? 'h-[600px]' :
+                             labels.length === 2 ? 'h-[550px]' :
+                             labels.length === 3 ? 'h-[500px]' :
+                             labels.length === 4 ? 'h-[450px]' :
+                             'h-[400px]'
                            }`}>
-                   <div className="bg-[#bc6cd3]/20 px-3 py-2 flex justify-between items-center">
-                     <h3 className="text-white font-semibold text-base">{label.name}</h3>
+                                       <div className="bg-[#bc6cd3]/20 px-3 py-2 flex justify-between items-center">
+                      <h3 className="text-white font-semibold text-base">
+                        {label.name}
+                        {deletingLabels.has(label.id) && (
+                          <span className="ml-2 text-orange-400 text-sm font-normal">Deleting...</span>
+                        )}
+                        {deletingExamplesByLabel.has(label.id) && (
+                          <span className="ml-2 text-orange-400 text-sm font-normal">Clearing examples...</span>
+                        )}
+                      </h3>
                      <div className="flex items-center gap-2">
-                       {label.examples.length > 0 && (
-                         <button
-                           onClick={() => handleDeleteAllExamplesByLabel(label.id)}
-                           disabled={isDeletingExample}
-                           className="text-orange-400 hover:text-orange-300 transition-all duration-300 text-xs px-2 py-1 rounded border border-orange-400/30 hover:border-orange-400/50"
-                           title="Delete all examples under this label"
-                         >
-                           {isDeletingExample ? 'Deleting...' : 'Clear All'}
-                         </button>
-                       )}
+                                               {label.examples.length > 0 && (
+                          <button
+                            onClick={() => handleDeleteAllExamplesByLabel(label.id)}
+                            disabled={deletingExamplesByLabel.has(label.id)}
+                            className="text-orange-400 hover:text-orange-300 transition-all duration-300 text-xs px-2 py-1 rounded border border-orange-400/30 hover:border-orange-400/50"
+                            title="Delete all examples under this label"
+                          >
+                            {deletingExamplesByLabel.has(label.id) ? 'Deleting...' : 'Clear All'}
+                          </button>
+                        )}
                                                {/* Show different delete button based on whether label has examples */}
                         {label.examples.length > 0 ? (
                           // Label has examples - delete entire label with examples
-                          <button
-                            onClick={() => handleDeleteLabel(label.id)}
-                            disabled={isDeletingLabel || isDeletingExample}
-                            className="text-red-500 hover:text-red-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                            title="Delete label and all examples"
-                          >
-                            {isDeletingLabel && deletingLabelId === label.id ? (
-                              <div className="w-4 h-4 border border-red-500/20 border-t-red-500 rounded-full animate-spin"></div>
-                            ) : (
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                              </svg>
-                            )}
-                          </button>
+                                                     <button
+                             onClick={() => handleDeleteLabel(label.id)}
+                             disabled={deletingLabels.has(label.id) || deletingExamplesByLabel.has(label.id)}
+                             className="text-red-500 hover:text-red-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                             title="Delete label and all examples"
+                           >
+                             {deletingLabels.has(label.id) ? (
+                               <div className="w-4 h-4 border border-red-500/20 border-t-red-500 rounded-full animate-spin"></div>
+                             ) : (
+                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                               </svg>
+                             )}
+                           </button>
                         ) : (
                           // Label has no examples - delete empty label only
-                          <button
-                            onClick={() => handleDeleteEmptyLabel(label.id)}
-                            disabled={isDeletingLabel}
-                            className="text-red-400 hover:text-red-600 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                            title="Delete empty label"
-                          >
-                            {isDeletingLabel && deletingLabelId === label.id ? (
-                              <div className="w-4 h-4 border border-red-400/20 border-t-red-400 rounded-full animate-spin"></div>
-                            ) : (
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                              </svg>
-                            )}
-                          </button>
+                                                     <button
+                             onClick={() => handleDeleteEmptyLabel(label.id)}
+                             disabled={deletingLabels.has(label.id)}
+                             className="text-red-400 hover:text-red-600 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                             title="Delete empty label"
+                           >
+                             {deletingLabels.has(label.id) ? (
+                               <div className="w-4 h-4 border border-red-400/20 border-t-red-400 rounded-full animate-spin"></div>
+                             ) : (
+                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                               </svg>
+                             )}
+                           </button>
                         )}
                      </div>
                    </div>
 
                                                            <div className="p-3 bg-[#1c1c1c] text-white flex flex-col h-full">
                     {/* Action buttons - always at top, side by side */}
-                    <div className="flex gap-2 mb-3 flex-shrink-0">
-                      <button
-                        onClick={() => openAddExampleModal(label.id)}
-                        className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 border-2 border-dashed border-[#bc6cd3]/40 text-[#dcfc84] hover:border-[#bc6cd3]/60 hover:text-[#dcfc84]/80 hover:bg-[#bc6cd3]/5 transition-all duration-300 rounded-lg text-xs font-medium"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                        </svg>
-                        <span className="hidden sm:inline">Add example</span>
-                        <span className="sm:hidden">Add</span>
-                      </button>
+                                         <div className="flex gap-2 mb-3 flex-shrink-0">
+                       <button
+                         onClick={() => openAddExampleModal(label.id)}
+                         disabled={deletingLabels.has(label.id) || deletingExamplesByLabel.has(label.id)}
+                         className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 border-2 border-dashed border-[#bc6cd3]/40 text-[#dcfc84] hover:border-[#bc6cd3]/60 hover:text-[#dcfc84]/80 hover:bg-[#bc6cd3]/5 transition-all duration-300 rounded-lg text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                       >
+                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                         </svg>
+                         <span className="hidden sm:inline">Add example</span>
+                         <span className="sm:hidden">Add</span>
+                       </button>
 
-                      <label className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 border-2 border-dashed border-[#bc6cd3]/40 text-[#dcfc84] hover:border-[#bc6cd3]/60 hover:text-[#dcfc84]/80 hover:bg-[#bc6cd3]/5 transition-all duration-300 rounded-lg text-xs font-medium cursor-pointer">
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
-                        </svg>
-                        <span className="hidden sm:inline">Add file</span>
-                        <span className="sm:hidden">File</span>
-                        <input
-                          type="file"
-                          accept=".txt,.csv"
-                          onChange={(e) => handleFileUpload(e, label.id)}
-                          className="hidden"
-                        />
-                      </label>
-                    </div>
+                       <label className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 border-2 border-dashed border-[#bc6cd3]/40 text-[#dcfc84] hover:border-[#bc6cd3]/60 hover:text-[#dcfc84]/80 hover:bg-[#bc6cd3]/5 transition-all duration-300 rounded-lg text-xs font-medium ${deletingLabels.has(label.id) || deletingExamplesByLabel.has(label.id) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
+                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                         </svg>
+                         <span className="hidden sm:inline">Add file</span>
+                         <span className="sm:hidden">File</span>
+                         <input
+                           type="file"
+                           accept=".txt,.csv"
+                           onChange={(e) => handleFileUpload(e, label.id)}
+                           className="hidden"
+                           disabled={deletingLabels.has(label.id) || deletingExamplesByLabel.has(label.id)}
+                         />
+                       </label>
+                     </div>
 
                     {/* Examples display area */}
                     {label.examples.length === 0 ? (
@@ -1226,7 +1353,7 @@ export default function TrainPage() {
                       <div className="flex-1 overflow-hidden">
                         {/* Examples as pills in a flexible grid */}
                         <div className="h-full overflow-y-auto scrollbar-thin scrollbar-thumb-[#bc6cd3]/30 scrollbar-track-transparent">
-                          <div className="flex flex-wrap gap-2 pb-2">
+                          <div className="flex flex-wrap gap-2 pb-8">
                             {label.examples.map((example) => (
                               <div
                                 key={example.id}
