@@ -1477,7 +1477,8 @@ export default function TrainPage() {
                     handleAddExample();
                   }
                 }}
-                className="w-full px-3 py-2 border border-[#bc6cd3]/40 rounded text-white bg-[#1c1c1c] focus:outline-none focus:border-[#dcfc84] h-24 resize-none"
+                placeholder="Eg: Turn light on, It's bright, Turn lamp off"
+                className="w-full px-3 py-2 border border-[#bc6cd3]/40 rounded text-white bg-[#1c1c1c] focus:outline-none focus:border-[#dcfc84] h-24 resize-none placeholder-gray-400"
                 maxLength={1000}
                 autoFocus
               />
