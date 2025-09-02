@@ -17,8 +17,8 @@ import config from '../../lib/config';
 interface GuestProjectFormData {
     name: string;
     description: string;
-    model_type: string;
-    teachable_link?: string;
+    type: string;  // Changed from model_type to type
+    teachable_machine_link?: string;  // Changed from teachable_link to teachable_machine_link
 }
 
 interface GuestProjectManagerProps {
@@ -29,8 +29,8 @@ const GuestProjectManager: React.FC<GuestProjectManagerProps> = ({ sessionId }) 
     const [formData, setFormData] = useState<GuestProjectFormData>({
         name: '',
         description: '',
-        model_type: 'text',
-        teachable_link: ''
+        type: 'text-recognition',  // Changed from 'text' to 'text-recognition' to match backend
+        teachable_machine_link: ''
     });
     const [selectedProject, setSelectedProject] = useState<Project | null>(null);
     const [trainingConfig, setTrainingConfig] = useState({
@@ -62,18 +62,18 @@ const GuestProjectManager: React.FC<GuestProjectManagerProps> = ({ sessionId }) 
 
     // Auto-open Scratch editor for newly created image recognition projects
     useEffect(() => {
-        if (guestProjects.data && guestProjects.data.length > 0 && formData.model_type === 'image-recognition') {
+        if (guestProjects.data && guestProjects.data.length > 0 && formData.type === 'image-recognition') {
             // Find the most recently created project that matches our form data
             const latestProject = guestProjects.data
-                .filter(p => p.name === formData.name && p.model_type === 'image-recognition')
-                .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+                .filter(p => p.name === formData.name && p.type === 'image-recognition')
+                .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
             
             if (latestProject && !selectedProject) {
                 // Open Scratch editor for this project
                 openScratchEditor(latestProject.id);
             }
         }
-    }, [guestProjects.data, formData.model_type, formData.name, selectedProject]);
+    }, [guestProjects.data, formData.type, formData.name, selectedProject]);
 
     // Handle form submission
     const handleSubmit = async (e: React.FormEvent) => {
@@ -85,7 +85,7 @@ const GuestProjectManager: React.FC<GuestProjectManagerProps> = ({ sessionId }) 
         }
         
         // Reset form and reload projects
-        setFormData({ name: '', description: '', model_type: 'text', teachable_link: '' });
+        setFormData({ name: '', description: '', type: 'text-recognition', teachable_machine_link: '' });
         setSelectedProject(null);
         guestProjects.execute();
     };
@@ -94,7 +94,7 @@ const GuestProjectManager: React.FC<GuestProjectManagerProps> = ({ sessionId }) 
     const openScratchEditor = (projectId: string) => {
         // Get the project name from the selected project or form data
         const projectName = selectedProject?.name || formData.name;
-        const scratchUrl = `${config.scratchEditor.gui}?sessionId=${sessionId}&projectId=${projectId}&projectName=${encodeURIComponent(projectName)}&teachableLink=${encodeURIComponent(formData.teachable_link || '')}`;
+        const scratchUrl = `${config.scratchEditor.gui}?sessionId=${sessionId}&projectId=${projectId}&projectName=${encodeURIComponent(projectName)}&teachableLink=${encodeURIComponent(formData.teachable_machine_link || '')}`;
         window.open(scratchUrl, '_blank');
     };
 
@@ -104,8 +104,8 @@ const GuestProjectManager: React.FC<GuestProjectManagerProps> = ({ sessionId }) 
         setFormData({
             name: project.name,
             description: project.description || '',
-            model_type: project.model_type || 'text',
-            teachable_link: project.teachable_link || ''
+            type: project.type || 'text-recognition',
+            teachable_machine_link: project.teachable_machine_link || ''
         });
     };
 
@@ -195,25 +195,25 @@ const GuestProjectManager: React.FC<GuestProjectManagerProps> = ({ sessionId }) 
                     <div>
                         <label className="block text-sm font-medium text-gray-700">Project Type</label>
                         <select
-                            value={formData.model_type}
-                            onChange={(e) => setFormData({ ...formData, model_type: e.target.value })}
+                            value={formData.type}
+                            onChange={(e) => setFormData({ ...formData, type: e.target.value })}
                             className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                         >
-                            <option value="text">Text Classification</option>
-                            <option value="image">Image Classification</option>
+                            <option value="text-recognition">Text Recognition</option>
                             <option value="image-recognition">Image Recognition</option>
-                            <option value="audio">Audio Classification</option>
-                            <option value="tabular">Tabular Data</option>
+                            <option value="classification">Classification</option>
+                            <option value="regression">Regression</option>
+                            <option value="custom">Custom</option>
                         </select>
                     </div>
                     
-                    {formData.model_type === 'image-recognition' && (
+                    {formData.type === 'image-recognition' && (
                         <div>
                             <label className="block text-sm font-medium text-gray-700">Teachable Link</label>
                             <input
                                 type="text"
-                                value={formData.teachable_link || ''}
-                                onChange={(e) => setFormData({ ...formData, teachable_link: e.target.value })}
+                                value={formData.teachable_machine_link || ''}
+                                onChange={(e) => setFormData({ ...formData, teachable_machine_link: e.target.value })}
                                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                                 placeholder="Enter your Teachable Link"
                             />
@@ -234,7 +234,7 @@ const GuestProjectManager: React.FC<GuestProjectManagerProps> = ({ sessionId }) 
                                 type="button"
                                 onClick={() => {
                                     setSelectedProject(null);
-                                    setFormData({ name: '', description: '', model_type: 'text', teachable_link: '' });
+                                    setFormData({ name: '', description: '', type: 'text-recognition', teachable_machine_link: '' });
                                 }}
                                 className="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600"
                             >
@@ -271,7 +271,12 @@ const GuestProjectManager: React.FC<GuestProjectManagerProps> = ({ sessionId }) 
                                 </p>
                                 <div className="flex items-center justify-between mt-3">
                                     <span className="text-xs bg-gray-100 px-2 py-1 rounded">
-                                        {project.model_type || 'Unknown'}
+                                        {project.type === 'text-recognition' ? 'Text Recognition' : 
+                                         project.type === 'image-recognition' ? 'Image Recognition' :
+                                         project.type === 'classification' ? 'Classification' :
+                                         project.type === 'regression' ? 'Regression' :
+                                         project.type === 'custom' ? 'Custom' :
+                                         project.type || 'Unknown'}
                                     </span>
                                     <span className={`text-xs px-2 py-1 rounded ${
                                         project.status === 'trained' ? 'bg-green-100 text-green-800' :

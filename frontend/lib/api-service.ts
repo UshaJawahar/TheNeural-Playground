@@ -15,12 +15,15 @@ interface Project {
   id: string;
   name: string;
   description?: string;
-  user_id: string;
-  created_at: string;
-  updated_at: string;
+  createdBy: string;  // Changed from user_id to createdBy to match backend
+  teacher_id: string;  // Added to match backend
+  classroom_id: string;  // Added to match backend
+  student_id: string;  // Added to match backend
+  createdAt: string;  // Changed from created_at to createdAt
+  updatedAt: string;  // Changed from updated_at to updatedAt
   status: string;
-  model_type?: string;
-  teachable_link?: string;
+  type?: string;  // Changed from model_type to type
+  teachable_machine_link?: string;  // Changed from teachable_link to teachable_machine_link
   training_data?: TrainingData;
 }
 

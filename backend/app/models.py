@@ -78,6 +78,7 @@ class TeacherDashboardResponse(BaseModel):
 
 class ProjectType(str, Enum):
     TEXT_RECOGNITION = "text-recognition"
+    IMAGE_RECOGNITION = "image-recognition"
     CLASSIFICATION = "classification"
     REGRESSION = "regression"
     CUSTOM = "custom"
@@ -151,8 +152,11 @@ class Project(BaseModel):
     # Model information
     model: TrainedModel = Field(default_factory=lambda: TrainedModel(), description="Trained model details")
     
-    # Training configuration
-    config: ProjectConfig = Field(default_factory=lambda: ProjectConfig(), description="Training configuration")
+    # Training configuration (optional for image-recognition projects)
+    config: Optional[ProjectConfig] = Field(None, description="Training configuration")
+    
+    # Teachable Machine integration (for image recognition projects)
+    teachable_machine_link: Optional[str] = Field(None, description="Teachable Machine model link for image recognition projects")
     
     # Training history and job management
     trainingHistory: List[dict] = Field(default_factory=list, description="Training history logs")
@@ -180,6 +184,7 @@ class ProjectCreate(BaseModel):
     tags: List[str] = Field(default_factory=list)
     notes: str = Field("", max_length=1000)
     config: Optional[ProjectConfig] = None
+    teachable_machine_link: Optional[str] = Field(None, description="Teachable Machine model link for image recognition projects")
 
 
 class ProjectUpdate(BaseModel):
@@ -191,6 +196,7 @@ class ProjectUpdate(BaseModel):
     notes: Optional[str] = Field(None, max_length=1000)
     config: Optional[ProjectConfig] = None
     dataset: Optional[Dataset] = None
+    teachable_machine_link: Optional[str] = Field(None, description="Teachable Machine model link for image recognition projects")
 
 
 class TrainingConfig(BaseModel):

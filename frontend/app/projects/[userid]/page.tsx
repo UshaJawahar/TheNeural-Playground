@@ -58,12 +58,12 @@ interface GuestSessionResponse {
 interface Project {
   id: string;
   name: string;
-  model_type: string;
+  type: string;  // Changed from model_type to type to match backend
   createdAt: string;
   description?: string;
   status?: string;
   maskedId?: string;
-  teachable_link?: string;
+  teachable_machine_link?: string;  // Changed from teachable_link to teachable_machine_link to match backend
 }
 
 
@@ -228,7 +228,7 @@ function CreateProjectPage() {
     }
   };
 
-  const createGuestProject = async (projectData: { name: string; model_type: string; description?: string; teachable_link?: string }) => {
+  const createGuestProject = async (projectData: { name: string; type: string; description?: string; teachable_machine_link?: string }) => {
     try {
       // Get session ID from localStorage
       const sessionId = localStorage.getItem('neural_playground_session_id');
@@ -239,7 +239,7 @@ function CreateProjectPage() {
       const payload = {
         name: projectData.name,
         description: projectData.description || "",
-        model_type: projectData.model_type,
+        type: projectData.type,
         createdBy: "",
         teacher_id: "",
         classroom_id: "",
@@ -252,7 +252,7 @@ function CreateProjectPage() {
           learningRate: 0.001,
           validationSplit: 0.2
         },
-        teachable_link: projectData.teachable_link || undefined
+        teachable_machine_link: projectData.teachable_machine_link || undefined
       };
 
       const response = await fetch(`${config.apiBaseUrl}/api/guests/session/${sessionId}/projects`, {
@@ -308,9 +308,9 @@ function CreateProjectPage() {
       try {
         const newProject = await createGuestProject({
           name: projectName.trim(),
-          model_type: projectType,
+          type: projectType,
           description: '',
-          teachable_link: projectType === 'image-recognition' ? teachableLink : undefined
+          teachable_machine_link: projectType === 'image-recognition' ? teachableLink : undefined
         });
         
         console.log('Created project:', newProject);
@@ -687,9 +687,14 @@ function CreateProjectPage() {
                     </div>
                     
                     <div className="text-white mb-4">
-                      <span className="text-sm">Recognising </span>
+                      <span className="text-sm">Project Type: </span>
                       <span className="text-[#dcfc84] font-medium">
-                        {project.model_type === 'text-recognition' ? 'text' : project.model_type}
+                        {project.type === 'text-recognition' ? 'Text Recognition' : 
+                         project.type === 'image-recognition' ? 'Image Recognition' :
+                         project.type === 'classification' ? 'Classification' :
+                         project.type === 'regression' ? 'Regression' :
+                         project.type === 'custom' ? 'Custom' :
+                         project.type}
                       </span>
                     </div>
                     

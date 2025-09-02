@@ -1,4 +1,5 @@
 import uuid
+import logging
 from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
 from google.cloud import firestore
@@ -7,6 +8,8 @@ from google.cloud import pubsub_v1
 
 from ..models import Project, ProjectCreate, ProjectUpdate, Dataset, TrainedModel, ProjectConfig, TextExample, ExampleAdd
 from ..config import gcp_clients
+
+logger = logging.getLogger(__name__)
 
 
 class ProjectService:
@@ -20,6 +23,11 @@ class ProjectService:
     
     def _deserialize_project_data(self, data: dict) -> dict:
         """Helper method to properly deserialize nested objects from Firestore"""
+        # Handle invalid project type enum values
+        if 'type' in data and data['type'] not in ['text-recognition', 'image-recognition', 'classification', 'regression', 'custom']:
+            logger.warning(f"Invalid project type '{data['type']}' found, defaulting to 'text-recognition'")
+            data['type'] = 'text-recognition'
+        
         # Handle nested object deserialization
         if 'dataset' in data and isinstance(data['dataset'], dict):
             # Convert examples from dicts to TextExample objects
@@ -40,7 +48,7 @@ class ProjectService:
             data['model'] = TrainedModel(**data['model'])
         
         # Handle config deserialization
-        if 'config' in data and isinstance(data['config'], dict):
+        if 'config' in data and data['config'] is not None and isinstance(data['config'], dict):
             data['config'] = ProjectConfig(**data['config'])
         
         # Handle datasets list deserialization
@@ -70,6 +78,11 @@ class ProjectService:
             project_id = str(uuid.uuid4())
             now = datetime.now(timezone.utc)
             
+            # For image-recognition projects, don't use training config since they use Teachable Machine
+            config = None
+            if project_data.type != "image-recognition":
+                config = project_data.config or ProjectConfig()
+            
             project = Project(
                 id=project_id,
                 name=project_data.name,
@@ -81,7 +94,8 @@ class ProjectService:
                 student_id=project_data.student_id,
                 tags=project_data.tags,
                 notes=project_data.notes,
-                config=project_data.config or ProjectConfig(),
+                config=config,
+                teachable_machine_link=project_data.teachable_machine_link,
                 createdAt=now,
                 updatedAt=now,
                 dataset=Dataset(),  # Initialize with empty dataset
@@ -187,7 +201,15 @@ class ProjectService:
             # Update fields
             for field, value in update_data.model_dump(exclude_unset=True).items():
                 if hasattr(project, field):
-                    setattr(project, field, value)
+                    # Special handling for config field based on project type
+                    if field == 'config':
+                        # For image-recognition projects, don't save config
+                        if update_data.type == "image-recognition" or (update_data.type is None and project.type == "image-recognition"):
+                            setattr(project, field, None)
+                        else:
+                            setattr(project, field, value)
+                    else:
+                        setattr(project, field, value)
             
             project.updatedAt = datetime.now(timezone.utc)
             

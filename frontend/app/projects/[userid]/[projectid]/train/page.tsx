@@ -34,7 +34,7 @@ interface GuestSessionResponse {
 interface Project {
   id: string;
   name: string;
-  model_type: string;
+  type: string;  // Changed from model_type to type
   createdAt: string;
   description?: string;
   status?: string;
@@ -1118,11 +1118,18 @@ export default function TrainPage() {
            </div>
 
            
-           {/* First Section: Recognising Text Header */}
+           {/* First Section: Project Type Header */}
            <div className="text-center mb-8">
              <h1 className="text-3xl md:text-4xl font-bold mb-3">
-               <span className="text-white">Recognising </span>
-               <span className="text-[#dcfc84]">text</span>
+               <span className="text-white">Project Type: </span>
+               <span className="text-[#dcfc84]">
+                 {project?.type === 'text-recognition' ? 'Text Recognition' : 
+                  project?.type === 'image-recognition' ? 'Image Recognition' :
+                  project?.type === 'classification' ? 'Classification' :
+                  project?.type === 'regression' ? 'Regression' :
+                  project?.type === 'custom' ? 'Custom' :
+                  project?.type || 'Text Recognition'}
+               </span>
                {labels.length > 0 && (
                  <>
                    <span className="text-white"> as </span>

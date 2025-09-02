@@ -10,7 +10,8 @@ from ...models import (
     ProjectResponse, ProjectStatusResponseWrapper, TrainingConfig,
     FileUploadResponse, TrainingResponse, ErrorResponse,
     ExampleAdd, ExamplesBulkAdd, PredictionRequest, PredictionResponse,
-    GuestSessionResponse, TrainedModel, Dataset, TextExample, GuestUpdate
+    GuestSessionResponse, TrainedModel, Dataset, TextExample, GuestUpdate,
+    PaginationInfo
 )
 from ...services.guest_service import GuestService
 from ...services.project_service import ProjectService
@@ -50,6 +51,100 @@ async def validate_session_dependency(session_id: str, guest_service: GuestServi
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Session validation error: {str(e)}")
 
+
+# ============================================================================
+# DEBUG ENDPOINTS
+# ============================================================================
+
+@router.get("/debug/session/{session_id}")
+async def debug_session(session_id: str):
+    """Debug endpoint to check session status"""
+    try:
+        guest_service = GuestService()
+        session = await guest_service.get_simple_guest_session(session_id)
+        return {
+            "session_id": session_id,
+            "session_exists": session is not None,
+            "session_data": session.model_dump() if session else None
+        }
+    except Exception as e:
+        return {
+            "session_id": session_id,
+            "error": str(e),
+            "session_exists": False
+        }
+
+@router.get("/debug/projects/{session_id}")
+async def debug_projects(session_id: str):
+    """Debug endpoint to check projects without session validation"""
+    try:
+        project_service = ProjectService()
+        projects = await project_service.get_projects(
+            limit=10, 
+            offset=0, 
+            status=None, 
+            type=None, 
+            created_by=None, 
+            guest_session_id=session_id
+        )
+        return {
+            "session_id": session_id,
+            "projects_count": len(projects),
+            "projects": [p.model_dump() for p in projects]
+        }
+    except Exception as e:
+        return {
+            "session_id": session_id,
+            "error": str(e),
+            "projects_count": 0
+        }
+
+@router.post("/debug/fix-project-types/{session_id}")
+async def fix_project_types(session_id: str):
+    """Fix project types for a session by updating invalid enum values"""
+    try:
+        from google.cloud import firestore
+        from ...config import gcp_clients
+        
+        db = gcp_clients.get_firestore_client()
+        projects_collection = db.collection("projects")
+        
+        # Query projects for this session
+        query = projects_collection.where('student_id', '==', session_id)
+        docs = query.get()
+        
+        fixed_count = 0
+        errors = []
+        
+        for doc in docs:
+            try:
+                data = doc.to_dict()
+                if 'type' in data and data['type'] not in ['text-recognition', 'image-recognition', 'classification', 'regression', 'custom']:
+                    # Fix invalid type
+                    old_type = data['type']
+                    data['type'] = 'text-recognition'  # Default to text-recognition
+                    
+                    # Update the document
+                    doc.reference.update({'type': data['type']})
+                    fixed_count += 1
+                    logger.info(f"Fixed project {doc.id}: {old_type} -> {data['type']}")
+                    
+            except Exception as e:
+                errors.append(f"Error fixing project {doc.id}: {str(e)}")
+        
+        return {
+            "session_id": session_id,
+            "fixed_count": fixed_count,
+            "total_docs": len(docs),
+            "errors": errors
+        }
+        
+    except Exception as e:
+        return {
+            "session_id": session_id,
+            "error": str(e),
+            "fixed_count": 0
+        }
 
 # ============================================================================
 # SESSION MANAGEMENT
@@ -112,6 +207,7 @@ async def get_guest_projects(
 ):
     """Get all projects for a guest session with optional filtering and search"""
     try:
+        logger.info(f"Getting projects for guest session: {session_id}")
         if search:
             # Use search functionality
             filters = {'guest_session_id': session_id}
@@ -147,15 +243,31 @@ async def get_guest_projects(
             )
             total = len(all_projects)
         
+        logger.info(f"Found {len(projects)} projects for session {session_id}")
+        logger.info(f"Project types: {[p.type for p in projects]}")
+        
         return ProjectListResponse(
             data=projects,
-            pagination={
-                "limit": limit,
-                "offset": offset,
-                "total": total
-            }
+            pagination=PaginationInfo(
+                limit=limit,
+                offset=offset,
+                total=total
+            )
         )
     except Exception as e:
+        logger.error(f"Error getting projects for session {session_id}: {str(e)}")
+        logger.error(f"Error type: {type(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        
+        # Check if it's a validation error and provide more helpful message
+        if "validation error" in str(e).lower():
+            logger.error("Validation error detected - this might be due to outdated enum values in existing data")
+            raise HTTPException(
+                status_code=500, 
+                detail=f"Data validation error. This might be due to outdated project data. Please try creating a new project. Error: {str(e)}"
+            )
+        
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -166,8 +278,55 @@ async def create_guest_project(
     session: dict = Depends(validate_session_dependency),
     project_service: ProjectService = Depends(get_project_service)
 ):
-    """Create a new project for a guest session"""
+    """Create a new project for a guest session
+    
+    Supports both text-recognition and image-recognition project types.
+    
+    For image-recognition projects:
+    - teachable_machine_link is required and must be a valid Teachable Machine URL
+    - config field is ignored (not saved) since these projects use Teachable Machine models
+    
+    For text-recognition projects:
+    - config field is optional and contains training parameters
+    - teachable_machine_link is not used
+    
+    Example request body for text recognition:
+    {
+        "name": "Sentiment Analysis",
+        "description": "Classify text sentiment",
+        "type": "text-recognition",
+        "config": {
+            "epochs": 100,
+            "batchSize": 32,
+            "learningRate": 0.001,
+            "validationSplit": 0.2
+        }
+    }
+    
+    Example request body for image recognition:
+    {
+        "name": "Cat vs Dog Classifier", 
+        "description": "Classify images of cats and dogs",
+        "type": "image-recognition",
+        "teachable_machine_link": "https://teachablemachine.withgoogle.com/models/abc123/"
+    }
+    """
     try:
+        # Validate project type and teachable machine link
+        if project_data.type == "image-recognition":
+            if not project_data.teachable_machine_link:
+                raise HTTPException(
+                    status_code=400, 
+                    detail="teachable_machine_link is required for image-recognition projects"
+                )
+            
+            # Validate teachable machine link format
+            if not project_data.teachable_machine_link.startswith("https://teachablemachine.withgoogle.com/"):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid teachable machine link. Must be a valid Teachable Machine URL starting with 'https://teachablemachine.withgoogle.com/'"
+                )
+        
         # Set guest session info in project data
         project_data.createdBy = f"guest:{session_id}"
         # Add guest session identifier
@@ -175,8 +334,14 @@ async def create_guest_project(
         project_data.classroom_id = ""
         project_data.student_id = session_id
         
+        # For image-recognition projects, don't save config since they use Teachable Machine
+        if project_data.type == "image-recognition":
+            project_data.config = None
+        
         project = await project_service.create_project(project_data)
         return ProjectResponse(data=project)
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -213,7 +378,13 @@ async def update_guest_project(
     session: dict = Depends(validate_session_dependency),
     project_service: ProjectService = Depends(get_project_service)
 ):
-    """Update project for a guest session"""
+    """Update project for a guest session
+    
+    Supports updating project type and teachable_machine_link.
+    When updating to image-recognition type:
+    - teachable_machine_link becomes required
+    - config field is ignored (not saved) since these projects use Teachable Machine models
+    """
     try:
         # First verify project belongs to this session
         project = await project_service.get_project(project_id)
@@ -222,6 +393,26 @@ async def update_guest_project(
         
         if project.student_id != session_id:
             raise HTTPException(status_code=403, detail="Project not accessible for this session")
+        
+        # Validate project type and teachable machine link if being updated
+        if project_data.type == "image-recognition" or (project_data.type is None and project.type == "image-recognition"):
+            # If updating to image-recognition or already is image-recognition
+            if project_data.teachable_machine_link is not None:
+                # Validate teachable machine link format if provided
+                if not project_data.teachable_machine_link.startswith("https://teachablemachine.withgoogle.com/"):
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Invalid teachable machine link. Must be a valid Teachable Machine URL starting with 'https://teachablemachine.withgoogle.com/'"
+                    )
+            elif project_data.type == "image-recognition" and not project.teachable_machine_link:
+                # If changing to image-recognition but no teachable machine link provided
+                raise HTTPException(
+                    status_code=400, 
+                    detail="teachable_machine_link is required for image-recognition projects"
+                )
+            
+            # For image-recognition projects, don't save config
+            project_data.config = None
         
         # Update project
         updated_project = await project_service.update_project(project_id, project_data)
