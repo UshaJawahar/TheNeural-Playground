@@ -38,7 +38,7 @@ const ApiTestComponent: React.FC = () => {
       const response = await apiService.createGuestProject(sessionId, {
         name: 'Test Project',
         description: 'Test Description',
-        model_type: 'text'
+        type: 'text-recognition'
       });
       
       console.log('POST response:', response);

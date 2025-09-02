@@ -15,14 +15,14 @@ import { Project } from '../../lib/api-service';
 interface ProjectFormData {
     name: string;
     description: string;
-    model_type: string;
+    type: string;  // Changed from type to type
 }
 
 const ProjectManager: React.FC = () => {
     const [formData, setFormData] = useState<ProjectFormData>({
         name: '',
         description: '',
-        model_type: 'text'
+        type: 'text-recognition'
     });
     const [selectedProject, setSelectedProject] = useState<Project | null>(null);
     const [trainingConfig, setTrainingConfig] = useState({
@@ -55,7 +55,7 @@ const ProjectManager: React.FC = () => {
         }
         
         // Reset form and reload projects
-        setFormData({ name: '', description: '', model_type: 'text' });
+        setFormData({ name: '', description: '', type: 'text-recognition' });
         setSelectedProject(null);
         projects.execute();
     };
@@ -66,7 +66,7 @@ const ProjectManager: React.FC = () => {
         setFormData({
             name: project.name,
             description: project.description || '',
-            model_type: project.model_type || 'text'
+            type: project.type || 'text'
         });
     };
 
@@ -130,8 +130,8 @@ const ProjectManager: React.FC = () => {
                     <div>
                         <label className="block text-sm font-medium text-gray-700">Model Type</label>
                         <select
-                            value={formData.model_type}
-                            onChange={(e) => setFormData({ ...formData, model_type: e.target.value })}
+                            value={formData.type}
+                            onChange={(e) => setFormData({ ...formData, type: e.target.value })}
                             className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                         >
                             <option value="text">Text Classification</option>
@@ -155,7 +155,7 @@ const ProjectManager: React.FC = () => {
                                 type="button"
                                 onClick={() => {
                                     setSelectedProject(null);
-                                    setFormData({ name: '', description: '', model_type: 'text' });
+                                    setFormData({ name: '', description: '', type: 'text-recognition' });
                                 }}
                                 className="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600"
                             >
@@ -192,7 +192,7 @@ const ProjectManager: React.FC = () => {
                                 </p>
                                 <div className="flex items-center justify-between mt-3">
                                     <span className="text-xs bg-gray-100 px-2 py-1 rounded">
-                                        {project.model_type || 'Unknown'}
+                                        {project.type || 'Unknown'}
                                     </span>
                                     <span className={`text-xs px-2 py-1 rounded ${
                                         project.status === 'trained' ? 'bg-green-100 text-green-800' :

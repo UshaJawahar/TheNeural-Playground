@@ -31,7 +31,7 @@ import { apiService } from '../lib/api-service';
 const response = await apiService.createProject({
   name: 'My ML Project',
   description: 'A text classification project',
-  model_type: 'text'
+  type: 'text-recognition'
 });
 
 // Get all projects

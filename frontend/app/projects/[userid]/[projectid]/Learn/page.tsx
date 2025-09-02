@@ -34,7 +34,7 @@ interface GuestSessionResponse {
 interface Project {
   id: string;
   name: string;
-  model_type: string;
+  type: string;  // Changed from model_type to type
   createdAt: string;
   description?: string;
   status?: string;
@@ -63,7 +63,7 @@ interface ProjectDetailResponse {
     id: string;
     name: string;
     description: string;
-    model_type: string;
+    type: string;  // Changed from model_type to type
     status: string;
     createdAt: string;
     updatedAt: string;
@@ -300,7 +300,7 @@ export default function LearnPage() {
           setSelectedProject({
             id: projectData.id,
             name: projectData.name,
-            model_type: projectData.model_type,
+            type: projectData.type,
             createdAt: projectData.createdAt,
             description: projectData.description,
             status: projectData.status

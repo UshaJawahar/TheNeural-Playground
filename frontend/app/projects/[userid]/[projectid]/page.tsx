@@ -35,7 +35,7 @@ interface GuestSessionResponse {
 interface Project {
   id: string;
   name: string;
-  model_type: string;
+  type: string;  // Changed from model_type to type
   createdAt: string;
   description?: string;
   status?: string;

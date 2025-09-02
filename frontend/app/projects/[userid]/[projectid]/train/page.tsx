@@ -1123,12 +1123,12 @@ export default function TrainPage() {
              <h1 className="text-3xl md:text-4xl font-bold mb-3">
                <span className="text-white">Project Type: </span>
                <span className="text-[#dcfc84]">
-                 {project?.type === 'text-recognition' ? 'Text Recognition' : 
-                  project?.type === 'image-recognition' ? 'Image Recognition' :
-                  project?.type === 'classification' ? 'Classification' :
-                  project?.type === 'regression' ? 'Regression' :
-                  project?.type === 'custom' ? 'Custom' :
-                  project?.type || 'Text Recognition'}
+                 {selectedProject?.type === 'text-recognition' ? 'Text Recognition' : 
+                  selectedProject?.type === 'image-recognition' ? 'Image Recognition' :
+                  selectedProject?.type === 'classification' ? 'Classification' :
+                  selectedProject?.type === 'regression' ? 'Regression' :
+                  selectedProject?.type === 'custom' ? 'Custom' :
+                  selectedProject?.type || 'Text Recognition'}
                </span>
                {labels.length > 0 && (
                  <>
