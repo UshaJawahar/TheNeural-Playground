@@ -414,6 +414,19 @@ function CreateProjectPage() {
       {/* Main Content */}
       <main className="pt-24 pb-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
+          {/* Back to Home Button */}
+          <div className="flex justify-start mb-8">
+            <Link
+              href="/"
+              className="p-2 text-white/70 hover:text-white hover:bg-[#bc6cd3]/10 rounded-lg transition-all duration-300 flex items-center gap-2 text-sm"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              Back to Home
+            </Link>
+          </div>
+          
           {/* Navigation Breadcrumb */}
                       <div className="mb-6 text-lg font-semibold text-white">
               {currentSection === 'projects-list' && (

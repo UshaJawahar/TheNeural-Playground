@@ -211,10 +211,16 @@ export default function Home() {
             </span>
           </h1>
           
-          <p className="text-xl md:text-2xl text-white mb-12 max-w-4xl mx-auto">
+          <p className="text-xl md:text-2xl text-white mb-6 max-w-4xl mx-auto">
             Discover the fascinating world of machine learning through interactive game development. 
             Learn and create your own AI Model - Gather Data, Train the AI models and deploy as part of your UI environment to see it in action.
           </p>
+          
+          {isCheckingSession && (
+            <p className="text-lg text-[#dcfc84] mb-6 max-w-4xl mx-auto">
+              Please wait for few minutes until system gets started
+            </p>
+          )}
           
           <div className="flex flex-col sm:flex-row gap-6 justify-center">
             <Link 
