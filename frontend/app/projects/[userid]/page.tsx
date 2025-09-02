@@ -603,17 +603,8 @@ function CreateProjectPage() {
           ) : currentSection === 'projects-list' && projects.length > 0 ? (
             /* Projects Grid */
             <div>
-              {/* Header with Back Button and Add Project Button */}
-              <div className="flex justify-between items-center mb-8">
-                <Link
-                  href="/projects"
-                  className="p-2 text-white/70 hover:text-white hover:bg-[#bc6cd3]/10 rounded-lg transition-all duration-300 flex items-center gap-2"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                  </svg>
-                  Back to Main Menu
-                </Link>
+              {/* Header with Add Project Button */}
+              <div className="flex justify-end items-center mb-8">
                 <button
                   onClick={handleCreateProject}
                   className="bg-[#1c1c1c] border border-[#bc6cd3]/20 text-white px-6 py-3 rounded-lg hover:bg-[#bc6cd3]/10 transition-all duration-300 inline-flex items-center gap-2"
