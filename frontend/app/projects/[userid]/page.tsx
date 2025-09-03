@@ -64,6 +64,7 @@ interface Project {
   status?: string;
   maskedId?: string;
   teachable_machine_link?: string;  // Changed from teachable_link to teachable_machine_link to match backend
+  modelStatus?: 'available' | 'unavailable';  // Model training status
 }
 
 
@@ -73,13 +74,15 @@ function CreateProjectPage() {
   const [projectType, setProjectType] = useState('');
   const [teachableLink, setTeachableLink] = useState('');
   const [projects, setProjects] = useState<Project[]>([]);
-  const [currentSection, setCurrentSection] = useState<'projects-list' | 'new-project' | 'project-details'>('projects-list');
+  const [currentSection, setCurrentSection] = useState<'projects-list' | 'new-project' | 'project-details' | 'edit-project'>('projects-list');
   const [selectedProject] = useState<Project | null>(null);
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [guestSession, setGuestSession] = useState<GuestSession | null>(null);
   const [isValidSession, setIsValidSession] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingProjects, setIsLoadingProjects] = useState(false);
   const [isCreatingProject, setIsCreatingProject] = useState(false);
+  const [isUpdatingProject, setIsUpdatingProject] = useState(false);
   
 
 
@@ -210,7 +213,22 @@ function CreateProjectPage() {
             };
           });
           
-          setProjects(projectsWithMaskedIds);
+          // Load model status for each project in parallel
+          const projectsWithStatus = await Promise.all(
+            projectsWithMaskedIds.map(async (project) => {
+              // Only fetch model status for text recognition projects
+              if (project.type === 'text-recognition') {
+                const modelStatus = await getProjectModelStatus(project.maskedId || project.id);
+                return {
+                  ...project,
+                  modelStatus
+                };
+              }
+              return project;
+            })
+          );
+          
+          setProjects(projectsWithStatus);
         } else {
           // No projects found or empty response
           setProjects([]);
@@ -292,12 +310,106 @@ function CreateProjectPage() {
     }
   };
 
+  const updateGuestProject = async (projectId: string, projectData: { name: string; teachable_machine_link?: string }) => {
+    try {
+      // Get session ID from localStorage
+      const sessionId = localStorage.getItem('neural_playground_session_id');
+      if (!sessionId) {
+        throw new Error('No session found');
+      }
+
+      // If it's a masked ID, get the real project ID
+      let realProjectId = projectId;
+      if (isMaskedProjectId(projectId)) {
+        const actualId = getProjectIdFromMaskedId(projectId);
+        if (actualId) {
+          realProjectId = actualId;
+        }
+      }
+
+      const payload = {
+        name: projectData.name,
+        teachable_machine_link: projectData.teachable_machine_link || undefined
+      };
+
+      const response = await fetch(`${config.apiBaseUrl}/api/guests/session/${sessionId}/projects/${realProjectId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        const projectResponse = await response.json();
+        if (projectResponse.success) {
+          return projectResponse.data;
+        }
+      }
+      
+      // Handle different error status codes
+      if (response.status === 404) {
+        throw new Error('Project or session not found');
+      } else if (response.status === 403) {
+        throw new Error('Session expired or invalid');
+      } else {
+        throw new Error('Failed to update project');
+      }
+    } catch (error) {
+      console.error('Error updating project:', error);
+      throw error;
+    }
+  };
+
+  const getProjectModelStatus = async (projectId: string): Promise<'available' | 'unavailable'> => {
+    try {
+      // Get session ID from localStorage
+      const sessionId = localStorage.getItem('neural_playground_session_id');
+      if (!sessionId) {
+        return 'unavailable';
+      }
+
+      // If it's a masked ID, get the real project ID
+      let realProjectId = projectId;
+      if (isMaskedProjectId(projectId)) {
+        const actualId = getProjectIdFromMaskedId(projectId);
+        if (actualId) {
+          realProjectId = actualId;
+        }
+      }
+
+      const response = await fetch(`${config.apiBaseUrl}/api/guests/session/${sessionId}/projects/${realProjectId}/status`);
+      
+      if (response.ok) {
+        const statusResponse = await response.json();
+        if (statusResponse.success && statusResponse.data?.model?.status) {
+          return statusResponse.data.model.status;
+        }
+      }
+      
+      return 'unavailable';
+    } catch (error) {
+      console.error('Error getting model status:', error);
+      return 'unavailable';
+    }
+  };
+
 
 
   const handleCreateProject = () => {
     setCurrentSection('new-project');
     // Update URL hash
     window.location.hash = '#new-project';
+  };
+
+  const handleEditProject = (project: Project) => {
+    setEditingProject(project);
+    setProjectName(project.name);
+    setProjectType(project.type);
+    setTeachableLink(project.teachable_machine_link || '');
+    setCurrentSection('edit-project');
+    // Update URL hash
+    window.location.hash = '#edit-project';
   };
 
   const handleFormSubmit = async (e: React.FormEvent) => {
@@ -354,6 +466,46 @@ function CreateProjectPage() {
     }
   };
 
+  const handleUpdateFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (projectName.trim() && editingProject) {
+      setIsUpdatingProject(true);
+      
+      try {
+        await updateGuestProject(editingProject.maskedId || editingProject.id, {
+          name: projectName.trim(),
+          teachable_machine_link: editingProject.type === 'image-recognition' ? teachableLink : undefined
+        });
+        
+        // Reset form
+        setProjectName('');
+        setProjectType('');
+        setTeachableLink('');
+        setEditingProject(null);
+        
+        // Reload projects to get updated list
+        if (actualSessionId) {
+          setIsLoadingProjects(true);
+          await loadGuestProjects(actualSessionId);
+        }
+        
+        // Return to projects list
+        setCurrentSection('projects-list');
+        window.location.hash = '';
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to update project. Please try again.';
+        alert(errorMessage);
+        
+        // If session-related error, redirect to main page
+        if (errorMessage.includes('Session') || errorMessage.includes('session')) {
+          window.location.href = '/projects';
+        }
+      } finally {
+        setIsUpdatingProject(false);
+      }
+    }
+  };
+
   const handleDeleteProject = async (projectId: string) => {
     if (actualSessionId && confirm('Are you sure you want to delete this project?')) {
       try {
@@ -392,12 +544,22 @@ function CreateProjectPage() {
   };
 
   const handleProjectClick = (project: Project) => {
-    // For image recognition projects, go directly to Scratch
+    // For both image recognition and text recognition projects, don't redirect - let the Launch button handle it
+    if (project.type === 'image-recognition' || project.type === 'text-recognition') {
+      return;
+    } else {
+      // For other project types, navigate to the project-specific page using masked project ID
+      const projectId = project.maskedId || project.id;
+      window.location.href = `/projects/${urlParam}/${projectId}`;
+    }
+  };
+
+  const handleLaunchProject = (project: Project) => {
     if (project.type === 'image-recognition' && project.teachable_machine_link) {
       const scratchUrl = `${config.scratchEditor.gui}?sessionId=${actualSessionId}&projectId=${project.id}&teachableLink=${encodeURIComponent(project.teachable_machine_link)}`;
       window.open(scratchUrl, '_blank');
-    } else {
-      // For other project types, navigate to the project-specific page using masked project ID
+    } else if (project.type === 'text-recognition') {
+      // Navigate to the project-specific page for text recognition
       const projectId = project.maskedId || project.id;
       window.location.href = `/projects/${urlParam}/${projectId}`;
     }
@@ -413,6 +575,7 @@ function CreateProjectPage() {
     setProjectName('');
     setProjectType('');
     setTeachableLink('');
+    setEditingProject(null);
     window.location.hash = '';
   };
 
@@ -446,6 +609,9 @@ function CreateProjectPage() {
               )}
               {currentSection === 'new-project' && (
                 <span>Projects List → <span className="text-[#dcfc84]">Create New Project</span></span>
+              )}
+              {currentSection === 'edit-project' && (
+                <span>Projects List → <span className="text-[#dcfc84]">Edit Project</span></span>
               )}
 
 
@@ -645,7 +811,9 @@ function CreateProjectPage() {
                 {projects.map((project) => (
                   <div
                     key={project.id}
-                    className="bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-xl p-6 hover:bg-[#bc6cd3]/5 transition-all duration-300 cursor-pointer"
+                    className={`bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-xl p-6 hover:bg-[#bc6cd3]/5 transition-all duration-300 ${
+                      project.type === 'image-recognition' || project.type === 'text-recognition' ? '' : 'cursor-pointer'
+                    }`}
                     onClick={() => handleProjectClick(project)}
                   >
                     <div className="flex justify-between items-start mb-4">
@@ -653,29 +821,31 @@ function CreateProjectPage() {
                         {project.name}
                       </h3>
                       <div className="flex gap-2 ml-4">
-                        {/* Export Button */}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleExportProject(project.maskedId || project.id);
-                          }}
-                          className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-all duration-300"
-                          title="Export project"
-                        >
-                          <svg 
-                            className="w-5 h-5" 
-                            fill="none" 
-                            stroke="currentColor" 
-                            viewBox="0 0 24 24"
+                        {/* Edit Button - Only for image recognition projects */}
+                        {project.type === 'image-recognition' && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEditProject(project);
+                            }}
+                            className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-all duration-300"
+                            title="Edit project"
                           >
-                            <path 
-                              strokeLinecap="round" 
-                              strokeLinejoin="round" 
-                              strokeWidth={2} 
-                              d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" 
-                            />
-                          </svg>
-                        </button>
+                            <svg 
+                              className="w-5 h-5" 
+                              fill="none" 
+                              stroke="currentColor" 
+                              viewBox="0 0 24 24"
+                            >
+                              <path 
+                                strokeLinecap="round" 
+                                strokeLinejoin="round" 
+                                strokeWidth={2} 
+                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" 
+                              />
+                            </svg>
+                          </button>
+                        )}
                         {/* Delete Button */}
                         <button
                           onClick={(e) => {
@@ -702,25 +872,78 @@ function CreateProjectPage() {
                       </div>
                     </div>
                     
-                    <div className="text-white mb-4">
-                      <span className="text-sm">Project Type: </span>
-                      <span className="text-[#dcfc84] font-medium">
-                        {project.type === 'text-recognition' ? 'Text Recognition' : 
-                         project.type === 'image-recognition' ? 'Image Recognition' :
-                         project.type === 'classification' ? 'Classification' :
-                         project.type === 'regression' ? 'Regression' :
-                         project.type === 'custom' ? 'Custom' :
-                         project.type}
-                      </span>
-                    </div>
+                                         <div className="text-white mb-4">
+                       <span className="text-sm">Project Type: </span>
+                       <span className="text-[#dcfc84] font-medium">
+                         {project.type === 'text-recognition' ? 'Text Recognition' : 
+                          project.type === 'image-recognition' ? 'Image Recognition' :
+                          project.type === 'classification' ? 'Classification' :
+                          project.type === 'regression' ? 'Regression' :
+                          project.type === 'custom' ? 'Custom' :
+                          project.type}
+                       </span>
+                     </div>
+                     
+                     {/* Model Status - Only show for text recognition projects */}
+                     {project.type === 'text-recognition' && (
+                       <div className="text-white mb-4">
+                         <span className="text-sm">Model Trained: </span>
+                         <span className={`font-medium ${
+                           project.modelStatus === 'available' ? 'text-green-400' : 'text-red-400'
+                         }`}>
+                           {project.modelStatus === 'available' ? 'True' : 'False'}
+                         </span>
+                       </div>
+                     )}
                     
-                    <div className="text-xs text-white/50">
-                      Created: {new Date(project.createdAt).toLocaleDateString('en-US')}
-                    </div>
+                    {/* Teachable Machine Link - Only show for image recognition projects */}
+                    {project.type === 'image-recognition' && project.teachable_machine_link && (
+                      <div className="text-white mb-4">
+                        <span className="text-sm">Teachable Link: </span>
+                        <a 
+                          href={project.teachable_machine_link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[#dcfc84] font-medium hover:underline break-all"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {(() => {
+                            const displayUrl = project.teachable_machine_link.replace(/^https?:\/\//, '');
+                            return displayUrl.length > 50 
+                              ? `${displayUrl.substring(0, 50)}...` 
+                              : displayUrl;
+                          })()}
+                        </a>
+                      </div>
+                    )}
                     
-                    <div className="text-xs text-white/50 mt-1">
-                      Session expires: {guestSession ? new Date(guestSession.expiresAt).toLocaleDateString('en-US') : 'Unknown'}
-                    </div>
+                                                              {/* Launch Button and Date Info in Parallel */}
+                     <div className={`mt-4 flex items-start justify-between gap-4 ${project.type === 'text-recognition' ? 'mt-10' : ''}`}>
+                       {/* Launch Button - For image recognition and text recognition projects */}
+                       {(project.type === 'image-recognition' && project.teachable_machine_link) || project.type === 'text-recognition' ? (
+                         <button
+                           onClick={(e) => {
+                             e.stopPropagation();
+                             handleLaunchProject(project);
+                           }}
+                           className="bg-[#dcfc84] hover:bg-[#dcfc84]/90 text-[#1c1c1c] py-1.5 px-3 rounded-lg text-sm font-medium transition-all duration-300 flex-shrink-0 mt-1"
+                         >
+                           Launch
+                         </button>
+                       ) : (
+                         <div></div>
+                       )}
+                       
+                       {/* Date Information */}
+                       <div className="text-right flex-shrink-0">
+                         <div className="text-xs text-white/50">
+                           Created: {new Date(project.createdAt).toLocaleDateString('en-US')}
+                         </div>
+                         <div className="text-xs text-white/50 mt-1">
+                           Session expires: {guestSession ? new Date(guestSession.expiresAt).toLocaleDateString('en-US') : 'Unknown'}
+                         </div>
+                       </div>
+                     </div>
                   </div>
                 ))}
               </div>
@@ -810,6 +1033,92 @@ function CreateProjectPage() {
                     className="flex-1 bg-[#dcfc84] text-[#1c1c1c] px-6 py-3 rounded-lg font-medium hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isCreatingProject ? 'Creating...' : 'Create Project'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          ) : currentSection === 'edit-project' ? (
+            /* Edit Project Form */
+            <div className="max-w-md mx-auto">
+              <div className="text-center mb-8">
+                <h1 className="text-3xl md:text-4xl font-semibold text-white mb-4">
+                  Edit Project
+                </h1>
+                <p className="text-lg text-white">
+                  Update your AI project details
+                </p>
+              </div>
+
+              <form onSubmit={handleUpdateFormSubmit} className="space-y-6">
+                {/* Project Name Input */}
+                <div>
+                  <label htmlFor="editProjectName" className="block text-sm font-medium text-white mb-2">
+                    Project Name
+                  </label>
+                  <input
+                    type="text"
+                    id="editProjectName"
+                    value={projectName}
+                    onChange={(e) => setProjectName(e.target.value)}
+                    placeholder="Enter project name"
+                    className="w-full px-4 py-3 bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-[#dcfc84] focus:ring-1 focus:ring-[#dcfc84] transition-all duration-300"
+                    required
+                  />
+                </div>
+
+                {/* Project Type Dropdown - Disabled */}
+                <div>
+                  <label htmlFor="editProjectType" className="block text-sm font-medium text-white mb-2">
+                    Project Type
+                  </label>
+                  <select
+                    id="editProjectType"
+                    value={projectType}
+                    disabled
+                    className="w-full px-4 py-3 bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-lg text-white focus:outline-none focus:border-[#dcfc84] focus:ring-1 focus:ring-[#dcfc84] transition-all duration-300 opacity-50 cursor-not-allowed"
+                  >
+                    <option value="text-recognition" className="bg-[#1c1c1c] text-white">
+                      Text Recognition
+                    </option>
+                    <option value="image-recognition" className="bg-[#1c1c1c] text-white">
+                      Image Recognition
+                    </option>
+                  </select>
+                  <p className="text-xs text-white/50 mt-1">Project type cannot be changed</p>
+                </div>
+
+                {/* Teachable Link Field - Only show for Image Recognition */}
+                {projectType === 'image-recognition' && (
+                  <div>
+                    <label htmlFor="editTeachableLink" className="block text-sm font-medium text-white mb-2">
+                      Teachable Link
+                    </label>
+                    <input
+                      type="text"
+                      id="editTeachableLink"
+                      value={teachableLink}
+                      onChange={(e) => setTeachableLink(e.target.value)}
+                      placeholder="Enter your Teachable Link"
+                      className="w-full px-4 py-3 bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-[#dcfc84] focus:ring-1 focus:ring-[#dcfc84] transition-all duration-300"
+                    />
+                  </div>
+                )}
+
+                {/* Form Buttons */}
+                <div className="flex gap-4 pt-4">
+                  <button
+                    type="button"
+                    onClick={handleCancel}
+                    className="flex-1 px-6 py-3 border border-[#bc6cd3]/30 text-white rounded-lg hover:bg-[#bc6cd3]/10 transition-all duration-300"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isUpdatingProject}
+                    className="flex-1 bg-[#dcfc84] text-[#1c1c1c] px-6 py-3 rounded-lg font-medium hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isUpdatingProject ? 'Updating...' : 'Update Project'}
                   </button>
                 </div>
               </form>

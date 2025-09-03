@@ -1260,9 +1260,7 @@ export default function LearnPage() {
                 {!canTrainModel && (
                   <div className="text-center p-4 bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-lg max-w-md">
                     <div className="flex items-start gap-3">
-                      <svg className="w-5 h-5 text-[#dcfc84] mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                      </svg>
+                      
                       <div>
                         <h4 className="text-[#dcfc84] font-medium mb-2">⚠ Requirements not met</h4>
                         <p className="text-white text-sm">
@@ -1281,41 +1279,36 @@ export default function LearnPage() {
                   </div>
                 )}
                 
-                <button
-                  onClick={handleTrainModel}
-                  disabled={!canTrainModel || isTraining}
-                  className={`px-8 py-4 rounded-lg font-medium text-lg transition-all duration-300 shadow-lg ${
-                    canTrainModel && !isTraining
-                      ? 'bg-[#dcfc84] hover:bg-[#dcfc84]/90 text-[#1c1c1c] hover:scale-105'
-                      : 'bg-[#1c1c1c] border border-[#bc6cd3]/20 text-white/50 cursor-not-allowed'
-                  }`}
-                >
-                  {isTraining ? (
-                    <>
-                      ⏳ Training in progress...
-                      <br />
-                      <span className="text-sm opacity-75">
-                        Please wait for completion
-                      </span>
-                    </>
-                  ) : canTrainModel ? (
-                    <>
-                      🚀 Train new machine learning model
-                      <br />
-                      <span className="text-sm opacity-75">
-                        ({trainingStats.totalExamples} examples, {trainingStats.totalLabels} labels)
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      Train new machine learning model
-                      <br />
-                      <span className="text-sm opacity-75">
-                        Need 6+ examples and 2+ labels
-                      </span>
-                    </>
-                  )}
-                </button>
+                {/* Only show the train button when requirements are met */}
+                {canTrainModel && (
+                  <button
+                    onClick={handleTrainModel}
+                    disabled={isTraining}
+                    className={`px-8 py-4 rounded-lg font-medium text-lg transition-all duration-300 shadow-lg ${
+                      !isTraining
+                        ? 'bg-[#dcfc84] hover:bg-[#dcfc84]/90 text-[#1c1c1c] hover:scale-105'
+                        : 'bg-[#1c1c1c] border border-[#bc6cd3]/20 text-white/50 cursor-not-allowed'
+                    }`}
+                  >
+                    {isTraining ? (
+                      <>
+                        ⏳ Training in progress...
+                        <br />
+                        <span className="text-sm opacity-75">
+                          Please wait for completion
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        🚀 Train new machine learning model
+                        <br />
+                        <span className="text-sm opacity-75">
+                          ({trainingStats.totalExamples} examples, {trainingStats.totalLabels} labels)
+                        </span>
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
             )}
 
