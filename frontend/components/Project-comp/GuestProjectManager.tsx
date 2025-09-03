@@ -62,10 +62,10 @@ const GuestProjectManager: React.FC<GuestProjectManagerProps> = ({ sessionId }) 
 
     // Auto-open Scratch editor for newly created image recognition projects
     useEffect(() => {
-        if (guestProjects.data && guestProjects.data.length > 0 && formData.type === 'image-recognition') {
+        if (guestProjects.data && guestProjects.data.length > 0 && formData.type === 'image-recognition-teachable-machine') {
             // Find the most recently created project that matches our form data
             const latestProject = guestProjects.data
-                .filter(p => p.name === formData.name && p.type === 'image-recognition')
+                .filter(p => p.name === formData.name && p.type === 'image-recognition-teachable-machine')
                 .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
             
             if (latestProject && !selectedProject) {
@@ -200,14 +200,14 @@ const GuestProjectManager: React.FC<GuestProjectManagerProps> = ({ sessionId }) 
                             className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                         >
                             <option value="text-recognition">Text Recognition</option>
-                            <option value="image-recognition">Image Recognition</option>
+                            <option value="image-recognition-teachable-machine">Image Recognition - Teachable Machine</option>
                             <option value="classification">Classification</option>
                             <option value="regression">Regression</option>
                             <option value="custom">Custom</option>
                         </select>
                     </div>
                     
-                    {formData.type === 'image-recognition' && (
+                    {formData.type === 'image-recognition-teachable-machine' && (
                         <div>
                             <label className="block text-sm font-medium text-gray-700">Teachable Link</label>
                             <input
@@ -272,7 +272,7 @@ const GuestProjectManager: React.FC<GuestProjectManagerProps> = ({ sessionId }) 
                                 <div className="flex items-center justify-between mt-3">
                                     <span className="text-xs bg-gray-100 px-2 py-1 rounded">
                                         {project.type === 'text-recognition' ? 'Text Recognition' : 
-                                         project.type === 'image-recognition' ? 'Image Recognition' :
+                                         project.type === 'image-recognition-teachable-machine' ? 'Image Recognition - Teachable Machine' :
                                          project.type === 'classification' ? 'Classification' :
                                          project.type === 'regression' ? 'Regression' :
                                          project.type === 'custom' ? 'Custom' :

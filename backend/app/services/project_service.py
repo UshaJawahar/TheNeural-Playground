@@ -24,7 +24,7 @@ class ProjectService:
     def _deserialize_project_data(self, data: dict) -> dict:
         """Helper method to properly deserialize nested objects from Firestore"""
         # Handle invalid project type enum values
-        if 'type' in data and data['type'] not in ['text-recognition', 'image-recognition', 'classification', 'regression', 'custom']:
+        if 'type' in data and data['type'] not in ['text-recognition', 'image-recognition-teachable-machine', 'classification', 'regression', 'custom']:
             logger.warning(f"Invalid project type '{data['type']}' found, defaulting to 'text-recognition'")
             data['type'] = 'text-recognition'
         
@@ -78,9 +78,9 @@ class ProjectService:
             project_id = str(uuid.uuid4())
             now = datetime.now(timezone.utc)
             
-            # For image-recognition projects, don't use training config since they use Teachable Machine
+            # For image-recognition-teachable-machine projects, don't use training config since they use Teachable Machine
             config = None
-            if project_data.type != "image-recognition":
+            if project_data.type != "image-recognition-teachable-machine":
                 config = project_data.config or ProjectConfig()
             
             project = Project(
@@ -203,8 +203,8 @@ class ProjectService:
                 if hasattr(project, field):
                     # Special handling for config field based on project type
                     if field == 'config':
-                        # For image-recognition projects, don't save config
-                        if update_data.type == "image-recognition" or (update_data.type is None and project.type == "image-recognition"):
+                        # For image-recognition-teachable-machine projects, don't save config
+                        if update_data.type == "image-recognition-teachable-machine" or (update_data.type is None and project.type == "image-recognition-teachable-machine"):
                             setattr(project, field, None)
                         else:
                             setattr(project, field, value)

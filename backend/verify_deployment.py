@@ -9,7 +9,7 @@ import json
 import sys
 
 def test_enum_values():
-    """Test that the ProjectType enum includes image-recognition"""
+    """Test that the ProjectType enum includes image-recognition-teachable-machine"""
     try:
         # Test the debug endpoint to see if it works
         base_url = "https://theneural-backend-ed2fe2fxhq-uc.a.run.app"
@@ -33,11 +33,11 @@ def test_enum_values():
         session_id = session_data['data']['session_id']
         print(f"✅ Session created: {session_id}")
         
-        # Test creating an image-recognition project
+        # Test creating an image-recognition-teachable-machine project
         project_data = {
             "name": "Test Image Project",
             "description": "Test project for deployment verification",
-            "type": "image-recognition",
+            "type": "image-recognition-teachable-machine",
             "teachable_machine_link": "https://teachablemachine.withgoogle.com/models/test123/"
         }
         
@@ -67,8 +67,8 @@ def test_enum_values():
         # Verify the project has the correct type
         if projects_data['data']:
             project = projects_data['data'][0]
-            if project['type'] != 'image-recognition':
-                print(f"❌ Project type mismatch: expected 'image-recognition', got '{project['type']}'")
+            if project['type'] != 'image-recognition-teachable-machine':
+                print(f"❌ Project type mismatch: expected 'image-recognition-teachable-machine', got '{project['type']}'")
                 return False
             print("✅ Project type is correct")
         

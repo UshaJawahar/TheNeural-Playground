@@ -78,7 +78,7 @@ class TeacherDashboardResponse(BaseModel):
 
 class ProjectType(str, Enum):
     TEXT_RECOGNITION = "text-recognition"
-    IMAGE_RECOGNITION = "image-recognition"
+    IMAGE_RECOGNITION = "image-recognition-teachable-machine"
     CLASSIFICATION = "classification"
     REGRESSION = "regression"
     CUSTOM = "custom"
@@ -152,7 +152,7 @@ class Project(BaseModel):
     # Model information
     model: TrainedModel = Field(default_factory=lambda: TrainedModel(), description="Trained model details")
     
-    # Training configuration (optional for image-recognition projects)
+    # Training configuration (optional for image-recognition-teachable-machine projects)
     config: Optional[ProjectConfig] = Field(None, description="Training configuration")
     
     # Teachable Machine integration (for image recognition projects)

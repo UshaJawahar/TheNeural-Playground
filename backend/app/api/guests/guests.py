@@ -119,7 +119,7 @@ async def fix_project_types(session_id: str):
         for doc in docs:
             try:
                 data = doc.to_dict()
-                if 'type' in data and data['type'] not in ['text-recognition', 'image-recognition', 'classification', 'regression', 'custom']:
+                if 'type' in data and data['type'] not in ['text-recognition', 'image-recognition-teachable-machine', 'classification', 'regression', 'custom']:
                     # Fix invalid type
                     old_type = data['type']
                     data['type'] = 'text-recognition'  # Default to text-recognition
@@ -280,9 +280,9 @@ async def create_guest_project(
 ):
     """Create a new project for a guest session
     
-    Supports both text-recognition and image-recognition project types.
+    Supports both text-recognition and image-recognition-teachable-machine project types.
     
-    For image-recognition projects:
+    For image-recognition-teachable-machine projects:
     - teachable_machine_link is required and must be a valid Teachable Machine URL
     - config field is ignored (not saved) since these projects use Teachable Machine models
     
@@ -307,17 +307,17 @@ async def create_guest_project(
     {
         "name": "Cat vs Dog Classifier", 
         "description": "Classify images of cats and dogs",
-        "type": "image-recognition",
+        "type": "image-recognition-teachable-machine",
         "teachable_machine_link": "https://teachablemachine.withgoogle.com/models/abc123/"
     }
     """
     try:
         # Validate project type and teachable machine link
-        if project_data.type == "image-recognition":
+        if project_data.type == "image-recognition-teachable-machine":
             if not project_data.teachable_machine_link:
                 raise HTTPException(
                     status_code=400, 
-                    detail="teachable_machine_link is required for image-recognition projects"
+                    detail="teachable_machine_link is required for image-recognition-teachable-machine projects"
                 )
             
             # Validate teachable machine link format
@@ -334,8 +334,8 @@ async def create_guest_project(
         project_data.classroom_id = ""
         project_data.student_id = session_id
         
-        # For image-recognition projects, don't save config since they use Teachable Machine
-        if project_data.type == "image-recognition":
+        # For image-recognition-teachable-machine projects, don't save config since they use Teachable Machine
+        if project_data.type == "image-recognition-teachable-machine":
             project_data.config = None
         
         project = await project_service.create_project(project_data)
@@ -381,7 +381,7 @@ async def update_guest_project(
     """Update project for a guest session
     
     Supports updating project type and teachable_machine_link.
-    When updating to image-recognition type:
+    When updating to image-recognition-teachable-machine type:
     - teachable_machine_link becomes required
     - config field is ignored (not saved) since these projects use Teachable Machine models
     """
@@ -395,8 +395,8 @@ async def update_guest_project(
             raise HTTPException(status_code=403, detail="Project not accessible for this session")
         
         # Validate project type and teachable machine link if being updated
-        if project_data.type == "image-recognition" or (project_data.type is None and project.type == "image-recognition"):
-            # If updating to image-recognition or already is image-recognition
+        if project_data.type == "image-recognition-teachable-machine" or (project_data.type is None and project.type == "image-recognition-teachable-machine"):
+            # If updating to image-recognition-teachable-machine or already is image-recognition-teachable-machine
             if project_data.teachable_machine_link is not None:
                 # Validate teachable machine link format if provided
                 if not project_data.teachable_machine_link.startswith("https://teachablemachine.withgoogle.com/"):
@@ -404,14 +404,14 @@ async def update_guest_project(
                         status_code=400,
                         detail="Invalid teachable machine link. Must be a valid Teachable Machine URL starting with 'https://teachablemachine.withgoogle.com/'"
                     )
-            elif project_data.type == "image-recognition" and not project.teachable_machine_link:
-                # If changing to image-recognition but no teachable machine link provided
+            elif project_data.type == "image-recognition-teachable-machine" and not project.teachable_machine_link:
+                # If changing to image-recognition-teachable-machine but no teachable machine link provided
                 raise HTTPException(
                     status_code=400, 
-                    detail="teachable_machine_link is required for image-recognition projects"
+                    detail="teachable_machine_link is required for image-recognition-teachable-machine projects"
                 )
             
-            # For image-recognition projects, don't save config
+            # For image-recognition-teachable-machine projects, don't save config
             project_data.config = None
         
         # Update project

@@ -1111,7 +1111,7 @@ export default function TrainPage() {
               <span className="text-white">Project Type: </span>
               <span className="text-[#dcfc84]">
                 {selectedProject?.type === 'text-recognition' ? 'Text Recognition' : 
-                 selectedProject?.type === 'image-recognition' ? 'Image Recognition' :
+                 selectedProject?.type === 'image-recognition-teachable-machine' ? 'Image Recognition - Teachable Machine' :
                  selectedProject?.type === 'classification' ? 'Classification' :
                  selectedProject?.type === 'regression' ? 'Regression' :
                  selectedProject?.type === 'custom' ? 'Custom' :
