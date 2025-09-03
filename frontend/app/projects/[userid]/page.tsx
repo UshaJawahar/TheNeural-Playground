@@ -925,7 +925,7 @@ function CreateProjectPage() {
                     )}
                     
                                                               {/* Launch Button and Date Info in Parallel */}
-                     <div className={`mt-4 flex items-start justify-between gap-4 ${project.type === 'text-recognition' ? 'mt-10' : ''}`}>
+                     <div className={`mt-4 flex items-start justify-between gap-4 ${project.type === 'text-recognition' ? 'mt-16' : ''}`}>
                        {/* Launch Button - For image recognition and text recognition projects */}
                        {project.type === 'image-recognition-teachable-machine' || project.type === 'text-recognition' ? (
                          <button
