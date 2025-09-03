@@ -728,12 +728,7 @@ export default function TrainPage() {
          // Refresh from API to ensure sync - this will update the UI with the correct state
          await refreshExamplesFromAPI(true);
          
-         // Show success message
-         if (label.examples.length > 0) {
-           alert(`Successfully deleted the label "${label.name}" and all ${label.examples.length} examples!`);
-         } else {
-           alert(`Successfully deleted the empty label "${label.name}"!`);
-         }
+                 // Success - no alert needed, UI will update automatically
        } else {
         console.error('❌ Delete Label API failed:', response.status);
         
@@ -813,8 +808,7 @@ export default function TrainPage() {
         
         console.log('✅ Local empty label deleted successfully from frontend');
         
-        // Show success message
-        alert(`Successfully deleted the empty label "${label.name}"!`);
+        // Success - no alert needed, UI will update automatically
       } else {
         // This is an API-known label that had examples before - delete via API
         console.log('🗑️ Deleting API-known empty label via API:', label.name);
@@ -840,8 +834,7 @@ export default function TrainPage() {
           // Refresh from API to ensure sync
           await refreshExamplesFromAPI(true);
           
-          // Show success message
-          alert(`Successfully deleted the empty label "${label.name}"!`);
+          // Success - no alert needed, UI will update automatically
         } else {
           console.error('❌ Delete Empty Label API failed:', response.status);
           
@@ -927,8 +920,7 @@ export default function TrainPage() {
         // Refresh from API to ensure sync - this will update the UI with the correct state
         await refreshExamplesFromAPI(true);
         
-        // Show success message
-        alert('Example deleted successfully!');
+        // Success - no alert needed, UI will update automatically
       } else {
         console.error('❌ Delete Example API failed:', response.status);
         
@@ -1010,8 +1002,7 @@ export default function TrainPage() {
         // Refresh from API to ensure sync - this will update the UI with the correct state
         await refreshExamplesFromAPI(true);
         
-        // Show success message
-        alert(`Successfully deleted all ${label.examples.length} examples from the "${label.name}" label!`);
+        // Success - no alert needed, UI will update automatically
       } else {
         console.error('❌ Delete Examples by Label API failed:', response.status);
         
@@ -1105,116 +1096,100 @@ export default function TrainPage() {
         <div className="max-w-7xl mx-auto">
           
 
-                     <div className="mb-8">
-             <Link
-               href={`/projects/${urlUserId}/${urlProjectId}`}
-               className="p-2 text-white/70 hover:text-white hover:bg-[#bc6cd3]/10 rounded-lg transition-all duration-300 flex items-center gap-2 text-sm"
-             >
-               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-               </svg>
-               Back to project
-             </Link>
-           </div>
-
-           
-           {/* First Section: Project Type Header */}
-           <div className="text-center mb-8">
-             <h1 className="text-3xl md:text-4xl font-bold mb-3">
-               <span className="text-white">Project Type: </span>
-               <span className="text-[#dcfc84]">
-                 {selectedProject?.type === 'text-recognition' ? 'Text Recognition' : 
-                  selectedProject?.type === 'image-recognition' ? 'Image Recognition' :
-                  selectedProject?.type === 'classification' ? 'Classification' :
-                  selectedProject?.type === 'regression' ? 'Regression' :
-                  selectedProject?.type === 'custom' ? 'Custom' :
-                  selectedProject?.type || 'Text Recognition'}
-               </span>
-               {labels.length > 0 && (
-                 <>
-                   <span className="text-white"> as </span>
-                   <span className="text-[#dcfc84]">
-                    {(() => {
-                      if (labels.length === 1) return labels[0].name;
-                      
-                      // Get unique label names
-                      const uniqueNames = [...new Set(labels.map(label => label.name))];
-                      
-                      if (labels.length === 2) {
-                        if (uniqueNames.length === 1) {
-                          return uniqueNames[0];
-                        }
-                        return `${uniqueNames[0]} or ${uniqueNames[1]}`;
-                      }
-                      
-                      if (uniqueNames.length === 1) {
-                        return uniqueNames[0];
-                      } else if (uniqueNames.length === 2) {
-                        return `${uniqueNames[0]} or ${uniqueNames[1]}`;
-                      } else {
-                        return `${uniqueNames[0]} or ${uniqueNames[1]} and ${uniqueNames.length - 2} others`;
-                      }
-                    })()}
-                  </span>
-                </>
-              )}
+                               <div className="mb-8 flex items-center justify-between">
+            <Link
+              href={`/projects/${urlUserId}/${urlProjectId}`}
+              className="px-3 py-1.5 text-white/70 hover:text-white hover:bg-[#bc6cd3]/10 rounded-lg transition-all duration-300 flex items-center gap-1.5 text-xs"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              Back to project
+            </Link>
+            
+                        <h1 className="text-2xl md:text-3xl font-bold">
+              <span className="text-white">Project Type: </span>
+              <span className="text-[#dcfc84]">
+                {selectedProject?.type === 'text-recognition' ? 'Text Recognition' : 
+                 selectedProject?.type === 'image-recognition' ? 'Image Recognition' :
+                 selectedProject?.type === 'classification' ? 'Classification' :
+                 selectedProject?.type === 'regression' ? 'Regression' :
+                 selectedProject?.type === 'custom' ? 'Custom' :
+                 selectedProject?.type || 'Text Recognition'}
+              </span>
             </h1>
             
-                         {/* Instruction and Button - only show when no labels exist */}
-             {labels.length === 0 && (
-               <div className="flex justify-center items-center gap-4 mb-6">
-                 <div className="bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-lg p-4 max-w-md">
-                   <p className="text-white text-sm text-center">
-                     Click on the &lsquo;plus&rsquo; button on the right to add your first label.→
-                   </p>
-                 </div>
+            <div></div> {/* Empty div to balance the layout */}
+          </div>
 
-                 <button
-                   onClick={() => setShowAddLabelModal(true)}
-                   className="bg-[#dcfc84] hover:bg-[#dcfc84]/90 text-[#1c1c1c] px-4 py-4 rounded-lg transition-all duration-300 inline-flex items-center gap-2 text-sm font-medium"
-                 >
+          {/* Instruction and Button - only show when no labels exist */}
+          {labels.length === 0 && (
+            <div className="flex justify-center items-center gap-4 mb-6">
+              <div className="bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-lg p-4 max-w-md">
+                <p className="text-white text-sm text-center">
+                  Click on the &lsquo;plus&rsquo; button on the right to add your first label.→
+                </p>
+              </div>
+
+              <button
+                onClick={() => setShowAddLabelModal(true)}
+                className="bg-[#dcfc84] hover:bg-[#dcfc84]/90 text-[#1c1c1c] px-4 py-4 rounded-lg transition-all duration-300 inline-flex items-center gap-2 text-sm font-medium"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                Add new label
+              </button>
+            </div>
+          )}
+
+          {/* Second Section: Requirements Note */}
+          <div className="relative mb-6">
+            <div className="bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-lg p-4 max-w-lg">
+              <div className="flex items-start gap-3">
+                <svg className="w-5 h-5 text-[#dcfc84] mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+                <div className="flex-1">
+                  <h3 className="text-[#dcfc84] font-medium mb-2">Note: Before you can proceed to next step</h3>
+                  <div className="text-white text-sm space-y-1">
+                    <div className="flex items-center gap-2">
+                      <strong>1.</strong> You need to create at least <strong>2 classes/labels</strong> (e.g., &ldquo;happy&rdquo;, &ldquo;sad&rdquo;)
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <strong>2.</strong> For each label fill in at least <strong>5 examples at minimum</strong>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Add new label button - positioned to align with start of third label box when labels exist */}
+            {labels.length > 0 && (
+              <div className="absolute top-0" style={{ left: labels.length >= 3 ? 'calc(50% + 6rem)' : '50%', transform: 'translateX(-50%)' }}>
+                <button
+                  onClick={() => setShowAddLabelModal(true)}
+                  className="bg-[#dcfc84] hover:bg-[#dcfc84]/90 text-[#1c1c1c] px-4 py-2 rounded-lg transition-all duration-300 inline-flex items-center gap-2 text-sm font-medium shadow-lg hover:shadow-xl"
+                >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                   </svg>
                   Add new label
                 </button>
-               </div>
-             )}
-          </div>
-
-          {/* Second Section: Requirements Note */}
-          <div className="bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-lg p-4 mb-6">
-            <div className="flex items-start gap-3">
-              <svg className="w-5 h-5 text-[#dcfc84] mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
-              </svg>
-              <div className="flex-1">
-                <h3 className="text-[#dcfc84] font-medium mb-2">Note: Before you can proceed to next step</h3>
-                <div className="text-white text-sm space-y-1 mb-4">
-                  <div className="flex items-center gap-2">
-                    <strong>1.</strong> You need to create at least <strong>2 classes/labels</strong> (e.g., &ldquo;happy&rdquo;, &ldquo;sad&rdquo;)
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <strong>2.</strong> For each label fill in at least <strong>5 examples at minimum</strong>
-                  </div>
-                </div>
-                
-                                 {/* Add new label button - positioned inside note box when labels exist */}
-                 {labels.length > 0 && (
-                   <div className="flex justify-end mt-3">
-                     <button
-                       onClick={() => setShowAddLabelModal(true)}
-                       className="bg-[#dcfc84] hover:bg-[#dcfc84]/90 text-[#1c1c1c] px-4 py-2 rounded-lg transition-all duration-300 inline-flex items-center gap-2 text-sm font-medium shadow-lg hover:shadow-xl"
-                     >
-                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                       </svg>
-                       Add new label
-                     </button>
-                   </div>
-                 )}
               </div>
-            </div>
+            )}
+            
+            {/* Move to next button - positioned at the far right end when labels exist and requirements are met */}
+            {labels.length > 0 && labels.length >= 2 && labels.every(label => label.examples.length >= 5) && (
+              <div className="absolute top-0 right-0">
+                <Link
+                  href={`/projects/${urlUserId}/${urlProjectId}/learn`}
+                  className="bg-[#dcfc84] hover:bg-[#dcfc84]/90 text-[#1c1c1c] px-4 py-2 rounded-lg transition-all duration-300 inline-flex items-center gap-2 text-sm font-medium shadow-lg hover:shadow-xl"
+                >
+                  Move to next - Training
+                </Link>
+              </div>
+            )}
           </div>
 
             
@@ -1392,7 +1367,7 @@ export default function TrainPage() {
                         ) : null}
 
           {/* Next Step Button */}
-          {labels.length > 0 && (
+          {labels.length >= 2 && labels.every(label => label.examples.length >= 5) && (
             <div className="flex justify-end mt-12">
               <Link
                 href={`/projects/${urlUserId}/${urlProjectId}/learn`}
