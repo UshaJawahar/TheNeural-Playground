@@ -332,8 +332,14 @@ function CreateProjectPage() {
           await loadGuestProjects(actualSessionId);
         }
         
-        // Navigate to the new project details page using masked project ID
-        window.location.href = `/projects/${urlParam}/${newProject.maskedId}`;
+        // For image recognition projects, stay on projects list
+        if (projectType === 'image-recognition') {
+          setCurrentSection('projects-list');
+          window.location.hash = '';
+        } else {
+          // For other project types, navigate to project details page
+          window.location.href = `/projects/${urlParam}/${newProject.maskedId}`;
+        }
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to create project. Please try again.';
         alert(errorMessage);
@@ -386,9 +392,15 @@ function CreateProjectPage() {
   };
 
   const handleProjectClick = (project: Project) => {
-    // Navigate to the project-specific page using masked project ID
-    const projectId = project.maskedId || project.id;
-    window.location.href = `/projects/${urlParam}/${projectId}`;
+    // For image recognition projects, go directly to Scratch
+    if (project.type === 'image-recognition' && project.teachable_machine_link) {
+      const scratchUrl = `${config.scratchEditor.gui}?sessionId=${actualSessionId}&projectId=${project.id}&teachableLink=${encodeURIComponent(project.teachable_machine_link)}`;
+      window.open(scratchUrl, '_blank');
+    } else {
+      // For other project types, navigate to the project-specific page using masked project ID
+      const projectId = project.maskedId || project.id;
+      window.location.href = `/projects/${urlParam}/${projectId}`;
+    }
   };
 
   const handleBackToProjects = () => {
@@ -703,15 +715,11 @@ function CreateProjectPage() {
                     </div>
                     
                     <div className="text-xs text-white/50">
-                      Created: {new Date(project.createdAt).toLocaleDateString()}
+                      Created: {new Date(project.createdAt).toLocaleDateString('en-US')}
                     </div>
                     
                     <div className="text-xs text-white/50 mt-1">
-                      Session expires: {guestSession ? new Date(guestSession.expiresAt).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric'
-                      }) : 'Unknown'}
+                      Session expires: {guestSession ? new Date(guestSession.expiresAt).toLocaleDateString('en-US') : 'Unknown'}
                     </div>
                   </div>
                 ))}
