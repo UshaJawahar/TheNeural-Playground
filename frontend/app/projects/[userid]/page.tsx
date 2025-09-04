@@ -366,6 +366,7 @@ function CreateProjectPage() {
       // Get session ID from localStorage
       const sessionId = localStorage.getItem('neural_playground_session_id');
       if (!sessionId) {
+        console.log('❌ No session ID found in localStorage');
         return 'unavailable';
       }
 
@@ -378,18 +379,46 @@ function CreateProjectPage() {
         }
       }
 
-      const response = await fetch(`${config.apiBaseUrl}/api/guests/session/${sessionId}/projects/${realProjectId}/status`);
+      console.log(`🔍 Checking training status for project: ${projectId} (real: ${realProjectId})`);
+      const response = await fetch(`${config.apiBaseUrl}/api/guests/session/${sessionId}/projects/${realProjectId}/train`);
       
       if (response.ok) {
-        const statusResponse = await response.json();
-        if (statusResponse.success && statusResponse.data?.model?.status) {
-          return statusResponse.data.model.status;
+        const trainingStatusResponse = await response.json();
+        console.log('📊 Training status API response:', JSON.stringify(trainingStatusResponse, null, 2));
+        
+        if (trainingStatusResponse.success) {
+          const projectStatus = trainingStatusResponse.projectStatus;
+          const currentJob = trainingStatusResponse.currentJob;
+          
+          console.log('📋 Training status analysis:');
+          console.log('- Project Status:', projectStatus);
+          console.log('- Current Job:', currentJob);
+          
+          // Check if project is trained
+          if (projectStatus === 'trained') {
+            console.log('✅ Project is trained - model should be available');
+            return 'available';
+          } else if (projectStatus === 'training' && currentJob && currentJob.status === 'ready') {
+            console.log('✅ Training job completed - model should be available');
+            return 'available';
+          } else {
+            console.log('❌ Project not trained yet');
+            console.log('- Project Status:', projectStatus);
+            console.log('- Job Status:', currentJob?.status);
+            return 'unavailable';
+          }
+        } else {
+          console.log('❌ Training status API returned success: false');
         }
+      } else {
+        console.error('❌ Training status API request failed:', response.status, response.statusText);
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
       }
       
       return 'unavailable';
     } catch (error) {
-      console.error('Error getting model status:', error);
+      console.error('❌ Error getting training status:', error);
       return 'unavailable';
     }
   };

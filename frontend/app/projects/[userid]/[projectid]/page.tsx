@@ -314,7 +314,7 @@ export default function ProjectDetailsPage() {
             {/* Train Card */}
             <div className="bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-xl p-8 text-center hover:bg-[#bc6cd3]/5 transition-all duration-300 flex flex-col">
               <h2 className="text-2xl md:text-3xl font-bold text-blue-400 mb-6">
-                Collect Data
+                1. Collect Data
               </h2>
               <p className="text-white mb-8 text-sm md:text-base leading-relaxed flex-grow">
                 Collect examples of what you want the AI to recognize
@@ -332,7 +332,7 @@ export default function ProjectDetailsPage() {
             {/* Learn & Test Card */}
             <div className="bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-xl p-8 text-center hover:bg-[#bc6cd3]/5 transition-all duration-300 flex flex-col">
               <h2 className="text-2xl md:text-3xl font-bold text-purple-400 mb-6">
-                Train the AI
+                2. Train the AI
               </h2>
               <p className="text-white mb-8 text-sm md:text-base leading-relaxed flex-grow">
                 Use the data from Step 1 to train computer and build an AI model
@@ -350,7 +350,7 @@ export default function ProjectDetailsPage() {
             {/* Make Card */}
             <div className="bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-xl p-8 text-center hover:bg-[#bc6cd3]/5 transition-all duration-300 flex flex-col">
               <h2 className="text-2xl md:text-3xl font-bold text-orange-400 mb-6">
-                Use the AI
+                3. Use the AI
               </h2>
               <p className="text-white mb-8 text-sm md:text-base leading-relaxed flex-grow">
                 Use the AI / Machine learning model inside your User Interface (UI) like Scratch and more...
