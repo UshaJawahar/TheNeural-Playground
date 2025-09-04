@@ -1434,7 +1434,7 @@ export default function TrainPage() {
 
       {showAddExampleModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-lg max-w-md w-full">
+          <div className="bg-[#1c1c1c] border border-[#bc6cd3]/20 rounded-lg max-w-lg w-full">
             <div className="bg-[#bc6cd3]/20 text-white px-6 py-4 rounded-t-lg">
               <h2 className="text-xl font-semibold">Add example</h2>
             </div>
@@ -1452,8 +1452,9 @@ export default function TrainPage() {
                     handleAddExample();
                   }
                 }}
-                placeholder="Eg: Turn light on, It's bright, Turn lamp off"
-                className="w-full px-3 py-2 border border-[#bc6cd3]/40 rounded text-white bg-[#1c1c1c] focus:outline-none focus:border-[#dcfc84] h-24 resize-none placeholder-gray-400"
+                placeholder={`You can enter more than one example with a comma separating them like
+Example 1, Example 2... and so on`}
+                className="w-full px-3 py-2 border border-[#bc6cd3]/40 rounded text-white bg-[#1c1c1c] focus:outline-none focus:border-[#dcfc84] h-32 resize-none placeholder-gray-400"
                 maxLength={1000}
                 autoFocus
               />
