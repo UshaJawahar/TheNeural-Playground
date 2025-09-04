@@ -1458,8 +1458,13 @@ Example 1, Example 2... and so on`}
                 maxLength={1000}
                 autoFocus
               />
-              <div className="text-right text-xs text-white/60 mt-1">
-                {newExampleText.length} / 1000
+              <div className="flex justify-between items-center mt-1">
+                <p className="text-red-400 text-xs">
+                  * Special characters not allowed (e.g., @, #, $, %, ^, &, *, _ etc..)
+                </p>
+                <div className="text-xs text-white/60">
+                  {newExampleText.length} / 1000
+                </div>
               </div>
             </div>
             
